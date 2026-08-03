@@ -9,10 +9,15 @@ import { PATHS } from '@/router/paths';
  * the user sees, never what they can reach.
  */
 export function RequireCompany() {
-  const { capabilities, isLoading } = useAuth();
+  const { capabilities, isAuthenticated, isLoading } = useAuth();
   const { companySlug } = useParams();
 
-  if (isLoading) {
+  /*
+   * Capabilities arrive just after the session does, so `capabilities === null` on an
+   * authenticated user means "still loading", not "not a member". Without this, a hard reload of
+   * a company URL redirects a genuine member away.
+   */
+  if (isLoading || (isAuthenticated && capabilities === null)) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div

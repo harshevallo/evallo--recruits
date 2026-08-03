@@ -160,8 +160,27 @@ published company data and can never reach a candidate collection (PRD §21.2).
 | `GET` | `/api/me` | Bearer | HOME-01 |
 | `PATCH` | `/api/me` | Bearer | AUTH-04 |
 | `POST` | `/api/me/complete-onboarding` | Bearer | AUTH-05 |
-| `GET` | `/api/me/candidate-profile` | Bearer | HOME-01 |
+| `GET` | `/api/me/candidate-profile` | Bearer | CAN-01 |
 | `POST` | `/api/me/candidate-profile` | Bearer | HOME-01 |
+| `GET` | `/api/me/candidate-profile/builder` | Bearer | CAN-02 |
+| `PATCH` | `/api/me/candidate-profile/sections/:sectionKey` | Bearer | CAN-02 |
+| `GET` | `/api/me/candidate-profile/preview` | Bearer | CAN-03 |
+| `POST` | `/api/me/candidate-profile/publish` | Bearer | CAN-03 |
+| `GET` | `/api/me/candidate-profile/visibility` | Bearer | CAN-04 |
+| `PATCH` | `/api/me/candidate-profile/visibility` | Bearer | CAN-04 |
+| `POST` | `/api/me/candidate-profile/blocked-companies` | Bearer | CAN-04 |
+| `DELETE` | `/api/me/candidate-profile/blocked-companies/:companyId` | Bearer | CAN-04 |
+| `GET` | `/api/me/companies/:slug/relationship` | Bearer | CAN-06 |
+| `PUT` | `/api/me/companies/:slug/saved` | Bearer | CAN-06 |
+| `DELETE` | `/api/me/companies/:slug/saved` | Bearer | CAN-06 |
+| `GET` | `/api/me/interests/consent-disclosure` | Bearer | CAN-07 |
+| `POST` | `/api/me/companies/:slug/interest` | Bearer | CAN-07 |
+| `GET` | `/api/me/interests` | Bearer | CAN-08 |
+| `POST` | `/api/me/interests/:interestId/withdraw` | Bearer | CAN-08 |
+| `GET` | `/api/me/conversations` | Bearer | CAN-09 |
+| `GET` | `/api/me/conversations/:conversationId` | Bearer | CAN-09 |
+| `POST` | `/api/me/conversations/:conversationId/messages` | Bearer | CAN-09 |
+| `POST` | `/api/me/conversations/:conversationId/report` | Bearer | CAN-09 |
 | `POST` | `/api/companies` | Bearer | HOME-01 |
 | `GET` | `/api/companies/:companyId/members` | Bearer + `member:manage` | REC-18 |
 | `POST` | `/api/public/early-access` | None | MKT-01 |
@@ -407,11 +426,113 @@ HOME-01 in full, including the context switcher.
 
 ### `GET` / `POST /api/me/candidate-profile`
 
-**Purpose** — Read or create the caller's candidate profile. Creating one is what makes the user a
-candidate; nothing else does.
+**Purpose** — CAN-01. `GET` returns the profile plus derived `completeness` (by section) and
+`nextSteps`. `POST` creates the profile — the only thing that makes a user a candidate.
 
-**Notes** — One profile per user, enforced by a unique index. Creation is explicit and
-user-initiated — no screen creates a profile as a side effect.
+**Notes** — One profile per user, enforced by a unique index. `POST` is idempotent: `201` the
+first time, `200` thereafter. Creation is always explicit — no screen creates a profile as a side
+effect. Completeness is **derived on read**, never stored, so it cannot drift from the profile.
+
+---
+
+## 6a. Endpoints — candidate profile builder (CAN-02)
+
+### `GET /api/me/candidate-profile/builder`
+
+Returns the active question bank resolved against this candidate: ordered sections, the questions
+visible for their chosen roles, current values, per-section `answered`/`total`/`complete`, and
+`publishBlockers`.
+
+Sections and questions are **database configuration** (ADR-007), so adding a question is a bank
+revision, not a deploy. Questions carrying `onlyForRoles` appear only once the candidate selects a
+matching target role — PRD §20.2 limits role-specific depth to the pilot priority roles.
+
+### `PATCH /api/me/candidate-profile/sections/:sectionKey`
+
+**Request** — `{ "values": { "<questionKey>": <value>, … } }`
+
+Saves one section. A **partial section is a valid save** (PRD §8.3 lets candidates skip and return
+later); only malformed answers are rejected, with `details` keyed by question. A section never
+half-saves — everything is validated before anything is written. Answers whose question is backed
+by a profile field land on `candidateProfiles` (search reads those); the rest go to
+`candidateAnswers` with the `bankVersion` they were given under.
+
+Returns the refreshed builder state, because answering `targetRoles` can reveal new questions.
+
+---
+
+## 6b. Endpoints — preview and visibility (CAN-03, CAN-04)
+
+### `GET /api/me/candidate-profile/preview`
+
+The **exact** recruiter rendering (PRD §8.8), produced by the same `toRecruiterView` serialiser a
+recruiter will read — one code path, because two would drift and the drift would be a privacy
+defect. Also returns `privateFields` (what is withheld and *why*) and `publish`
+(`canPublish`, `blockers`, `isPublished`).
+
+### `POST /api/me/candidate-profile/publish`
+
+**Request** — `{ "status": "discoverable" | "private" }` (defaults to `discoverable`).
+
+Refuses with `400` and names the gaps when PRD §8.5 publication requirements are unmet.
+
+### `GET` / `PATCH /api/me/candidate-profile/visibility`
+
+Reads or sets `status` (`draft | private | discoverable | paused | archived`) and
+`contactVisibility` (`hidden | authorized_recruiters | after_interest | on_request`).
+
+**Notes** — Leaving `draft` is publication and carries the same requirements. Moving to `paused`
+deliberately does **not** revoke existing access: PRD §4.3 defines paused as hidden from *new*
+searches only.
+
+### `POST` / `DELETE /api/me/candidate-profile/blocked-companies[/:companyId]`
+
+A block overrides every permission the company holds, checked before and independently of the role
+matrix (ADR-006).
+
+---
+
+## 6c. Endpoints — company, interest, messages (CAN-06 … CAN-09)
+
+### `GET /api/me/companies/:slug/relationship` · `PUT`/`DELETE .../saved`
+
+The candidate's own relationship to a company: `saved`, and any active `interest`. Company
+*content* still comes from `/api/public/companies/:slug`, so the signed-in and anonymous views can
+never disagree. Saving is idempotent by unique index.
+
+### `GET /api/me/interests/consent-disclosure`
+
+PRD §8.7 step 6 — exactly what a company will receive, built from the candidate's own visibility
+settings rather than hard-coded copy that could drift from reality.
+
+### `POST /api/me/companies/:slug/interest`
+
+**Request** — `{ "hiringIntentId": "…", "message": "…", "consent": true }`
+
+Creates the interest **and** the `accessGrant` (PRD §8.7 step 7). `consent` must be literally
+`true`. Idempotent by the same unique partial index the public path uses — a retry returns `200`
+`already_submitted`, never a duplicate. A profile without a headline and at least one target role
+is refused with the gaps named (step 3). A closed hiring intent returns `INTENT_CLOSED` with the
+general-interest alternative.
+
+### `GET /api/me/interests` · `POST /api/me/interests/:interestId/withdraw`
+
+Company, role, date, status, and withdraw. **Withdrawing also withdraws the access grant** unless
+another active interest in the same company still justifies it — otherwise "withdrawn" would not
+actually withdraw anything.
+
+> Statuses beyond `submitted` are set by the recruiter's interest inbox (REC-11), which is not
+> built. Records therefore stay at "Submitted" — that is the accurate current state.
+
+### `GET /api/me/conversations` · `GET /api/me/conversations/:id` · `POST .../messages` · `POST .../report`
+
+Thread list, thread with messages, reply, and safety reporting (PRD §11.2, §16.3).
+
+**A candidate may only reply inside a thread a company opened.** Unsolicited candidate-to-company
+messaging is not a missing feature — it would make the platform a cold-outreach channel, which PRD
+§11.2 does not describe. Until REC-15 ships, the inbox is legitimately empty. Opening a thread
+clears the candidate's unread count only; read state is per side. Reporting flags a thread for
+moderation without deleting it, because the content is the evidence.
 
 ---
 

@@ -45,6 +45,28 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 > releases and shipped features, not analysis passes.
 
 ### Added
+- **2026-08-03 — CAN-02 profile builder.** Section navigation, per-section progress, save and exit,
+  validation, and role-gated dynamic questions, all driven by a **versioned question bank**
+  (ADR-007) rather than a hard-coded form. New collections `questionBanks` and `candidateAnswers`;
+  seven structured fields added to `candidateProfiles`.
+- **2026-08-03 — CAN-03 profile preview.** The exact recruiter rendering via a single shared
+  `toRecruiterView` serialiser, private-field indicators explaining *why* each field is withheld,
+  and publish controls that name the PRD §8.5 gaps rather than scoring them.
+- **2026-08-03 — CAN-04 visibility settings.** Draft/private/discoverable/paused, four contact
+  rules, and company blocks. Pausing preserves existing access, per PRD §4.3.
+- **2026-08-03 — CAN-05 company discovery.** The PUB-01 directory rendered in the candidate
+  context; the only difference is where a card links, which is now a prop.
+- **2026-08-03 — CAN-06 company page, signed in.** Save/unsave and an interest-state overlay on
+  the same public company payload PUB-02 uses. New collection `savedCompanies`.
+- **2026-08-03 — CAN-07 interest submission.** Role selection, optional note, and a consent
+  disclosure built from the candidate's own visibility settings. Creates the interest *and* the
+  access grant. New collection `accessGrants`.
+- **2026-08-03 — CAN-08 my interests.** Status, date, role, and withdraw — withdrawing also
+  revokes the company's access grant.
+- **2026-08-03 — CAN-09 messages.** Threads, reply, and safety reporting. New collections
+  `conversations` and `messages`.
+- **2026-08-02 — CAN-01 candidate home.** Completeness by section, visibility, pending actions,
+  and an opportunity overview.
 - **2026-08-02 — HOME-01 universal home.** Context switcher covering Personal and every company
   (PRD §5.2, §5.3); state-driven next-setup-actions panel; per-company role and permission counts;
   persistent Explore/Settings navigation. Placeholder destinations for `/settings` (SET-01) and
@@ -69,10 +91,19 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 - **2026-07-31 — M0 scaffold and MKT-01 marketing landing page** with `POST /api/public/early-access`.
 
 ### Changed
+- **2026-08-03** — `GET /api/me/candidate-profile` now returns `{ profile, completeness, nextSteps }`
+  instead of the bare profile; the derived parts moved into a service.
+- **2026-08-03** — `CompanyCard` and `CompanyDirectoryPage` take a `profilePath` prop so CAN-05 can
+  reuse them without duplication.
 - **2026-08-02** — Development ports moved to web `3001` / api `8081`.
 - **2026-08-02** — The refresh-session collection is `authSessions`, not `sessions`.
 
 ### Fixed
+- **2026-08-03** — The capability route guards evaluated before capabilities finished loading, so a
+  hard reload of `/me` or `/c/:slug` redirected a genuine candidate or company member away.
+- **2026-08-03** — `company.initials` was `undefined` on the public directory and company profile
+  too — the same `.lean({ virtuals: true })` no-op, so every logo-less company avatar rendered blank
+  on PUB-01 and PUB-02.
 - **2026-08-02** — `capabilities.companies[].initials` was always `undefined`: the query used
   `.lean({ virtuals: true })`, which is a no-op without the `mongoose-lean-virtuals` plugin, so
   every company avatar without a logo rendered blank.
@@ -93,6 +124,12 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 - **2026-08-02** — Passwords are bcrypt (cost 12) and never returned by any endpoint.
 - **2026-08-02** — All `/api/auth` writes are rate limited; account lockout is per account, so
   rotating IPs does not evade it.
+
+### Deferred
+- **2026-08-03 — CAN-10 assessments deliberately not built.** PRD §20.3 places expanded assessments
+  in Phase 2 and TRD §15 D-01 records the domain as unscheduled pending a founder scope decision.
+  Confirmed by the founder rather than reversed silently. CAN-11 (saved companies screen) and
+  CAN-12 (candidate settings) are likewise out of this milestone.
 
 ### Removed
 - **2026-08-01** — **Auth0 removed entirely.** Authentication is in-house (bcrypt + JWT + rotating

@@ -43,19 +43,31 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(async () => {
+/**
+ * Cleanup is scoped to THIS suite's fixtures — see the note in auth.test.js. An unscoped
+ * `deleteMany({})` here signed out every real user in the shared development database.
+ */
+async function cleanupFixtures() {
+  const fixtures = await User.find({ email: /@verif\.example$/ })
+    .select('_id')
+    .lean();
+  const ids = fixtures.map((u) => u._id);
+
+  if (ids.length > 0) {
+    await Session.deleteMany({ userId: { $in: ids } });
+    await VerificationToken.deleteMany({ userId: { $in: ids } });
+  }
+  await VerificationToken.deleteMany({ email: /@verif\.example$/ });
   await User.deleteMany({ email: /@verif\.example$/ });
-  await Session.deleteMany({});
-  await VerificationToken.deleteMany({});
+}
+
+after(async () => {
+  await cleanupFixtures();
   await new Promise((resolve) => server.close(resolve));
   await disconnectDatabase();
 });
 
-beforeEach(async () => {
-  await User.deleteMany({ email: /@verif\.example$/ });
-  await Session.deleteMany({});
-  await VerificationToken.deleteMany({});
-});
+beforeEach(cleanupFixtures);
 
 describe('POST /api/auth/resend-verification', () => {
   test('is unauthenticated and privacy-safe — always 200, identical body', async () => {

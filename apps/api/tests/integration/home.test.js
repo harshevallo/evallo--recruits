@@ -79,14 +79,8 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(async () => {
-  await Company.deleteMany({ slug: /^home-/ });
-  await User.deleteMany({ email: EMAIL });
-  await new Promise((resolve) => server.close(resolve));
-  await disconnectDatabase();
-});
-
-beforeEach(async () => {
+/** One cleanup used by BOTH hooks — an `after` that cleans less than `beforeEach` leaves orphans. */
+async function cleanupFixtures() {
   const existing = await User.findOne({ email: EMAIL });
   if (existing) {
     await CompanyMember.deleteMany({ userId: existing._id });
@@ -96,7 +90,15 @@ beforeEach(async () => {
   }
   await Company.deleteMany({ slug: /^home-/ });
   await User.deleteMany({ email: EMAIL });
+}
+
+after(async () => {
+  await cleanupFixtures();
+  await new Promise((resolve) => server.close(resolve));
+  await disconnectDatabase();
 });
+
+beforeEach(cleanupFixtures);
 
 describe('HOME-01 state after onboarding', () => {
   test('a brand-new account has neither capability, so home shows both setup actions', async () => {

@@ -18,7 +18,12 @@ import { PATHS } from '@/router/paths';
  * Anonymous, no authentication. Browsable and filterable by organization type, location,
  * programs, and active hiring roles. Filter state lives in the URL so results are shareable.
  */
-export function CompanyDirectoryPage() {
+/**
+ * @param {object} props
+ * @param {string} [props.profilePath]  Where a card links. CAN-05 renders this exact page at
+ *   /me/companies with the signed-in company route, rather than duplicating the directory.
+ */
+export function CompanyDirectoryPage({ profilePath = PATHS.COMPANY_PROFILE }) {
   const {
     searchParams,
     filters,
@@ -149,7 +154,7 @@ export function CompanyDirectoryPage() {
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     {companies.map((company) => (
                       <div key={company.id} className="relative">
-                        <CompanyCard company={company} />
+                        <CompanyCard company={company} profilePath={profilePath} />
                       </div>
                     ))}
                   </div>

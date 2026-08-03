@@ -1,7 +1,7 @@
 # 07 — Project Structure
 
 **Status:** Approved and in use. Folders marked deferred in §11 are created as their milestone arrives.
-**Version:** 2.1 · 2026-08-02 · Supersedes v2.0
+**Version:** 2.2 · 2026-08-03 · Supersedes v2.1
 
 This is the complete folder design for Evallo Recruit — built to carry all 41 known screens plus
 the unscheduled scope in `03_TRD.md` §15, not just the screens delivered so far.
@@ -552,10 +552,12 @@ Created only when their milestone arrives.
 
 | Folder | Empty until | Why deferred |
 |---|---|---|
-| `api/src/modules/candidates/` | **partially built** | The model and create/read service exist (HOME-01 needs them); the profile builder awaits M3 HTML |
+| `api/src/modules/candidates/` | **built** | Profile, builder, visibility, and interest services (CAN-01…08) |
+| `api/src/modules/question-bank/` | **built** | Versioned bank model, definition, and resolution service (ADR-007) |
+| `api/src/modules/messaging/` | **candidate side built** | `conversations` + `messages` and the candidate service (CAN-09); the company side arrives with REC-15 |
 | `api/src/modules/evidence/` `question-bank/` | **M3** | Depends on the profile-builder HTML, not yet supplied |
-| `api/src/modules/interests/` | **M4** | Needs candidate + company to exist first |
-| `api/src/modules/search/` `pipeline/` `messaging/` | **M5** | Search needs populated facets to be testable |
+| `api/src/modules/interests/` | **built** | `expressionsOfInterest` + `accessGrants` (CAN-07/08); the recruiter inbox is REC-11 |
+| `api/src/modules/search/` `pipeline/` | **M5** | Search needs populated facets to be testable |
 | `api/src/modules/notifications/` `moderation/` `analytics/` | **M6** | Cross-cutting; premature before the events exist |
 | `api/src/modules/assessments/` | **Unscheduled** | TRD §15 D-01 — awaiting a scope decision |
 | `api/src/jobs/` | **Post-MVP** | No scheduled work in MVP. Digests (PRD §15.1) are the first real need |
@@ -563,7 +565,8 @@ Created only when their milestone arrives.
 | `api/src/lib/storage/providers/` | **M3** | Provider undecided (§14 Q2) |
 | `web/src/components/data/` | **M5** | Tables, filters, and pagination have no consumer before talent search |
 | `web/src/features/{search,pipeline,messaging,notifications}/` | **M5–M6** | Mirror their backend modules |
-| `web/src/pages/{candidate,company,settings}/` | **M2–M6** | Await their HTML. `/settings` and `/c/:companySlug` currently resolve to `PlaceholderPage` so HOME-01 has no dead links |
+| `web/src/pages/candidate/` | **built** | CAN-01…09 |
+| `web/src/pages/{company,settings}/` | **M2–M6** | Await their HTML. `/settings` and `/c/:companySlug` resolve to `PlaceholderPage` so no shipped page has a dead link |
 | `web/src/entry-server.jsx` | **M-M** | Arrives with the ADR-013 prerender step |
 | `web/src/pages/legal/` | **Before the MKT-01 form ships** | TRD §15 D-09 — the form already claims consent to these |
 

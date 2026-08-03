@@ -19,6 +19,8 @@ export function StatusRegion({ tone = 'success', children, className }) {
   const tones = {
     success: 'bg-green-50 text-green-800',
     error: 'bg-red-50 text-red-800',
+    // PRD §19.1 lists a pale-blue information state alongside the success/error ones.
+    info: 'bg-blue-50 text-blue-900',
   };
 
   return (

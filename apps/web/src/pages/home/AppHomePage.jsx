@@ -157,6 +157,16 @@ export function AppHomePage() {
                 Visibility: {capabilities.candidateProfile.status} · Contact:{' '}
                 {capabilities.candidateProfile.contactVisibility}
               </p>
+              {/* CAN-01 owns the detail; HOME-01 only routes into it. */}
+              <Button
+                to={PATHS.CANDIDATE_HOME}
+                variant="primary"
+                size="sm"
+                radius="lg"
+                className="mt-5"
+              >
+                Open candidate home
+              </Button>
             </>
           ) : (
             <p className="text-sm text-gray-600">

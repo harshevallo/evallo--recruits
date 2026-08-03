@@ -26,7 +26,12 @@ function roleLabels(activeRoles = []) {
  *
  * The whole card is a link to the public company page (PUB-02).
  */
-export function CompanyCard({ company }) {
+/**
+ * @param {object} props
+ * @param {string} [props.profilePath]  Route template for the company page. CAN-06 passes the
+ *   signed-in route so a candidate keeps their context; PUB-01 uses the public one.
+ */
+export function CompanyCard({ company, profilePath = PATHS.COMPANY_PROFILE }) {
   const location = formatLocation(company.location);
   const roles = roleLabels(company.activeRoles);
   const services = (company.educationServices ?? []).slice(0, 3);
@@ -45,7 +50,7 @@ export function CompanyCard({ company }) {
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-lg font-bold text-brand-dark">
             <Link
-              to={buildPath(PATHS.COMPANY_PROFILE, { slug: company.slug })}
+              to={buildPath(profilePath, { slug: company.slug })}
               className="outline-none after:absolute after:inset-0 group-hover:text-brand-blue"
             >
               {company.name}

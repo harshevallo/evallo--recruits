@@ -4,6 +4,14 @@ import { MarketingLayout } from '@/layouts/MarketingLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { RequireAuth } from '@/router/guards/RequireAuth';
 import { RequireCompany } from '@/router/guards/RequireCompany';
+import { RequireCandidate } from '@/router/guards/RequireCandidate';
+import { CandidateHomePage } from '@/pages/candidate/CandidateHomePage';
+import { ProfileBuilderPage } from '@/pages/candidate/ProfileBuilderPage';
+import { ProfilePreviewPage } from '@/pages/candidate/ProfilePreviewPage';
+import { VisibilitySettingsPage } from '@/pages/candidate/VisibilitySettingsPage';
+import { CandidateCompanyPage } from '@/pages/candidate/CandidateCompanyPage';
+import { MyInterestsPage } from '@/pages/candidate/MyInterestsPage';
+import { MessagesPage } from '@/pages/candidate/MessagesPage';
 import { MarketingPage } from '@/pages/marketing/MarketingPage';
 import { CompanyDirectoryPage } from '@/pages/public/CompanyDirectoryPage';
 import { CompanyProfilePage } from '@/pages/public/CompanyProfilePage';
@@ -111,6 +119,33 @@ export const router = createBrowserRouter([
                     replacedBy="SET-01"
                   />
                 ),
+              },
+
+              // Personal / candidate context (CAN-*). RequireCandidate sends a user with no
+              // candidate profile back to HOME-01, where creating one is an explicit action.
+              {
+                element: <RequireCandidate />,
+                children: [
+                  { path: PATHS.CANDIDATE_HOME, element: <CandidateHomePage /> },
+                  { path: PATHS.CANDIDATE_PROFILE_BUILDER, element: <ProfileBuilderPage /> },
+                  { path: PATHS.CANDIDATE_PROFILE_PREVIEW, element: <ProfilePreviewPage /> },
+                  { path: PATHS.CANDIDATE_VISIBILITY, element: <VisibilitySettingsPage /> },
+
+                  /*
+                   * CAN-05 reuses the PUB-01 directory component rather than duplicating it —
+                   * the only difference is where a card links, which is a prop.
+                   */
+                  {
+                    path: PATHS.CANDIDATE_COMPANIES,
+                    element: (
+                      <CompanyDirectoryPage profilePath={PATHS.CANDIDATE_COMPANY_PROFILE} />
+                    ),
+                  },
+                  { path: PATHS.CANDIDATE_COMPANY_PROFILE, element: <CandidateCompanyPage /> },
+
+                  { path: PATHS.CANDIDATE_INTERESTS, element: <MyInterestsPage /> },
+                  { path: PATHS.CANDIDATE_MESSAGES, element: <MessagesPage /> },
+                ],
               },
 
               // Company context. RequireCompany keeps a non-member out of a company URL.

@@ -41,8 +41,21 @@ const candidateProfileSchema = new mongoose.Schema(
     /** Companies this candidate has blocked. Overrides any permission they hold. */
     blockedCompanyIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Company' }],
 
+    /*
+     * Structured fields the profile builder writes (CAN-02, PRD §8.3 sections 1–3).
+     * These are first-class fields rather than answers because talent search will filter on them
+     * (ADR-010) — an answer document cannot be indexed usefully.
+     */
     targetRoles: [String],
     subjects: [String],
+    learnerSegments: [String],
+    employmentTypes: [String],
+    deliveryModes: [String],
+    availability: String,
+    yearsExperience: Number,
+
+    /** Question-bank version the profile was last edited under (ADR-007). */
+    bankVersion: Number,
 
     publishedAt: Date,
     lastActiveAt: Date,
@@ -63,8 +76,61 @@ candidateProfileSchema.methods.toOwnerView = function toOwnerView() {
     contactVisibility: this.contactVisibility,
     targetRoles: this.targetRoles ?? [],
     subjects: this.subjects ?? [],
+    learnerSegments: this.learnerSegments ?? [],
+    employmentTypes: this.employmentTypes ?? [],
+    deliveryModes: this.deliveryModes ?? [],
+    availability: this.availability ?? null,
+    yearsExperience: this.yearsExperience ?? null,
     publishedAt: this.publishedAt ?? null,
     createdAt: this.createdAt,
+  };
+};
+
+/**
+ * The recruiter-facing rendering (PRD §8.8), used by BOTH the CAN-03 preview and — later — the
+ * recruiter's candidate viewer.
+ *
+ * One function deliberately serves both, because PRD §8.8 requires that "the candidate preview
+ * must show the exact same rendering and privacy state". Two code paths would drift, and the
+ * drift would be a privacy defect: the candidate would be shown a profile that is not what
+ * recruiters actually see.
+ *
+ * @param {{ name?: string, contactRevealed?: boolean }} viewer
+ */
+candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(viewer = {}) {
+  return {
+    header: {
+      name: viewer.name ?? null,
+      headline: this.headline ?? null,
+      status: this.status,
+      targetRoles: this.targetRoles ?? [],
+      yearsExperience: this.yearsExperience ?? null,
+      availability: this.availability ?? null,
+      deliveryModes: this.deliveryModes ?? [],
+      employmentTypes: this.employmentTypes ?? [],
+    },
+    introduction: this.summary ?? null,
+    expertise: {
+      subjects: this.subjects ?? [],
+      learnerSegments: this.learnerSegments ?? [],
+    },
+    /*
+     * The evidence layer (experience, education, credentials, scores, media, references) lives in
+     * its own collections per ADR-008 and is not built yet. Reported as empty rather than omitted,
+     * so the preview shows the same "no evidence yet" state a recruiter would see.
+     */
+    evidence: {
+      experience: [],
+      education: [],
+      credentials: [],
+      media: [],
+      references: [],
+    },
+    /**
+     * Contact is revealed only when the candidate's own rule allows it — never merely because
+     * the viewer holds a recruiter role (PRD §7.10, §4.3).
+     */
+    contact: viewer.contactRevealed ? { email: viewer.email ?? null } : null,
   };
 };
 

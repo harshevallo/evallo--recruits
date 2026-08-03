@@ -2,10 +2,12 @@
 
 Education-specialized talent discovery, candidate profiles, and company recruiting.
 
-> **Project status: M1 (Identity) in progress.** Shipped: the marketing landing page, the public
-> company directory and profile, the full sign-up chain (AUTH-01…05), sign-in, password reset,
-> Google sign-in, session management, and the universal home (HOME-01). Next: candidate and
-> recruiter modules. See [`docs/14_PROGRESS_TRACKER.md`](docs/14_PROGRESS_TRACKER.md).
+> **Project status: the candidate journey is complete.** Shipped: the marketing landing page, the
+> public company directory and profile, the full sign-up chain (AUTH-01…05), sign-in, password
+> reset, Google sign-in, session management, the universal home (HOME-01), and the candidate
+> experience end to end (CAN-01…09) — profile builder, preview, visibility, discovery, interest,
+> and messaging. Next: the recruiter modules (REC-xx). See
+> [`docs/14_PROGRESS_TRACKER.md`](docs/14_PROGRESS_TRACKER.md).
 
 ---
 

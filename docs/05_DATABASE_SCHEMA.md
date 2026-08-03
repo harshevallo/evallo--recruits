@@ -337,15 +337,44 @@ Anticipated indexes (validated against real query shapes at M5):
 { userId: 1 }   // unique — one active profile per user (PRD §4.1, Appendix D)
 ```
 
+### `candidateProfiles` — as built
+
+Beyond the identity and visibility fields, the profile now carries the structured answers CAN-02
+writes, because talent search will filter on them and an answer document cannot be indexed
+usefully:
+
+```js
+targetRoles: [String], subjects: [String], learnerSegments: [String],
+employmentTypes: [String], deliveryModes: [String], availability: String,
+yearsExperience: Number, bankVersion: Number
+```
+
+`facets` is still to come (M5) — it is derived from these, not a replacement for them.
+
 ### `experiences` · `educationEntries` · `credentials` · `evidenceItems` · `references`
 All keyed by `candidateId`, each carrying its own `visibility` and — where applicable — its own
 `verificationStatus` (`unverified → pending → verified/rejected → expired`, PRD §14.2). Per-item
 state is exactly why these are separate collections rather than embedded arrays (ADR-008).
 
-### `questionBanks` · `candidateAnswers`
-Versioned question configuration and structured answers (**ADR-007**). `candidateAnswers` stores
-`{ candidateId, questionKey, value, bankVersion }` so answers stay interpretable after question
-wording changes.
+### `questionBanks` · `candidateAnswers` — **built (CAN-02)**
+
+Versioned question configuration and structured answers (**ADR-007**).
+
+`questionBanks` holds `{ version, active, publishedAt, sections[{ key, title, optional, order,
+questions[] }] }`. Each question carries `key`, `type`, `target` (`profile` | `answer`), an
+optional `field`, `requiredForPublish`, an `optionSet` key resolved from the shared taxonomy, and
+`onlyForRoles` for role-gated questions (PRD §20.2). Unique on `version`; exactly one `active`.
+Publishing a revision deactivates the previous one rather than editing it — editing would rewrite
+the meaning of answers already given.
+
+`candidateAnswers` stores `{ candidateId, questionKey, value, bankVersion }`, unique on
+`{ candidateId, questionKey }`, so answers stay interpretable after a reword and a re-answer
+updates in place. Only questions with **no** first-class profile field land here.
+
+### `savedCompanies` — **built (CAN-06)**
+`{ candidateId, companyId, note }`, unique on `{ candidateId, companyId }` so saving twice saves
+once. A separate collection rather than an array on the profile, so a shortlist can grow without
+rewriting the profile document on every toggle.
 
 ---
 
@@ -364,17 +393,36 @@ A unique partial index is what guarantees *"the company receives interest exactl
 the user retries or refreshes."* Application-level checking alone races under concurrent
 submits.
 
-### `accessGrants`
+### `accessGrants` — **built (CAN-07)**
 The mechanism by which a **private** candidate shares with a specific company without becoming
 globally discoverable (PRD §4.3, §21.3). `{ candidateId, companyId, source, grantedAt,
 withdrawnAt, scope }`. Read by authorization layer 4 (ADR-006 §6.2).
+
+Created when interest is submitted and **withdrawn when the last active interest in that company
+is withdrawn** — otherwise "withdrawn" would not actually withdraw anything. Pausing visibility
+deliberately does *not* touch it (PRD §4.3: paused hides from *new* searches only).
 
 ### `pipelineEntries` (PRD §7.9)
 `{ companyId, candidateId, stage, ownerId, source, roleIntentIds[], stageHistory[], nextAction }`.
 Unique on `{ companyId, candidateId }` among active entries — PRD §4.1: one active entry per
 candidate per company.
 
-### `conversations` · `messages` · `notes`
+### `conversations` · `messages` — **built (CAN-09)**
+
+`conversations`: `{ candidateId, companyId, interestId, lastMessageAt, lastMessagePreview,
+candidateUnread, companyUnread, reportedAt, reportReason }`, unique on
+`{ candidateId, companyId }` so a reply continues the thread rather than starting another.
+
+A conversation is between a **candidate and a company**, never two users: the company side is a
+context, so a recruiter leaving does not orphan the thread and their replacement inherits it
+(PRD §21.6). Unread counts are per side.
+
+`messages`: `{ conversationId, senderType, senderUserId, body, attachments[], readAt }`, indexed
+`{ conversationId, createdAt }`. A separate collection because a thread grows unboundedly and an
+embedded array would rewrite the whole document on every reply. `attachments` exists and stays
+empty until file storage is decided (TRD §14 Q2), so the shape does not change later.
+
+### `notes`
 `notes` is a **separate collection from `messages`**, not a flag on it. PRD §11.2 and §21.4
 require internal notes to never reach candidates; separate collections make accidental exposure
 a structural impossibility rather than a serialisation bug waiting to happen.

@@ -1,6 +1,6 @@
 # 06 — Component Guide
 
-> **Status: MKT-01, PUB-01/02, AUTH-01…05, and HOME-01 implemented.** This document defines the
+> **Status: MKT-01, PUB-01/02, AUTH-01…05, HOME-01, and CAN-01…09 implemented.** This document defines the
 > component conventions and the entry template, and is updated **in the same commit** as the
 > components it documents.
 
@@ -13,12 +13,20 @@
 | `components/feedback/` | `EmptyState` `Skeleton` `StatusRegion` |
 | `features/auth/components/` | `AuthCard` `FirstActionChoice` `GoogleButton` |
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
+| `features/candidate/components/` | `ProfileCompletenessCard` `VisibilityCard` `NextStepsCard` `OpportunitiesCard` `ActivityCard` `BuilderQuestion` `CandidateInterestModal` |
+| `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` `MessagesPage` |
 | `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
 | `features/account/components/` | `CreateCompanyForm` |
 | `features/marketing/components/` | 13 components composing MKT-01 |
 | `layouts/` | `RootLayout` `MarketingLayout` `AuthLayout` `partials/UserMenu` and nav partials |
 
-Three notes worth carrying forward:
+Five notes worth carrying forward:
+
+- **`BuilderQuestion` renders whatever the question bank sends.** The control is chosen from the
+  question's `type`, and options arrive resolved from the server — so adding a question to CAN-02 is
+  a bank revision, never a frontend change (ADR-007).
+- **`CompanyCard` and `CompanyDirectoryPage` take a `profilePath`.** CAN-05 is the PUB-01 directory
+  with a different link target; duplicating the page would have meant maintaining two directories.
 
 - **`ContextSwitcher` is the HOME-01 centrepiece** (PRD §5.2, §5.3). It lists Personal plus every
   company, and switching **navigates to `/c/:companySlug`** rather than setting client state —

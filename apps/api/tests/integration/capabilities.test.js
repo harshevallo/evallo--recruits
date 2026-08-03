@@ -35,17 +35,30 @@ before(async () => {
   await connectDatabase();
 });
 
-after(async () => {
-  await CompanyMember.deleteMany({});
-  await CandidateProfile.deleteMany({});
+/**
+ * Cleanup is scoped to THIS suite's fixtures.
+ *
+ * These used to be unscoped `deleteMany({})`, which wiped every candidate profile and every
+ * company membership in the database — including real accounts, because the suites run against
+ * the shared development database. Never widen these filters.
+ */
+async function cleanupFixtures() {
+  const fixture = await User.findOne({ email: CAP_EMAIL });
+  if (fixture) {
+    await CompanyMember.deleteMany({ userId: fixture._id });
+    await CandidateProfile.deleteMany({ userId: fixture._id });
+  }
   await Company.deleteMany({ slug: /^cap-/ });
   await User.deleteMany({ email: CAP_EMAIL });
+}
+
+after(async () => {
+  await cleanupFixtures();
   await disconnectDatabase();
 });
 
 beforeEach(async () => {
-  await Company.deleteMany({ slug: /^cap-/ });
-  await User.deleteMany({ email: CAP_EMAIL });
+  await cleanupFixtures();
 
   user = await User.create({
     email: CAP_EMAIL,

@@ -1,8 +1,8 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-02
-**Current milestone:** M1 — Identity 🔄 **in progress**
-**Overall:** 9 of 41 screens implemented
+**Last updated:** 2026-08-03
+**Current milestone:** M3 — Candidate identity 🔄 **candidate journey complete**
+**Overall:** 17 of 41 screens implemented
 
 ---
 
@@ -24,10 +24,25 @@
 | **Google sign-in** | 2026-08-02 | ID-token verification only; our own JWT is always issued |
 | **Email delivery** | 2026-08-02 | Nodemailer; console transport in dev, SMTP/SendGrid in production |
 | **HOME-01 — universal home** | 2026-08-02 | Next-actions panel + context switcher (Personal + every company) |
+| **CAN-01 — candidate home** | 2026-08-02 | Completeness by section, visibility, pending actions, opportunities |
+| **CAN-02 — profile builder** | 2026-08-03 | Question bank (ADR-007), section nav, save & exit, role-gated questions |
+| **CAN-03 — profile preview** | 2026-08-03 | Exact recruiter rendering, private-field indicators, publish controls |
+| **CAN-04 — visibility settings** | 2026-08-03 | Four states, contact rules, company blocks |
+| **CAN-05 — company discovery** | 2026-08-03 | Reuses the PUB-01 directory in the candidate context |
+| **CAN-06 — company page, signed in** | 2026-08-03 | Save/unsave, interest state overlay |
+| **CAN-07 — interest submission** | 2026-08-03 | Role select, note, consent disclosure, access grant |
+| **CAN-08 — my interests** | 2026-08-03 | Status, withdraw, grant revocation |
+| **CAN-09 — messages** | 2026-08-03 | Threads, reply, safety reporting |
 
 ### 🔄 In Progress
-**M1 — Identity.** Remaining: AUTH-13 (SSO conflict resolution) and AUTH-14 (session and context
-return).
+**The candidate journey is complete through CAN-09.** Remaining in M1: AUTH-13 (SSO conflict
+resolution) and AUTH-14 (return-path preservation). Remaining in M3: the evidence layer
+(experience, education, credentials, scores, media, references) — ADR-008 gives each its own
+collection, and PRD §20.3 defers reference collection and issuer verification to Phase 2.
+
+**CAN-10 (assessments) is deliberately NOT built.** PRD §20.3 places expanded assessments in
+Phase 2 and TRD §15 D-01 records the domain as unscheduled, pending a founder scope decision.
+Confirmed by the founder on 2026-08-03.
 
 ### ⏳ Pending — immediate
 | Item | Blocked by |
@@ -60,10 +75,13 @@ web `:3001` · api `:8081` · database `evallo-recruit`
 | `companyProfile.test.js` | 16 |
 | `companyDirectory.test.js` | 12 |
 | `verification.test.js` | 11 |
+| `candidateJourney.test.js` | 32 |
+| `profileBuilder.test.js` | 12 |
 | `earlyAccess.test.js` | 9 |
 | `home.test.js` | 6 |
+| `candidateHome.test.js` | 11 |
 | `health.test.js` | 2 |
-| **Total** | **116** |
+| **Total** | **171** |
 
 `npm run lint` — clean across all three workspaces.
 
@@ -120,15 +138,15 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 ### Candidate / personal
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| CAN-01 | Candidate home | §8.2 | ⏳ |
-| CAN-02 | Profile builder (schema-driven) | §8.3, App. C | ⏳ |
-| CAN-03 | Profile preview | §8.2, §8.8 | ⏳ |
-| CAN-04 | Profile visibility settings | §4.3, §8.2 | ⏳ |
-| CAN-05 | Company discovery | §8.2 | ⏳ |
-| CAN-06 | Company page (signed in) | §8.2 | ⏳ |
-| CAN-07 | Interest submission | §8.7 | ⏳ |
-| CAN-08 | My interests | §8.2 | ⏳ |
-| CAN-09 | Messages | §8.2, §11.2 | ⏳ |
+| CAN-01 | Candidate home | §8.2 | ✅ |
+| CAN-02 | Profile builder (schema-driven) | §8.3, App. C | ✅ |
+| CAN-03 | Profile preview | §8.2, §8.8 | ✅ |
+| CAN-04 | Profile visibility settings | §4.3, §8.2 | ✅ |
+| CAN-05 | Company discovery | §8.2 | ✅ |
+| CAN-06 | Company page (signed in) | §8.2 | ✅ |
+| CAN-07 | Interest submission | §8.7 | ✅ |
+| CAN-08 | My interests | §8.2 | ✅ |
+| CAN-09 | Messages | §8.2, §11.2 | ✅ |
 | CAN-10 | Assessments | §8.2 | ➖ Phase 2 |
 | CAN-11 | Saved companies | §8.2 | ⏳ |
 | CAN-12 | Candidate settings | §8.2 | ⏳ |
@@ -174,9 +192,9 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 | **M-M** | Marketing | MKT-01, shared UI primitives, `earlyAccessRequests` | ✅ (prerender deferred) |
 | **M1** | Identity | AUTH-01 → AUTH-14, session management, HOME-01 | 🔄 AUTH-13/14 remain |
 | **M2** | Company presence | REC-01 → REC-07, PUB-01, PUB-02, SEO Stage 1 | 🔄 PUB-01/02 done |
-| **M3** | Candidate identity | CAN-01 → CAN-04, question bank, evidence, visibility | ⏳ |
-| **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | ⏳ |
-| **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | ⏳ |
+| **M3** | Candidate identity | CAN-01 → CAN-04, question bank, evidence, visibility | 🔄 CAN-01…04 done; evidence layer remains |
+| **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | 🔄 candidate side done; REC-11 remains |
+| **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | 🔄 CAN-09 candidate side done |
 | **M6** | Administration & trust | REC-17 → REC-19, SET-01, SET-02, audit, moderation, notifications | ⏳ |
 
 Milestone order follows PRD §2.3's strategic wedge — public company presence precedes
@@ -189,9 +207,9 @@ by technical convenience.
 
 Maintained in full in `13_BACKLOG.md`. Summary:
 
-**Features remaining** — 32 of 41 screens.
-**Missing APIs** — candidate profile detail, hiring intents, interests, search, pipeline,
-messaging, notifications. Auth, `/me`, and the public/company surface are built.
+**Features remaining** — 24 of 41 screens, all recruiter-side or settings.
+**Missing APIs** — the recruiter surface (interest inbox, search, pipeline, company-side
+messaging), the candidate evidence layer, and notifications.
 **Refactoring** — HOME-01 still creates the candidate profile directly; that action should route
 into CAN-02 once it exists.
 **Bug fixes** — none open. See `12_KNOWN_ISSUES.md` for accepted limitations.

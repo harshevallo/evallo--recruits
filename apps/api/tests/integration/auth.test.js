@@ -102,19 +102,38 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
+/**
+ * Cleanup is scoped to THIS suite's own fixture address — nothing wider.
+ *
+ * Two earlier mistakes are deliberately avoided here. Sessions and tokens were once cleared with
+ * an unscoped `deleteMany({})`, which signed out every real user in the shared development
+ * database. The user filter was then `/@example\.com$/`, which still matched the fixtures of
+ * every OTHER suite and deleted their users mid-run — orphaning the candidate profiles those
+ * suites had created. Match one address.
+ */
+const FIXTURE_EMAILS = [CREDS.email];
+
+async function cleanupFixtures() {
+  const fixtures = await User.find({ email: { $in: FIXTURE_EMAILS } })
+    .select('_id')
+    .lean();
+  const ids = fixtures.map((u) => u._id);
+
+  if (ids.length > 0) {
+    await Session.deleteMany({ userId: { $in: ids } });
+    await VerificationToken.deleteMany({ userId: { $in: ids } });
+  }
+  await VerificationToken.deleteMany({ email: { $in: FIXTURE_EMAILS } });
+  await User.deleteMany({ email: { $in: FIXTURE_EMAILS } });
+}
+
 after(async () => {
-  await User.deleteMany({ email: /@example\.com$/ });
-  await Session.deleteMany({});
-  await VerificationToken.deleteMany({});
+  await cleanupFixtures();
   await new Promise((resolve) => server.close(resolve));
   await disconnectDatabase();
 });
 
-beforeEach(async () => {
-  await User.deleteMany({ email: /@example\.com$/ });
-  await Session.deleteMany({});
-  await VerificationToken.deleteMany({});
-});
+beforeEach(cleanupFixtures);
 
 describe('POST /api/auth/signup (AUTH-01)', () => {
   test('creates an UNVERIFIED account from the email alone', async () => {

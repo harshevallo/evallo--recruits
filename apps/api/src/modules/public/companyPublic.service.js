@@ -11,7 +11,7 @@ import {
   HIRING_INTENT_STATUS,
   COMPANY_DIRECTORY_SORTS,
 } from '@evallo/shared';
-import { Company } from '../companies/company.model.js';
+import { Company, companyInitials } from '../companies/company.model.js';
 import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
 
 /**
@@ -92,11 +92,16 @@ export async function listPublicCompanies(query) {
       .sort(buildSort(query))
       .skip(skip)
       .limit(query.limit)
-      .lean({ virtuals: true }),
+      .lean(),
     Company.countDocuments(filter),
   ]);
 
-  const withRoles = await attachActiveRoles(companies);
+  // `.lean()` does not run virtuals, so `initials` — the avatar fallback for a company with no
+  // logo (PRD §7.3 makes the logo optional) — has to be computed here.
+  const withRoles = (await attachActiveRoles(companies)).map((company) => ({
+    ...company,
+    initials: companyInitials(company.name),
+  }));
 
   return {
     companies: withRoles,
@@ -166,9 +171,11 @@ export async function getPublicCompanyBySlug(slug) {
         'description isCurrentlyHiring acceptsGeneralInterest publicContact verifiedDomains ' +
         'seo createdAt updatedAt',
     )
-    .lean({ virtuals: true });
+    .lean();
 
   if (!company) return null;
+
+  company.initials = companyInitials(company.name);
 
   const intents = await HiringIntent.find({
     companyId: company._id,

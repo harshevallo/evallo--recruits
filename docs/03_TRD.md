@@ -92,13 +92,15 @@ would contradict ADR-001.
 /companies                          → PUB-01 directory              [public, SSR-safe]
 /companies/:slug                    → PUB-02 company profile        [public, SSR-safe]
 
-/me                                 → CAN-01 candidate home         [auth]
-/me/profile/*                       → CAN-02 builder                [auth]
-/me/profile/preview                 → CAN-03                        [auth]
-/me/visibility                      → CAN-04                        [auth]
-/me/interests                       → CAN-08                        [auth]
-/me/saved                           → CAN-11                        [auth]
-/me/messages                        → CAN-09                        [auth]
+/me                                 → CAN-01 candidate home         [auth + candidate]
+/me/profile                         → CAN-02 builder                [auth + candidate]
+/me/profile/preview                 → CAN-03                        [auth + candidate]
+/me/visibility                      → CAN-04                        [auth + candidate]
+/me/companies                       → CAN-05 discovery              [auth + candidate]
+/me/companies/:slug                 → CAN-06 company, signed in     [auth + candidate]
+/me/interests                       → CAN-08                        [auth + candidate]
+/me/messages                        → CAN-09                        [auth + candidate]
+/me/saved                           → CAN-11                        [not built]
 /settings/*                         → SET-01                        [auth]
 
 /c/:companySlug                     → REC-10 company home           [auth + membership]
@@ -122,12 +124,17 @@ authorization-relevant value under client control.
 
 ### 4.2 Route guards
 
+Capability guards must treat "authenticated, capabilities not yet loaded" as *loading*, not as
+"no capability" — `status` flips to authenticated before `GET /api/me` resolves, and getting this
+wrong redirects a genuine candidate or member away on every hard reload.
+
 Guards are **UX only**. They prevent a user from navigating into a screen that will fail; they
 are never the security boundary. The server re-verifies every request independently (ADR-006).
 
 | Guard | Checks |
 |---|---|
 | `RequireAuth` | A valid session exists; otherwise redirect to `/signin` preserving `returnTo` |
+| `RequireCandidate` | A `CandidateProfile` exists. Sends a user without one back to HOME-01, where creating one is an explicit action |
 | `RequireCompany` | The user has an active membership in `:companySlug` |
 | `RequirePermission` | The membership role grants the permission, per the shared matrix |
 

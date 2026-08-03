@@ -16,7 +16,7 @@ import { PATHS, buildPath } from '@/router/paths';
  * revoked membership disappears on the next load (ADR-001, ADR-006). Nothing here reads a role
  * stored on the user, because none exists.
  */
-export function ContextSwitcher({ companies = [], current = 'personal' }) {
+export function ContextSwitcher({ companies = [], current = 'personal', personalPath = PATHS.APP_HOME }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -98,7 +98,7 @@ export function ContextSwitcher({ companies = [], current = 'personal' }) {
           </p>
           <ContextOption
             selected={!activeCompany}
-            onSelect={() => choose(PATHS.APP_HOME)}
+            onSelect={() => choose(personalPath)}
             title="Personal"
             subtitle="Your profile and candidate activity"
             icon="user"

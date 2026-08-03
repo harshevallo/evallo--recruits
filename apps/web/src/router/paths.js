@@ -47,6 +47,10 @@ export const PATHS = Object.freeze({
   CANDIDATE_PROFILE_BUILDER: '/me/profile',
   CANDIDATE_PROFILE_PREVIEW: '/me/profile/preview',
   CANDIDATE_VISIBILITY: '/me/visibility',
+  // CAN-05 / CAN-06 — the signed-in view of the public directory and company page. Separate
+  // paths, not a query flag, so the anonymous URLs stay clean and indexable (ADR-004).
+  CANDIDATE_COMPANIES: '/me/companies',
+  CANDIDATE_COMPANY_PROFILE: '/me/companies/:slug',
   CANDIDATE_INTERESTS: '/me/interests',
   CANDIDATE_SAVED: '/me/saved',
   CANDIDATE_MESSAGES: '/me/messages',

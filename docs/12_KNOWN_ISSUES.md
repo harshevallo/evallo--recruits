@@ -1,6 +1,6 @@
 # 12 — Known Issues & Limitations
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-03
 
 > Open issues first, then **known limitations accepted by decision** — each traceable to an ADR or
 > a PRD constraint. Recording the latter prevents a future engineer from mistaking a deliberate
@@ -35,6 +35,27 @@ disabled fallback instead.
 `/api/health` reports `supportsTransactions: false`. The four operations listed in
 `05_DATABASE_SCHEMA.md` §11 — refresh rotation among them — currently run without atomicity.
 Conversion steps are in `08_SETUP_GUIDE.md` §1.
+
+### I-04a — CAN-02 covers four of the PRD's twelve profile sections
+**Severity:** Medium
+
+PRD §8.3 lists twelve sections. The seeded bank covers 1–3 plus teaching practice. Sections 4–11
+are the **evidence layer**: ADR-008 gives each its own collection with per-item visibility and
+verification state, which no single form captures, and PRD §20.3 already defers reference
+collection and issuer verification to Phase 2.
+
+Because the bank is database configuration, adding them is a new bank version rather than a code
+change. **The completeness indicator must be extended in the same change**, or a profile with no
+experience or credentials will read "100% complete" — which is misleading rather than merely
+incomplete.
+
+### I-04b — Interest statuses never advance past "Submitted"
+**Severity:** Low, by design
+
+CAN-08 shows every interest at `submitted`, because the later statuses are set by the recruiter's
+interest inbox (REC-11), which is not built. The screen says so explicitly rather than implying
+the company has ignored the candidate. Likewise CAN-09's inbox stays empty until REC-15 can open a
+thread.
 
 ### I-04 — HOME-01 creates the candidate profile inline
 **Severity:** Low
