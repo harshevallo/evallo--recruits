@@ -1,81 +1,133 @@
 # 07 — Project Structure
 
-Explains every folder in the repository, what belongs in it, and — just as importantly —
-what does not. If you are new to this project, read this document second, after
-`08_SETUP_GUIDE.md`.
+**Status:** Approved and in use. Folders marked deferred in §11 are created as their milestone arrives.
+**Version:** 2.1 · 2026-08-02 · Supersedes v2.0
 
-> **Status:** This document describes the *target* structure agreed in the ADRs.
-> Folders are created as the features that need them are built; see
-> `14_PROGRESS_TRACKER.md` for what physically exists today.
+This is the complete folder design for Evallo Recruit — built to carry all 41 known screens plus
+the unscheduled scope in `03_TRD.md` §15, not just the screens delivered so far.
+
+Read this second, after `08_SETUP_GUIDE.md`.
+
+**Creation policy:** folders are created when the milestone that needs them arrives. Every folder
+below carries a milestone tag. §11 lists what stays empty and until when. Creating all of it on
+day one produces a repository that looks finished and is mostly hollow — worse for a new engineer
+than a small tree that grows.
 
 ---
 
-## 1. Top level
+## 1. Root
 
 ```
 evallo-recruit/
 ├─ apps/
-│  ├─ web/                  React client (Vite)
-│  └─ api/                  Express server
+│  ├─ web/                    React client (Vite)
+│  └─ api/                    Express server
 ├─ packages/
-│  └─ shared/               Contracts shared by web and api
-├─ docs/                    This documentation set (01–14)
-├─ prototypes/              Founder-supplied HTML prototypes (reference only, never imported)
-├─ package.json             npm workspaces root
+│  └─ shared/                 Contracts shared by web and api
+├─ docs/                      01–14 documentation set
+├─ prototypes/                Founder HTML — reference only, never imported
+├─ .github/workflows/         CI (M0+)
+├─ .editorconfig
+├─ .gitignore
+├─ .nvmrc                     Pins Node 18+ (ADR-012)
+├─ eslint.config.js           One config, all workspaces
+├─ package.json               npm workspaces root
 └─ README.md
 ```
 
-Rationale for the monorepo is in **ADR-003**. In short: PRD §12 requires identical validation
-rules on client and server, and under ADR-002 (JavaScript, no compiler) duplicated rules drift
-silently until runtime.
+| Folder | Purpose |
+|---|---|
+| `apps/` | Deployable units. Each builds and runs independently |
+| `packages/` | Non-deployable code imported by apps |
+| `docs/` | Documentation. A first-class deliverable, not a byproduct |
+| `prototypes/` | Founder-supplied HTML. **Never imported, bundled, or served.** Kept so the source design stays inspectable after the React version diverges. Per ADR-016 these are the newest requirement source, which is exactly why they are retained rather than deleted after conversion |
 
-### `prototypes/`
-Raw HTML files supplied by the founder. **Reference material only.** No file in `apps/` ever
-imports from here. The workflow is HTML → analysis → React components → API wiring; the HTML
-is never served, bundled, or copied verbatim. Kept in the repository so that the intended
-visual design remains inspectable after the React version diverges.
+**Why a monorepo (ADR-003).** PRD §12 requires identical validation on client and server. Under
+ADR-002 there is no compiler, so duplicated rules drift silently until runtime. One package, one
+rule, both sides.
+
+**Why npm workspaces and not Nx/Turborepo.** Two apps and one package. Turborepo's caching solves
+a problem this repository does not have, and adds tooling a solo engineer must maintain.
 
 ---
 
-## 2. `packages/shared`
+## 2. `packages/shared` — the contract layer
 
-The single source of truth for anything both sides must agree on. **This is the most important
-folder in the repository** — under ADR-002 there is no compiler to catch a mismatch between
-client and server, so this package is what prevents drift.
+**The most important folder in the repository.** Under ADR-002 there is no compiler to catch a
+mismatch between server and client. This package is what prevents it.
 
 ```
 packages/shared/
-├─ schemas/          Zod schemas — the API contract (ADR-009)
-│   ├─ auth.schema.js
-│   ├─ candidate.schema.js
-│   ├─ company.schema.js
-│   ├─ hiringIntent.schema.js
-│   ├─ interest.schema.js
-│   └─ ...
-├─ constants/        Enumerated values — never inline string literals anywhere else
-│   ├─ roles.js              Company membership roles (PRD §4.2)
-│   ├─ permissions.js        Permission keys
-│   ├─ visibility.js         Candidate visibility states (PRD §4.3)
-│   ├─ pipelineStages.js     Default pipeline stages (PRD §7.9)
-│   └─ states.js             State machines (PRD §14.2)
-├─ taxonomy/         Canonical vocabularies (PRD §8.4, §12, Appendix B)
-│   ├─ roleFamilies.js
-│   ├─ subjects.js
-│   ├─ curricula.js
-│   ├─ gradeBands.js
-│   └─ learnerPopulations.js
-├─ permissions/
-│   └─ matrix.js             role → permission[] map (PRD §4.2)
-├─ utils/            Pure functions safe in both browser and Node
-└─ index.js
+├─ src/
+│  ├─ schemas/                Zod — the API contract (ADR-009)
+│  │  ├─ common.schema.js       id · email · url · pagination · location · money
+│  │  ├─ auth.schema.js         M1
+│  │  ├─ user.schema.js         M1
+│  │  ├─ company.schema.js      M2
+│  │  ├─ hiringIntent.schema.js M2
+│  │  ├─ membership.schema.js   M2
+│  │  ├─ candidate.schema.js    M3
+│  │  ├─ evidence.schema.js     M3
+│  │  ├─ questionBank.schema.js M3
+│  │  ├─ interest.schema.js     M4
+│  │  ├─ pipeline.schema.js     M5
+│  │  ├─ message.schema.js      M5
+│  │  ├─ search.schema.js       M5
+│  │  ├─ earlyAccess.schema.js  M-M
+│  │  └─ index.js
+│  ├─ constants/              Enumerated values — never inline literals elsewhere
+│  │  ├─ roles.js               owner · admin · recruiter · hiring_manager · viewer
+│  │  ├─ permissions.js         permission keys (PRD §4.2)
+│  │  ├─ visibility.js          draft · private · discoverable · paused · archived
+│  │  ├─ pipelineStages.js      PRD §7.9
+│  │  ├─ states.js              all 7 state machines (PRD §14.2)
+│  │  ├─ errorCodes.js          shared by API responses and client error handling
+│  │  ├─ notificationTypes.js
+│  │  ├─ auditActions.js
+│  │  └─ index.js
+│  ├─ taxonomy/               Canonical vocabularies (PRD §8.4, §12, App. B)
+│  │  ├─ roleFamilies.js        8 families, ~60 roles
+│  │  ├─ subjects.js
+│  │  ├─ tests.js
+│  │  ├─ curricula.js
+│  │  ├─ gradeBands.js
+│  │  ├─ learnerPopulations.js
+│  │  ├─ teachingFormats.js
+│  │  ├─ employmentTypes.js
+│  │  ├─ deliveryModes.js
+│  │  ├─ organizationTypes.js
+│  │  ├─ languages.js
+│  │  └─ index.js
+│  ├─ permissions/
+│  │  ├─ matrix.js              role → permission[] (PRD §4.2)
+│  │  └─ can.js                 pure resolver: can(membership, permission)
+│  ├─ policies/
+│  │  └─ candidateVisibility.js pure predicates (PRD §4.3, §7.10)
+│  ├─ utils/                  Pure. Browser- and Node-safe
+│  │  ├─ slug.js · dates.js · strings.js · format.js
+│  └─ index.js
+└─ package.json
 ```
 
-**Rules**
-- Plain JavaScript, ESM, **no build step** (ADR-012). Both Vite and Node import it directly.
-- Nothing environment-specific. No `window`, no `process.env`, no `fs`, no Mongoose, no Axios.
-- Every exported schema carries a JSDoc `@typedef` so editors provide autocomplete — the
-  agreed substitute for compile-time types (ADR-002, mitigation 2).
-- Adding a value to a taxonomy or state enum happens **here first**, then in the consumers.
+### Why `permissions/can.js` is shared, not duplicated
+The backend enforces permissions in `requirePermission` middleware; the frontend uses the same
+answer to decide whether to render a button or a route guard. **Two implementations of the same
+rule guarantee a UI that offers actions the API rejects.** One pure function, imported by both.
+The server remains the only *enforcement* point — the client copy is purely for display.
+
+### Why `policies/candidateVisibility.js` is separate from `permissions/`
+Two different questions, often confused:
+- **Permission** — "may this recruiter view candidates?" (role-based, company-scoped)
+- **Visibility** — "does *this candidate* permit *this company*?" (candidate-controlled)
+
+PRD §4.3 and §7.10 make the second independent of the first. Keeping them in separate files stops
+them being conflated in the code, which is the failure mode that leaks candidate data.
+
+### Rules
+- Plain JavaScript, ESM, **no build step** (ADR-012). Vite and Node both import it directly.
+- **No environment-specific code.** No `window`, `process.env`, `fs`, Mongoose, or Axios.
+- Every schema carries a JSDoc `@typedef` — the agreed substitute for compile-time types.
+- New taxonomy or state values land **here first**, then in consumers.
 
 ---
 
@@ -84,70 +136,152 @@ packages/shared/
 ```
 apps/api/
 ├─ src/
-│  ├─ config/            Env loading and validation, app constants
-│  ├─ lib/               Cross-cutting infrastructure (no business logic)
-│  │   ├─ db.js              Mongoose connection
-│  │   ├─ tokens.js          Access/refresh token issue, verify, rotate
-│  │   ├─ mailer.js          Transactional email
-│  │   ├─ storage.js         File storage + time-limited access URLs (PRD §16.4)
-│  │   ├─ logger.js
-│  │   └─ ApiError.js        Typed error class used by the error handler
+│  ├─ config/
+│  │  ├─ env.js               Validates ALL env vars at boot; exits on missing
+│  │  ├─ constants.js         Server tunables — TTLs, limits, page sizes
+│  │  └─ index.js
+│  ├─ lib/                    Infrastructure adapters. NO business logic
+│  │  ├─ db.js                Mongoose connection + graceful shutdown
+│  │  ├─ logger.js            Structured logging (PRD §19 Observability)
+│  │  ├─ ApiError.js          Typed error the handler understands
+│  │  ├─ asyncHandler.js      Async route wrapper
+│  │  ├─ response.js          Envelope builders — the ONE response shape
+│  │  ├─ paginate.js          Cursor + offset helpers
+│  │  ├─ tokens.js            Access/refresh issue · verify · rotate
+│  │  ├─ password.js          bcrypt wrapper
+│  │  ├─ crypto.js            Token hashing, random generation
+│  │  ├─ mailer/
+│  │  │  ├─ index.js          Provider-agnostic send()
+│  │  │  ├─ providers/        One file per provider (§14 Q3 open)
+│  │  │  └─ templates/        Verification · reset · invitation · interest
+│  │  └─ storage/
+│  │     ├─ index.js          put · get · signedUrl · delete
+│  │     └─ providers/        One file per provider (§14 Q2 open)
 │  ├─ middleware/
-│  │   ├─ authenticate.js         Verify access token → req.user
-│  │   ├─ resolveCompanyContext.js  companyId → active membership → req.company/req.membership
-│  │   ├─ requirePermission.js    Permission check against the matrix (ADR-006)
-│  │   ├─ validate.js             Runs a shared Zod schema against the request
-│  │   ├─ rateLimit.js
-│  │   └─ errorHandler.js         The ONLY place that formats an error response
-│  ├─ modules/           One folder per domain (ADR-011)
-│  │   ├─ auth/
-│  │   ├─ users/
-│  │   ├─ candidates/
-│  │   ├─ companies/
-│  │   ├─ memberships/
-│  │   ├─ hiring-intents/
-│  │   ├─ interests/
-│  │   ├─ pipeline/
-│  │   ├─ messaging/
-│  │   ├─ evidence/
-│  │   ├─ search/
-│  │   ├─ notifications/
-│  │   ├─ audit/
-│  │   └─ public/        Unauthenticated read surface + SEO metadata/sitemap (ADR-004)
-│  ├─ app.js             Express app assembly — middleware, routes, error handler
-│  └─ server.js          Process entry: connect DB, then listen
-└─ tests/
+│  │  ├─ requestContext.js    requestId, correlation, timing
+│  │  ├─ security.js          helmet · cors · mongo-sanitize · body limits
+│  │  ├─ rateLimit.js         Per-IP and per-account limiters
+│  │  ├─ authenticate.js      Access token → req.user
+│  │  ├─ requireVerifiedEmail.js
+│  │  ├─ resolveCompanyContext.js  companyId → active membership
+│  │  ├─ requirePermission.js Uses shared matrix + can()
+│  │  ├─ validate.js          Runs a shared Zod schema against the request
+│  │  ├─ notFound.js
+│  │  └─ errorHandler.js      The ONLY place an error response is formatted
+│  ├─ modules/                One folder per domain (ADR-011)
+│  ├─ jobs/                   Scheduled/background work (post-MVP)
+│  ├─ seeds/                  Taxonomy + question bank seeding
+│  ├─ routes.js               Single mount point for every module router
+│  ├─ app.js                  Express assembly: middleware → routes → errors
+│  └─ server.js               Connect DB, then listen. Nothing else
+├─ tests/
+│  ├─ integration/            Route-level, real DB
+│  ├─ unit/                   Services and pure logic
+│  └─ helpers/                Factories, auth helpers, DB setup
+└─ package.json
 ```
 
-### Anatomy of a module
+### 3.1 Module list
+
+| Module | Owns | Milestone |
+|---|---|---|
+| `auth/` | Sign-up, verification, password, sessions, SSO linking | M1 |
+| `users/` | Personal profile, account settings, deletion | M1 |
+| `sessions/` | Refresh rotation, reuse detection, revocation | M1 |
+| `companies/` | Company entity, publish lifecycle, revisions | M2 |
+| `memberships/` | Membership, invitations, roles, ownership transfer | M2 |
+| `hiring-intents/` | Lightweight hiring declarations | M2 |
+| `public/` | Unauthenticated read surface, SEO, early access | M-M / M2 |
+| `candidates/` | Profile, facets, visibility, answers | M3 |
+| `question-bank/` | Versioned question configuration (ADR-007) | M3 |
+| `evidence/` | Experience, education, credentials, media, references | M3 |
+| `interests/` | Expression of interest, consent, access grants | M4 |
+| `search/` | Talent search, facets, saved searches | M5 |
+| `pipeline/` | Stages, assignment, notes, outcomes | M5 |
+| `messaging/` | Conversations, messages, attachments | M5 |
+| `notifications/` | Delivery, preferences, digests | M6 |
+| `audit/` | Append-only audit events | M3+ |
+| `moderation/` | Reports, blocks, appeals | M6 |
+| `analytics/` | Event taxonomy, company summaries | M6 |
+| `assessments/` | **Unscheduled** — TRD §15 D-01 | TBD |
+
+### 3.2 Standard module anatomy
 
 ```
 modules/interests/
-├─ interest.model.js         Mongoose schema + indexes
-├─ interest.service.js       ALL business logic
-├─ interest.controller.js    HTTP in → service call → HTTP out. Nothing else.
-├─ interest.routes.js        Router + middleware chain + validation
-└─ interest.validation.js    Request schemas (composed from packages/shared)
+├─ interest.model.js          Mongoose schema + indexes
+├─ interest.service.js        ALL business logic
+├─ interest.controller.js     HTTP in → one service call → HTTP out
+├─ interest.routes.js         Router + middleware chain + validation
+└─ interest.validation.js     Request schemas composed from packages/shared
 ```
 
-### Layer rules — these are not stylistic
+**Layer rules — enforcement, not style:**
 
-| Layer | May do | Must never do |
+| Layer | May | Must never |
 |---|---|---|
-| `*.routes.js` | Define paths, attach middleware, bind controller | Contain logic |
-| `*.controller.js` | Read `req`, call one service, shape the response | Query the database; contain conditionals about business rules |
-| `*.service.js` | Business logic, transactions, call other modules' **services** | Touch `req`/`res`; import another module's **model** |
-| `*.model.js` | Schema, indexes, and data-integrity validators | Contain business logic |
+| `routes` | Define paths, attach middleware, bind controller | Contain logic |
+| `controller` | Read `req`, call **one** service, shape response | Query the DB; hold business rules |
+| `service` | Business logic, transactions, call other modules' **services** | Touch `req`/`res`; import another module's **model** |
+| `model` | Schema, indexes, integrity validators | Hold business logic |
 
-**Why the controller/service split is enforced strictly:** interest submission (PRD §8.7)
-writes `Interest`, `PipelineEntry`, `AccessGrant`, `Notification`, and `AuditEvent` in one
-operation and must be idempotent — PRD §21.5 requires the company receives the interest
-*exactly once* even if the user retries or refreshes. That is a transactional service
-operation. Placed in a controller it cannot be reused, tested, or made transactional.
+**Why the controller/service split is strict.** Interest submission (PRD §8.7) writes `Interest`,
+`PipelineEntry`, `AccessGrant`, `Notification`, and `AuditEvent` in one transaction and must be
+idempotent (§21.5: the company receives it *exactly once* even if the user refreshes). In a
+controller that logic is untestable, unreusable, and cannot be made transactional.
 
-**Why modules call services, not models:** a direct model import bypasses the authorization
-and audit logic that lives in the owning service. Given PRD §16.1 (all candidate access
-auditable), that is a privacy defect, not an style violation.
+**Why modules call services, not models.** A direct model import bypasses the owning service's
+authorization and audit logging. Given PRD §16.1 requires all candidate access to be auditable,
+that is a privacy defect, not a style violation.
+
+### 3.3 Two modules that deviate
+
+**`modules/search/`** — ADR-010 requires all query construction confined here, with a swappable
+MongoDB strategy:
+
+```
+modules/search/
+├─ search.routes.js · search.controller.js · search.validation.js
+├─ search.service.js              Orchestration only
+├─ savedSearch.model.js
+└─ query/
+   ├─ visibilityFilter.js         ⚠ MOST SECURITY-CRITICAL FILE IN THE PROJECT
+   ├─ facetBuilder.js
+   ├─ sortBuilder.js
+   ├─ matchExplainer.js           PRD §7.8 "why this candidate matched"
+   └─ strategies/
+      ├─ aggregation.strategy.js  $match + $facet — works anywhere
+      └─ atlasSearch.strategy.js  $search + $searchMeta — Atlas only
+```
+
+`visibilityFilter.js` composes candidate visibility predicates **into the query itself**. PRD
+§10.1 requires filtering before ranking; post-filtering leaks existence through result counts and
+breaks pagination. Isolating it in one file makes it independently testable — mandatory coverage
+per `13_BACKLOG.md` T-03.
+
+The two strategies exist because MongoDB hosting is deliberately undecided (§14 Q1). Both
+implement one interface; `search.service.js` selects by config. **No other file changes** when
+hosting is settled.
+
+**`modules/public/`** — the unauthenticated surface, and a hard security boundary:
+
+```
+modules/public/
+├─ public.routes.js · public.controller.js · public.validation.js
+├─ earlyAccess.service.js
+├─ earlyAccessRequest.model.js
+├─ companyPublic.service.js       Published-company projections ONLY
+└─ seo/
+   ├─ metadata.js                 title · description · canonical · OG
+   ├─ structuredData.js           Organization + WebSite JSON-LD
+   ├─ sitemap.js                  Published companies only
+   └─ robots.js                   Blocks candidate/search/message/account routes
+```
+
+**This module may never import a candidate collection.** PRD §21.2: *"Candidate data never appears
+in public company HTML, public APIs, sitemaps, or unauthenticated responses."* Making it a
+separate module turns that from a rule someone must remember into a boundary visible in the
+import list.
 
 ---
 
@@ -155,90 +289,285 @@ auditable), that is a privacy defect, not an style violation.
 
 ```
 apps/web/
+├─ public/                    Served verbatim: favicon, og images, robots fallback
+├─ scripts/
+│  └─ prerender.js            Build-time prerender of MKT-01 (ADR-013)
 ├─ src/
+│  ├─ main.jsx                Client entry
+│  ├─ entry-server.jsx        Prerender/SSR entry (ADR-013 / ADR-004 Stage 2)
+│  ├─ App.jsx
 │  ├─ app/
-│  │   ├─ App.jsx              Root component
-│  │   ├─ providers.jsx        Composed context providers
-│  │   └─ router.jsx           Route tree
-│  ├─ routes/
-│  │   ├─ public/          ⚠️ SSR-SAFE ZONE — see constraint below
-│  │   ├─ auth/            AUTH-01 … AUTH-14
-│  │   ├─ personal/        HOME-01, CAN-01 … CAN-12
-│  │   ├─ company/         REC-01 … REC-19
-│  │   ├─ settings/        SET-01, SET-02
-│  │   └─ guards/          RequireAuth, RequireCompany, RequirePermission
-│  ├─ pages/               One component per screen; composition only, no logic
-│  ├─ components/
-│  │   ├─ ui/              Design-system primitives (Button, FloatingLabelInput, Modal …)
-│  │   ├─ layout/          AppShell, Sidebar, Navbar, CompanySwitcher
-│  │   ├─ public/          Components usable by SSR-safe public routes
-│  │   └─ <domain>/        Feature components (candidate/, company/, search/ …)
-│  ├─ features/            Per-domain hooks + API bindings + local state
-│  ├─ hooks/               Generic reusable hooks
-│  ├─ services/
-│  │   ├─ apiClient.js     Axios instance, interceptors, 401 → refresh → retry queue
-│  │   └─ <domain>.api.js  Thin endpoint wrappers — the ONLY place URLs appear
-│  ├─ context/             AuthContext, CompanyContext, ToastContext
-│  ├─ utils/
-│  ├─ styles/
-│  └─ main.jsx
+│  │  └─ providers.jsx        Composed context providers
+│  ├─ router/
+│  │  ├─ index.jsx            Route tree
+│  │  ├─ paths.js             EVERY path string — single source of truth
+│  │  ├─ ScrollToTop.jsx
+│  │  ├─ ScrollToHash.jsx     React Router does not do this natively
+│  │  └─ guards/
+│  │     ├─ RequireAuth.jsx
+│  │     ├─ RequireCompany.jsx
+│  │     ├─ RequirePermission.jsx
+│  │     └─ RedirectIfAuthenticated.jsx
+│  ├─ layouts/
+│  │  ├─ MarketingLayout.jsx      MKT-01
+│  │  ├─ PublicLayout.jsx         PUB-01, PUB-02 — SSR-safe
+│  │  ├─ AuthLayout.jsx           AUTH-*  centred single-task (PRD §19.1)
+│  │  ├─ PersonalLayout.jsx       HOME-01, CAN-*
+│  │  ├─ CompanyLayout.jsx        REC-*  sidebar + company switcher
+│  │  └─ partials/
+│  │     ├─ AppNavbar.jsx · AppSidebar.jsx
+│  │     ├─ CompanySwitcher.jsx · UserMenu.jsx
+│  │     ├─ MarketingNavbar.jsx · MarketingFooter.jsx
+│  │     └─ NotificationBell.jsx
+│  ├─ pages/                  ONE file per screen. Composition only
+│  │  ├─ marketing/MarketingPage.jsx
+│  │  ├─ public/              CompanyDirectoryPage · CompanyProfilePage
+│  │  ├─ legal/               TermsPage · PrivacyPage        (TRD §15 D-09)
+│  │  ├─ auth/                AUTH-01 … AUTH-14
+│  │  ├─ home/                HOME-01
+│  │  ├─ candidate/           CAN-01 … CAN-12
+│  │  ├─ company/             REC-01 … REC-19
+│  │  ├─ settings/            SET-01, SET-02
+│  │  └─ errors/              NotFound · Forbidden · ServerError
+│  ├─ features/               Domain logic — hooks, components, utils
+│  │  ├─ marketing/ auth/ candidate/ company/ hiring/
+│  │  ├─ interests/ search/ pipeline/ messaging/ notifications/
+│  ├─ components/             Presentational. No data fetching
+│  │  ├─ ui/                  Design system primitives
+│  │  ├─ form/                FormField · FormError · FormActions · FormSection
+│  │  ├─ feedback/            Toast · EmptyState · Skeleton · ErrorBoundary · StatusRegion
+│  │  ├─ data/                DataTable · Pagination · FilterPanel · SortControl
+│  │  └─ public/              SSR-safe shared components
+│  ├─ context/
+│  │  ├─ AuthContext.jsx      Session + current user
+│  │  ├─ CompanyContext.jsx   Active company + membership
+│  │  └─ ToastContext.jsx
+│  ├─ services/               HTTP transport + endpoint bindings
+│  │  ├─ apiClient.js         Configured Axios instance
+│  │  ├─ interceptors/
+│  │  │  ├─ auth.interceptor.js   401 → refresh → retry, with queueing
+│  │  │  └─ error.interceptor.js  Envelope → typed client error
+│  │  ├─ auth.api.js · users.api.js · companies.api.js
+│  │  ├─ candidates.api.js · interests.api.js · search.api.js
+│  │  ├─ pipeline.api.js · messaging.api.js · public.api.js
+│  │  └─ index.js
+│  ├─ hooks/                  Generic, domain-free
+│  │  ├─ useZodForm.js        Binds a shared schema to a form
+│  │  ├─ useDebounce.js · useMediaQuery.js · useOnClickOutside.js
+│  │  ├─ useFocusTrap.js · useReducedMotion.js · useLocalStorage.js
+│  ├─ utils/                  Web-only pure helpers
+│  ├─ constants/              Web-only: breakpoints, nav config, UI copy
+│  ├─ styles/                 index.css, Tailwind layers, fonts
+│  └─ assets/                 Imported and processed by Vite
 ├─ index.html
+├─ jsconfig.json              Path aliases for editor support
 ├─ tailwind.config.js
-├─ jsconfig.json           Path aliases for editor support (ADR-002, mitigation 2)
+├─ postcss.config.js
 └─ vite.config.js
 ```
 
-### The `routes/public/` constraint (ADR-004)
+### 4.1 `pages/` vs `features/` vs `components/`
 
-Components reachable from `routes/public/` **may import only** from `components/ui/`,
-`components/public/`, `packages/shared`, and `services/`. They must **never**:
-- read `window`, `document`, `localStorage`, or `navigator` during render;
-- consume `AuthContext` or `CompanyContext`;
-- assume a logged-in user.
+The distinction that keeps this from turning into a 200-file `components/` folder:
 
-This holds from day one whether or not ADR-004 Stage 2 is ever approved. It costs nothing
-now, and it is the difference between "enable SSR" being a config change and being an audit
-of every component on the page.
+| Layer | Answers | Contains | Reusable |
+|---|---|---|---|
+| `pages/` | "What is at this URL?" | Layout choice, feature composition | Never |
+| `features/` | "How does this domain work?" | Hooks, API calls, domain components | Within its domain |
+| `components/` | "How does this look?" | Presentational primitives | Everywhere |
 
-### Where logic goes — and does not
+A page component should read as an outline: pick a layout, call a feature hook, render feature
+components. If a page contains an `axios` call or a business rule, it is misplaced.
 
-Per the coding rules, **business logic never lives in a UI component.**
+### 4.2 Feature folder anatomy
 
-| Concern | Belongs in |
-|---|---|
-| HTTP calls | `services/<domain>.api.js` |
-| Data fetching, caching, loading/error state | `features/<domain>/hooks/` |
-| Derived values, formatting, sorting | `utils/` or a hook |
-| Cross-screen shared state | `context/` |
-| Rendering and user events only | `components/`, `pages/` |
+```
+features/candidate/
+├─ hooks/                     useCandidateProfile · useProfileBuilder · useVisibility
+├─ components/                ProfileSectionNav · CompletenessBar · EvidenceCard
+├─ utils/                     completeness.js · answerProjection.js
+└─ index.js                   Public surface of the feature
+```
 
-A page component should read as a layout: fetch via a hook, render components, hand callbacks
-down. If a `.jsx` file contains an `axios` call or a business rule, it is misplaced.
+Features **import from `services/`, never Axios directly.**
+
+### 4.3 Why `services/` holds every endpoint, rather than colocating in features
+
+Colocating an API module inside each feature is the more modern convention. Centralising was
+chosen deliberately: with one engineer and ~60 endpoints, having a single directory where every
+URL, method, and payload shape lives makes the client-server contract auditable at a glance — the
+frontend mirror of the backend's single `routes.js`. Domain logic still lives in the feature; only
+the transport binding is central.
+
+**Revisit if a second frontend engineer joins** — at that point merge-conflict pressure on
+`services/` starts to outweigh the auditability benefit.
+
+### 4.4 Why `router/paths.js` exists
+
+Every route string in one file. Under ADR-002 a mistyped path is a runtime 404 that no tool
+catches. ADR-015 already moves HOME-01 from `/` to `/home`; with paths centralised that is a
+one-line change instead of a search across the codebase.
+
+### 4.5 The `routes/public` SSR-safe constraint
+
+Components reachable from `pages/marketing/`, `pages/public/`, and `pages/legal/` may import
+**only** from `components/ui/`, `components/form/`, `components/public/`, `packages/shared`, and
+`services/`. They must never read `window`/`document`/`localStorage` during render, and never
+consume `AuthContext` or `CompanyContext`.
+
+This holds regardless of whether ADR-004 Stage 2 is ever approved. It costs nothing now and makes
+enabling SSR a config change rather than an audit of every component.
 
 ---
 
-## 5. Naming conventions
+## 5. Where every concern lives
+
+| Concern | Location |
+|---|---|
+| **API services** | `web/src/services/*.api.js` + `apiClient.js` |
+| **Hooks** | Generic: `web/src/hooks/` · Domain: `web/src/features/<d>/hooks/` |
+| **Context** | `web/src/context/` — only `Auth`, `Company`, `Toast` |
+| **Assets** | Processed: `web/src/assets/` · Verbatim: `web/public/` |
+| **Layouts** | `web/src/layouts/` + `layouts/partials/` |
+| **Routes** | Frontend: `web/src/router/` · Backend: `api/src/routes.js` + `modules/*/**.routes.js` |
+| **Utilities** | Cross-tier pure: `shared/src/utils/` · Web-only: `web/src/utils/` · Server-only: `api/src/lib/` |
+| **Constants** | Cross-tier: `shared/src/constants/` · Web-only: `web/src/constants/` · Server tunables: `api/src/config/constants.js` |
+| **Validation** | Schemas: `shared/src/schemas/` · Server enforcement: `api/src/middleware/validate.js` · Client binding: `web/src/hooks/useZodForm.js` |
+| **Shared UI** | `web/src/components/ui/` |
+| **Forms** | Primitives: `components/form/` · Domain forms: `features/<d>/components/` · Rules: `shared/src/schemas/` |
+| **Mongo models** | `api/src/modules/<domain>/<domain>.model.js` — colocated, never a global `models/` |
+| **Controllers** | `api/src/modules/<domain>/<domain>.controller.js` |
+| **Services** | `api/src/modules/<domain>/<domain>.service.js` |
+| **Middleware** | `api/src/middleware/` |
+| **Config** | `api/src/config/` · `web/vite.config.js` + `tailwind.config.js` |
+| **Permissions** | Matrix + resolver: `shared/src/permissions/` · Enforced: `api/src/middleware/requirePermission.js` · Displayed: `web/src/router/guards/` |
+| **Search** | `api/src/modules/search/` (+ `query/`) · `web/src/features/search/` |
+| **Authentication** | `api/src/modules/auth/` + `sessions/` + `middleware/authenticate.js` · `web/src/features/auth/` + `context/AuthContext.jsx` + `services/interceptors/auth.interceptor.js` |
+| **Company** | `api/src/modules/companies/` + `memberships/` + `hiring-intents/` · `web/src/features/company/` + `context/CompanyContext.jsx` |
+| **Candidate** | `api/src/modules/candidates/` + `evidence/` + `question-bank/` · `web/src/features/candidate/` |
+| **Messaging** | `api/src/modules/messaging/` · `web/src/features/messaging/` |
+| **Notifications** | `api/src/modules/notifications/` · `web/src/features/notifications/` |
+| **Audit** | `api/src/modules/audit/` — written by services only |
+| **Logging** | Server: `api/src/lib/logger.js` + `middleware/requestContext.js` · Client: `components/feedback/ErrorBoundary.jsx` |
+
+---
+
+## 6. Naming conventions
 
 | Kind | Convention | Example |
 |---|---|---|
-| React component file | PascalCase | `CandidateCard.jsx` |
+| React component | PascalCase `.jsx` | `CandidateCard.jsx` |
 | Hook | camelCase, `use` prefix | `useCandidateProfile.js` |
-| API binding | `<domain>.api.js` | `interests.api.js` |
+| Frontend API binding | `<domain>.api.js` | `interests.api.js` |
 | Backend module file | `<domain>.<layer>.js` | `interest.service.js` |
 | Zod schema | `<domain>.schema.js` | `candidate.schema.js` |
-| Constants | SCREAMING_SNAKE values, camelCase file | `pipelineStages.js` |
-| Mongo collections | Plural, camelCase | `candidateProfiles` |
+| Constants file | camelCase file, SCREAMING_SNAKE values | `pipelineStages.js` |
+| Mongo collection | plural camelCase | `candidateProfiles` |
+| Route path constant | SCREAMING_SNAKE in `paths.js` | `COMPANY_SEARCH` |
 
 ---
 
-## 6. Import boundaries — quick reference
+## 7. Import boundaries
 
 ```
-✅  apps/web        →  packages/shared
-✅  apps/api        →  packages/shared
-❌  packages/shared →  apps/*                (shared must stay dependency-free)
-❌  apps/web        →  apps/api              (talk over HTTP only)
-❌  module A model  ←  module B              (go through A's service — ADR-011)
-❌  components/*    →  axios                 (use services/ — see §4)
-❌  routes/public/* →  AuthContext           (SSR-safe zone — ADR-004)
+✅  apps/web             →  packages/shared
+✅  apps/api             →  packages/shared
+✅  pages/               →  layouts/ · features/ · components/
+✅  features/            →  services/ · components/ · hooks/ · packages/shared
+✅  components/          →  components/ · hooks/ · packages/shared
+
+❌  packages/shared      →  apps/*                shared stays dependency-free
+❌  apps/web             →  apps/api              HTTP only
+❌  components/          →  features/ · context/  primitives receive props
+❌  components/          →  axios                 use services/
+❌  pages/marketing|public|legal → AuthContext    SSR-safe zone
+❌  module A             →  module B's model      go through B's service
+❌  modules/public       →  any candidate model   PRD §21.2 — hard boundary
+❌  controller           →  Mongoose model        go through the service
 ```
+
+The last three are security boundaries, not preferences. Treat a violation as a defect in review.
+
+---
+
+## 8. Why the backend is feature modules, not MVC-by-type
+
+`controllers/` + `models/` + `routes/` is the conventional Express layout and works to roughly
+five domains. This project has nineteen.
+
+| | MVC-by-type | Feature modules |
+|---|---|---|
+| Files touched to change one feature | 4, in 4 distant folders | 4, in one folder |
+| `controllers/` at completion | 19 unrelated files | n/a |
+| Onboarding a new engineer | "read all of `services/`" | "read `modules/interests/`" |
+| Extracting a service later | Untangle from three shared folders | Move one folder |
+
+The cost is discipline: modules must call each other's **services**, never import another module's
+model. That rule is what preserves the boundary.
+
+---
+
+## 9. Why only three React contexts
+
+State separates into three kinds, and only one is genuinely global:
+
+| Kind | Handled by | Share of the app |
+|---|---|---|
+| Server state | Feature hooks | ~90% |
+| Global client state | `AuthContext`, `CompanyContext` | ~5% |
+| Local UI state | `useState` in the component | ~5% |
+
+Most state here is data owned by MongoDB needing fetch/cache/invalidate — not global mutation. A
+Redux store would become a hand-written cache with manual invalidation, which is where this class
+of bug lives. Only session and active company are truly global, and both change rarely.
+
+**Revisit trigger:** if request waterfalls or duplicate fetches become measurable, add a
+server-state library (TanStack Query) — not a global store. That needs a new ADR.
+
+---
+
+## 10. Testing layout
+
+```
+apps/api/tests/
+├─ integration/     Route-level with a real database
+├─ unit/            Services and pure logic
+└─ helpers/         Factories, auth helpers, DB lifecycle
+```
+
+Under ADR-002 tests substitute for the compiler, so they are mandatory rather than aspirational.
+Three areas carry required coverage:
+
+1. **Every API route** — an integration test is the only verification of the contract (T-02).
+2. **`search/query/visibilityFilter.js`** — candidate data exposure lives here (T-03).
+3. **`refreshCandidateFacets()`** — silent search corruption lives here (TD-04).
+
+Frontend tests are colocated as `*.test.jsx` beside their component, added from M1.
+
+---
+
+## 11. Folders that stay empty until later
+
+Created only when their milestone arrives.
+
+| Folder | Empty until | Why deferred |
+|---|---|---|
+| `api/src/modules/candidates/` | **partially built** | The model and create/read service exist (HOME-01 needs them); the profile builder awaits M3 HTML |
+| `api/src/modules/evidence/` `question-bank/` | **M3** | Depends on the profile-builder HTML, not yet supplied |
+| `api/src/modules/interests/` | **M4** | Needs candidate + company to exist first |
+| `api/src/modules/search/` `pipeline/` `messaging/` | **M5** | Search needs populated facets to be testable |
+| `api/src/modules/notifications/` `moderation/` `analytics/` | **M6** | Cross-cutting; premature before the events exist |
+| `api/src/modules/assessments/` | **Unscheduled** | TRD §15 D-01 — awaiting a scope decision |
+| `api/src/jobs/` | **Post-MVP** | No scheduled work in MVP. Digests (PRD §15.1) are the first real need |
+| ~~`api/src/lib/mailer/`~~ | **built as `api/src/lib/email/`** | `EmailService` + `templates/` + `transports/{console,smtp}`. Q3 resolved: nodemailer, SendGrid over SMTP in production |
+| `api/src/lib/storage/providers/` | **M3** | Provider undecided (§14 Q2) |
+| `web/src/components/data/` | **M5** | Tables, filters, and pagination have no consumer before talent search |
+| `web/src/features/{search,pipeline,messaging,notifications}/` | **M5–M6** | Mirror their backend modules |
+| `web/src/pages/{candidate,company,settings}/` | **M2–M6** | Await their HTML. `/settings` and `/c/:companySlug` currently resolve to `PlaceholderPage` so HOME-01 has no dead links |
+| `web/src/entry-server.jsx` | **M-M** | Arrives with the ADR-013 prerender step |
+| `web/src/pages/legal/` | **Before the MKT-01 form ships** | TRD §15 D-09 — the form already claims consent to these |
+
+**Created at M0 even though nearly empty:** `packages/shared/*`, `api/src/config`, `api/src/lib`,
+`api/src/middleware`, `web/src/components/ui`, `web/src/services`, `web/src/router`. These carry
+the conventions every later folder copies — establishing them early is what keeps the structure
+consistent as it grows.

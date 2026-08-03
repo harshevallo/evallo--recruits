@@ -39,8 +39,66 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
   search engine. No secondary index. Query construction confined to `modules/search`.
 - **2026-07-31** — ADRs 003, 006, 007, 008, 009, 011, 012 accepted.
 
+> **Maintenance note.** Per founder instruction (2026-07-31), this changelog is **not** updated on
+> every HTML batch. Per-screen analysis updates go to the TRD, Component Guide, API Documentation,
+> Progress Tracker, and — only when architecture changes — the ADR. The changelog records
+> releases and shipped features, not analysis passes.
+
 ### Added
-*No code yet. First entries land with M0 (scaffold).*
+- **2026-08-02 — HOME-01 universal home.** Context switcher covering Personal and every company
+  (PRD §5.2, §5.3); state-driven next-setup-actions panel; per-company role and permission counts;
+  persistent Explore/Settings navigation. Placeholder destinations for `/settings` (SET-01) and
+  `/c/:companySlug` (REC-10), the latter behind `RequireCompany`.
+- **2026-08-02 — AUTH-05 first-action router.** Three choices (candidate, company, explore) that
+  route and nothing else. Adds `POST /api/me/complete-onboarding` and `users.onboardingCompletedAt`
+  so the screen is shown exactly once.
+- **2026-08-02 — AUTH-01 → AUTH-04 brought to full PRD compliance.** Sign-up is email-only;
+  `POST /api/auth/verify-email` returns a single-use setup token; new `POST /api/auth/set-password`
+  is where the credential and the session are first created; the name is collected afterwards via
+  `PATCH /api/me`.
+- **2026-08-02 — AUTH-10 sign in.** Remember-me (session vs persistent cookie, carried across
+  rotations) and per-account failed-attempt lockout.
+- **2026-08-02 — AUTH-11 / AUTH-12 password reset.** Non-enumerating request, single active token,
+  all sessions revoked on completion.
+- **2026-08-02 — Email delivery.** Nodemailer with console and SMTP/SendGrid transports.
+  `NODE_ENV=test` always forces the console transport.
+- **2026-08-02 — Google sign-in.** ID-token verification via `google-auth-library`; our own JWT is
+  always issued. Optional — disabled cleanly when `GOOGLE_CLIENT_ID` is unset.
+- **2026-08-01 — PUB-01 / PUB-02.** Public company directory with facets and filters, public
+  company profile, and expression of interest.
+- **2026-07-31 — M0 scaffold and MKT-01 marketing landing page** with `POST /api/public/early-access`.
+
+### Changed
+- **2026-08-02** — Development ports moved to web `3001` / api `8081`.
+- **2026-08-02** — The refresh-session collection is `authSessions`, not `sessions`.
+
+### Fixed
+- **2026-08-02** — `capabilities.companies[].initials` was always `undefined`: the query used
+  `.lean({ virtuals: true })`, which is a no-op without the `mongoose-lean-virtuals` plugin, so
+  every company avatar without a logo rendered blank.
+- **2026-08-02** — Signup issued a session before email verification. Removed; login now enforces
+  verification, checked after the password so it is not a verification oracle.
+- **2026-08-01** — `googleId` used a sparse unique index, which still indexes `null` and therefore
+  collided every password account against every other. Replaced with a partial filter on
+  `$type: 'string'`.
+- **2026-08-01** — Sign out did nothing: the context exposed `logout` while components called
+  `signOut`.
+- **2026-08-01** — CORS blocked `POST` after a successful preflight; `x-landing-path` was missing
+  from `allowedHeaders`.
+- **2026-08-01** — Navbar contrast failure (1.5:1) where a transparent navbar sat on a white page.
+  `transparentOnTop` is now opt-in.
+
+### Security
+- **2026-08-02** — Refresh-token rotation with family-scoped reuse detection is live.
+- **2026-08-02** — Passwords are bcrypt (cost 12) and never returned by any endpoint.
+- **2026-08-02** — All `/api/auth` writes are rate limited; account lockout is per account, so
+  rotating IPs does not evade it.
+
+### Removed
+- **2026-08-01** — **Auth0 removed entirely.** Authentication is in-house (bcrypt + JWT + rotating
+  refresh cookie). No external identity provider remains; reintroducing one requires an ADR.
+- **2026-08-02** — The previous sign-up flow that collected name and password on the first screen,
+  which contradicted PRD §21.1.
 
 ---
 

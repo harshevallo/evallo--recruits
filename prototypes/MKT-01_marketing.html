@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evallo Recruit | The Premier Hiring Platform for Educators</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            blue: '#0671E0',
+                            dark: '#0A0A0B',
+                            light: '#f8fafc',
+                            gray: '#334155'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for standard icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom styles for minor tweaks */
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-text {
+            background-color: #0671E0;
+            background-image: linear-gradient(45deg, #0671E0, #4F93E6);
+            background-size: 100%;
+            -webkit-background-clip: text;
+            -moz-background-clip: text;
+            -webkit-text-fill-color: transparent; 
+            -moz-text-fill-color: transparent;
+        }
+        .hero-pattern {
+            background-color: #0A0A0B;
+            background-image: radial-gradient(circle at top right, rgba(6, 113, 224, 0.15), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(6, 113, 224, 0.1), transparent 40%);
+        }
+    </style>
+</head>
+<body class="bg-white text-brand-dark antialiased">
+
+    <nav class="fixed w-full z-50 transition-all duration-300" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+                    <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white font-bold text-xl">
+                        E
+                    </div>
+                    <span class="font-bold text-2xl tracking-tight text-white transition-colors duration-300" id="nav-logo-text">Evallo<span class="text-brand-blue">Recruit</span></span>
+                </div>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="#businesses" class="text-sm font-medium text-gray-300 hover:text-white transition-colors nav-link">For Businesses</a>
+                    <a href="#educators" class="text-sm font-medium text-gray-300 hover:text-white transition-colors nav-link">For Educators</a>
+                    <a href="#features" class="text-sm font-medium text-gray-300 hover:text-white transition-colors nav-link">Features</a>
+                    <div class="flex items-center space-x-4 ml-4">
+                        <a href="#" class="text-sm font-medium text-gray-300 hover:text-white transition-colors nav-link">Log in</a>
+                        <a href="#get-started" class="bg-brand-blue hover:bg-blue-600 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg hover:shadow-brand-blue/30">
+                            Post a Job
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-gray-300 hover:text-white focus:outline-none">
+                        <i class="fas fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-brand-dark/95 backdrop-blur-md border-t border-gray-800">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#businesses" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800">For Businesses</a>
+                <a href="#educators" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800">For Educators</a>
+                <a href="#features" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800">Features</a>
+                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800">Log in</a>
+                <a href="#get-started" class="block px-3 py-2 mt-4 text-center rounded-md text-base font-medium bg-brand-blue text-white hover:bg-blue-600">Post a Job</a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero-pattern pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 border border-brand-blue/20 text-brand-blue text-sm font-medium mb-8">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-brand-blue"></span>
+                </span>
+                Now accepting pilot partners
+            </div>
+            
+            <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-tight max-w-4xl mx-auto mb-6">
+                The specialized hiring network for <span class="gradient-text">Top Educators</span>
+            </h1>
+            
+            <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10">
+                Stop sifting through generic job boards. Connect verified, high-performing tutors with premium educational organizations in one specialized platform.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <a href="#get-started" class="w-full sm:w-auto bg-brand-blue hover:bg-blue-600 text-white px-8 py-4 rounded-full text-lg font-semibold transition-all shadow-lg hover:shadow-brand-blue/40 flex items-center justify-center gap-2">
+                    Hire Top Tutors <i class="fas fa-arrow-right text-sm"></i>
+                </a>
+                <a href="#educators" class="w-full sm:w-auto bg-transparent border border-gray-600 text-white hover:border-gray-400 hover:bg-gray-800 px-8 py-4 rounded-full text-lg font-semibold transition-all flex items-center justify-center">
+                    Find Teaching Roles
+                </a>
+            </div>
+
+            <!-- UI Mockup Graphic (Abstract) -->
+            <div class="mt-20 relative max-w-5xl mx-auto">
+                <div class="absolute inset-0 bg-gradient-to-t from-brand-dark via-transparent to-transparent z-10"></div>
+                <div class="bg-brand-dark border border-gray-800 rounded-t-xl shadow-2xl p-4 overflow-hidden relative border-b-0">
+                    <!-- Browser Header -->
+                    <div class="flex items-center gap-2 mb-6 border-b border-gray-800 pb-4">
+                        <div class="w-3 h-3 rounded-full bg-gray-700"></div>
+                        <div class="w-3 h-3 rounded-full bg-gray-700"></div>
+                        <div class="w-3 h-3 rounded-full bg-gray-700"></div>
+                    </div>
+                    <!-- Mock App Content -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-80">
+                        <div class="col-span-1 border border-gray-800 rounded-lg p-4 bg-gray-900/50">
+                            <div class="w-full h-8 bg-gray-800 rounded mb-4"></div>
+                            <div class="w-3/4 h-4 bg-gray-800 rounded mb-2"></div>
+                            <div class="w-1/2 h-4 bg-gray-800 rounded mb-6"></div>
+                            <div class="space-y-3">
+                                <div class="w-full h-12 bg-gray-800 rounded-md"></div>
+                                <div class="w-full h-12 bg-gray-800 rounded-md"></div>
+                                <div class="w-full h-12 bg-gray-800 rounded-md border border-brand-blue/30"></div>
+                            </div>
+                        </div>
+                        <div class="col-span-2 border border-gray-800 rounded-lg p-6 bg-gray-900/50">
+                            <div class="flex items-start gap-4 mb-6">
+                                <div class="w-16 h-16 rounded-full bg-gray-700 flex-shrink-0"></div>
+                                <div>
+                                    <div class="w-48 h-6 bg-gray-700 rounded mb-2"></div>
+                                    <div class="w-32 h-4 bg-gray-800 rounded mb-2"></div>
+                                    <div class="flex gap-2">
+                                        <div class="px-2 py-1 bg-brand-blue/20 text-brand-blue rounded text-xs">SAT 1550+</div>
+                                        <div class="px-2 py-1 bg-green-900/40 text-green-400 rounded text-xs">Verified</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="w-full h-32 bg-gray-800 rounded-lg mb-4 flex items-center justify-center">
+                                <i class="fas fa-play-circle text-4xl text-gray-600"></i>
+                            </div>
+                            <div class="w-full h-4 bg-gray-800 rounded mb-2"></div>
+                            <div class="w-full h-4 bg-gray-800 rounded mb-2"></div>
+                            <div class="w-2/3 h-4 bg-gray-800 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="businesses" class="py-24 bg-brand-light relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-brand-blue font-semibold tracking-wide uppercase text-sm mb-3">For Educational Businesses</h2>
+                <h3 class="text-3xl md:text-4xl font-bold text-brand-dark mb-4">Hire with confidence, not guesswork.</h3>
+                <p class="text-gray-600 text-lg">Stop relying on self-reported scores and generic resumes. Evallo Recruit provides the verification and specialized context you need to build a world-class tutoring team.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                <!-- Feature 1 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-blue-50 text-brand-blue rounded-xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fas fa-certificate"></i>
+                    </div>
+                    <h4 class="text-xl font-bold text-brand-dark mb-3">Verified Test Scores</h4>
+                    <p class="text-gray-600 leading-relaxed">Require candidates to upload official score reports or take adaptive tests (SAT, ACT, etc.) directly on our integrated platform before they can apply.</p>
+                </div>
+                <!-- Feature 2 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-blue-50 text-brand-blue rounded-xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <h4 class="text-xl font-bold text-brand-dark mb-3">Video Prompts</h4>
+                    <p class="text-gray-600 leading-relaxed">Evaluate teaching style instantly. Set specific prompts like "Explain a difficult math concept" and review candidates' video responses before scheduling an interview.</p>
+                </div>
+                <!-- Feature 3 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                    <div class="w-14 h-14 bg-blue-50 text-brand-blue rounded-xl flex items-center justify-center text-2xl mb-6">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <h4 class="text-xl font-bold text-brand-dark mb-3">Hyper-Targeted Search</h4>
+                    <p class="text-gray-600 leading-relaxed">Filter talent pools by subject expertise, teaching certifications, standardized test scores, and availability. Find exactly who you need, faster.</p>
+                </div>
+            </div>
+
+            <!-- Business Public Profile Highlight -->
+            <div class="mt-20 bg-brand-dark rounded-3xl p-8 md:p-12 overflow-hidden relative shadow-2xl">
+                <div class="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-brand-blue/20 rounded-full blur-3xl"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
+                    <div>
+                        <h4 class="text-2xl md:text-3xl font-bold text-white mb-4">Establish Your Employer Brand</h4>
+                        <p class="text-gray-400 text-lg mb-6 leading-relaxed">Create a public-facing company profile on Evallo Recruit. Showcase your company culture, list open roles, and let top educators express interest in joining your team directly—all indexed for search engines.</p>
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-center text-gray-300"><i class="fas fa-check-circle text-brand-blue mr-3"></i> Public company profile pages</li>
+                            <li class="flex items-center text-gray-300"><i class="fas fa-check-circle text-brand-blue mr-3"></i> Centralized applicant tracking</li>
+                            <li class="flex items-center text-gray-300"><i class="fas fa-check-circle text-brand-blue mr-3"></i> Direct in-platform messaging</li>
+                        </ul>
+                        <button class="bg-white text-brand-dark font-semibold px-6 py-3 rounded-full hover:bg-gray-100 transition-colors">
+                            Claim Your Company Profile
+                        </button>
+                    </div>
+                    <!-- Abstract Profile Card -->
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-lg transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                        <div class="flex items-center gap-4 mb-6">
+                            <div class="w-16 h-16 bg-brand-blue rounded-lg flex items-center justify-center text-white font-bold text-2xl shadow-inner">
+                                SL
+                            </div>
+                            <div>
+                                <h5 class="text-white font-bold text-xl">Seven Square Learning</h5>
+                                <p class="text-gray-400 text-sm">Test Prep & Academic Tutoring</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="bg-gray-800 p-4 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <h6 class="text-white font-medium">Senior SAT Math Tutor</h6>
+                                    <p class="text-gray-500 text-xs mt-1">Full-time • Remote</p>
+                                </div>
+                                <span class="bg-brand-blue/20 text-brand-blue px-3 py-1 rounded text-xs font-medium">Hiring</span>
+                            </div>
+                            <div class="bg-gray-800 p-4 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <h6 class="text-white font-medium">AP Physics Instructor</h6>
+                                    <p class="text-gray-500 text-xs mt-1">Part-time • Chicago, IL</p>
+                                </div>
+                                <span class="bg-brand-blue/20 text-brand-blue px-3 py-1 rounded text-xs font-medium">Hiring</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="educators" class="py-24 bg-white border-t border-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col-reverse lg:flex-row items-center gap-16">
+                <!-- Visuals -->
+                <div class="w-full lg:w-1/2 relative">
+                    <div class="absolute inset-0 bg-brand-light rounded-3xl transform -rotate-3 scale-105 -z-10"></div>
+                    <div class="bg-white border border-gray-100 rounded-3xl p-8 shadow-xl relative z-10">
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-6 mb-6">
+                            <div class="flex items-center gap-4">
+                                <img src="https://placehold.co/100x100/e2e8f0/475569?text=PT" alt="Profile" class="w-16 h-16 rounded-full border-2 border-white shadow-sm">
+                                <div>
+                                    <h4 class="text-xl font-bold text-brand-dark">Sarah Jenkins</h4>
+                                    <p class="text-gray-500 text-sm">Expert Math & Science Educator</p>
+                                </div>
+                            </div>
+                            <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                <i class="fas fa-shield-alt"></i> Verified
+                            </span>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <h5 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Verified Credentials</h5>
+                            <div class="flex flex-wrap gap-2">
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                                    <i class="fas fa-star text-yellow-400 text-sm"></i>
+                                    <span class="text-sm font-medium text-brand-dark">SAT Math: 800</span>
+                                </div>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                                    <i class="fas fa-award text-brand-blue text-sm"></i>
+                                    <span class="text-sm font-medium text-brand-dark">State Teaching Cert</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h5 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Teaching Sample</h5>
+                            <div class="bg-gray-900 rounded-xl h-40 flex items-center justify-center relative overflow-hidden group cursor-pointer">
+                                <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors"></div>
+                                <i class="fas fa-play text-white text-3xl opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all"></i>
+                                <span class="absolute bottom-3 left-4 text-white text-xs font-medium">"Explaining Polynomials"</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Content -->
+                <div class="w-full lg:w-1/2">
+                    <h2 class="text-brand-blue font-semibold tracking-wide uppercase text-sm mb-3">For Aspiring & Pro Educators</h2>
+                    <h3 class="text-3xl md:text-4xl font-bold text-brand-dark mb-6">Build a profile that gets you hired.</h3>
+                    <p class="text-gray-600 text-lg mb-8 leading-relaxed">
+                        Tired of competing in overcrowded marketplaces for low-paying freelance gigs? Evallo Recruit connects you with established tutoring companies and schools looking to hire for stable part-time and full-time roles.
+                    </p>
+                    
+                    <ul class="space-y-6">
+                        <li class="flex items-start">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue mt-1">
+                                1
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-lg font-bold text-brand-dark">Create a Static Professional Profile</h4>
+                                <p class="text-gray-500 mt-1">Showcase your education, experience, and specific subject proficiencies in a format designed specifically for educators.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue mt-1">
+                                2
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-lg font-bold text-brand-dark">Verify Your Expertise</h4>
+                                <p class="text-gray-500 mt-1">Take integrated tests on our platform or upload official score reports to earn 'Verified' badges that make you stand out.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue mt-1">
+                                3
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-lg font-bold text-brand-dark">Protect Your Privacy</h4>
+                                <p class="text-gray-500 mt-1">Your profile is kept behind a secure wall, accessible only to vetted business recruiters looking to hire. No public scraping.</p>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <div class="mt-10">
+                        <a href="#get-started" class="text-brand-blue font-semibold hover:text-blue-700 flex items-center gap-2 group">
+                            Create Your Educator Profile <i class="fas fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="py-24 bg-brand-dark text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">A recruitment cycle optimized for education</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">Everything you need to evaluate instructional talent natively built into one secure platform.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl hover:border-brand-blue transition-colors group">
+                    <i class="fas fa-laptop-code text-3xl text-brand-blue mb-4 group-hover:scale-110 transition-transform"></i>
+                    <h3 class="text-xl font-bold mb-2">Native Assessments</h3>
+                    <p class="text-gray-400 text-sm">Utilize our built-in digital testing interface (including digital SAT/ACT formats) to test candidates' subject knowledge.</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl hover:border-brand-blue transition-colors group">
+                    <i class="fas fa-file-shield text-3xl text-brand-blue mb-4 group-hover:scale-110 transition-transform"></i>
+                    <h3 class="text-xl font-bold mb-2">Document Verification</h3>
+                    <p class="text-gray-400 text-sm">Securely request and view teaching certificates, transcripts, and official score reports directly within candidate profiles.</p>
+                </div>
+                <!-- Card 3 -->
+                <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl hover:border-brand-blue transition-colors group">
+                    <i class="fas fa-comments text-3xl text-brand-blue mb-4 group-hover:scale-110 transition-transform"></i>
+                    <h3 class="text-xl font-bold mb-2">In-Platform Comms</h3>
+                    <p class="text-gray-400 text-sm">Message candidates, schedule interviews, and manage the entire communication flow without sharing personal emails initially.</p>
+                </div>
+                <!-- Card 4 -->
+                <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl hover:border-brand-blue transition-colors group">
+                    <i class="fas fa-layer-group text-3xl text-brand-blue mb-4 group-hover:scale-110 transition-transform"></i>
+                    <h3 class="text-xl font-bold mb-2">Portfolio Showcase</h3>
+                    <p class="text-gray-400 text-sm">Educators can build rich portfolios including video teaching samples, past student reviews, and specific methodology approaches.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="get-started" class="py-24 bg-brand-blue relative overflow-hidden">
+        <!-- Background decorations -->
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+            <div class="absolute -top-24 -left-24 w-96 h-96 bg-white opacity-10 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-black opacity-10 rounded-full blur-3xl"></div>
+        </div>
+
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center text-white">
+            <h2 class="text-4xl md:text-5xl font-bold mb-6">Join the Evallo Recruit Pilot</h2>
+            <p class="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
+                We are currently onboarding a select group of tutoring businesses and high-caliber educators for our early access program.
+            </p>
+            
+            <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-2xl mx-auto text-left text-brand-dark">
+                <form onsubmit="event.preventDefault(); alert('In a real environment, this would submit the interest form.');">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
+                            <select class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue appearance-none bg-white">
+                                <option>Tutoring Business / School</option>
+                                <option>Educator / Tutor</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                            <input type="text" placeholder="John Doe" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue">
+                        </div>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                        <input type="email" placeholder="john@example.com" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue">
+                    </div>
+                    <button type="submit" class="w-full bg-brand-dark text-white font-bold py-4 rounded-lg hover:bg-black transition-colors shadow-lg">
+                        Request Early Access
+                    </button>
+                    <p class="text-center text-xs text-gray-500 mt-4">By submitting, you agree to our terms of service and privacy policy.</p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-brand-dark pt-16 pb-8 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+                <div class="col-span-1 md:col-span-1">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-6 h-6 rounded bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
+                            E
+                        </div>
+                        <span class="font-bold text-xl tracking-tight text-white">Evallo<span class="text-brand-blue">Recruit</span></span>
+                    </div>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                        Bridging the gap between premium educational organizations and vetted, high-quality teaching talent.
+                    </p>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors"><i class="fab fa-facebook-f"></i></a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Platform</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">For Businesses</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">For Educators</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Assessment Engine</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Pricing</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Help Center</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Hiring Guides</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Blog</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Market Research</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Company</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">About Us</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Contact</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-brand-blue transition-colors">Terms of Service</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
+                <p class="text-gray-500 text-sm">
+                    &copy; 2026 Evallo. All rights reserved.
+                </p>
+                <div class="mt-4 md:mt-0">
+                    <span class="text-gray-500 text-sm flex items-center gap-2">
+                        Built with <i class="fas fa-heart text-red-500"></i> for the Education Sector
+                    </span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile Menu Toggle
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+
+        btn.addEventListener('click', () => {
+            menu.classList.toggle('hidden');
+        });
+
+        // Navbar scroll effect
+        const navbar = document.getElementById('navbar');
+        const navText = document.getElementById('nav-logo-text');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 10) {
+                navbar.classList.add('bg-white', 'shadow-md');
+                navbar.classList.remove('bg-transparent', 'py-2');
+                navText.classList.remove('text-white');
+                navText.classList.add('text-brand-dark');
+                
+                navLinks.forEach(link => {
+                    link.classList.remove('text-gray-300');
+                    link.classList.add('text-gray-600', 'hover:text-brand-blue');
+                });
+                
+                document.getElementById('mobile-menu-btn').classList.remove('text-gray-300');
+                document.getElementById('mobile-menu-btn').classList.add('text-gray-600');
+            } else {
+                navbar.classList.remove('bg-white', 'shadow-md');
+                navbar.classList.add('bg-transparent', 'py-2');
+                navText.classList.add('text-white');
+                navText.classList.remove('text-brand-dark');
+                
+                navLinks.forEach(link => {
+                    link.classList.add('text-gray-300');
+                    link.classList.remove('text-gray-600', 'hover:text-brand-blue');
+                });
+
+                document.getElementById('mobile-menu-btn').classList.add('text-gray-300');
+                document.getElementById('mobile-menu-btn').classList.remove('text-gray-600');
+            }
+        });
+
+        // Close mobile menu on link click
+        document.querySelectorAll('#mobile-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                menu.classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>

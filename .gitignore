@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.npm
+
+# Environment — never commit real values (08_SETUP_GUIDE.md §3)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build output
+dist/
+build/
+apps/web/dist/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cache
+.eslintcache
+.vite/
+
+# Local agent/editor workspace config (machine-specific)
+.claude/
+
+# Ad-hoc maintenance scripts must never be committed (08_SETUP_GUIDE.md)
+apps/api/tmp-*.mjs

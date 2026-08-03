@@ -1,8 +1,8 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-07-31
-**Current milestone:** M0 — Foundation
-**Overall:** 0 of 40 screens implemented
+**Last updated:** 2026-08-02
+**Current milestone:** M1 — Identity 🔄 **in progress**
+**Overall:** 9 of 41 screens implemented
 
 ---
 
@@ -14,41 +14,69 @@
 | PRD ingested and analysed | 2026-07-31 | 40 pages, §1–21 + Appendices A–D |
 | Stack locked by CTO | 2026-07-31 | MERN + JavaScript. ADR-002 |
 | SEO scope locked by CTO | 2026-07-31 | Google only. ADR-004 |
-| ADRs 001–012 drafted | 2026-07-31 | `10_DECISION_LOG.md` |
-| Project structure defined | 2026-07-31 | `07_PROJECT_STRUCTURE.md` |
+| ADRs 001–016 | 2026-07-31 | `10_DECISION_LOG.md` |
+| **M0 — Foundation scaffold** | 2026-07-31 | Monorepo, DB connection, error/validation plumbing |
+| **M-M — MKT-01 marketing page** | 2026-07-31 | 27 components, `earlyAccessRequests`, prerender deferred |
+| **PUB-01 / PUB-02 — public company surface** | 2026-08-01 | Directory with facets, public profile, expression of interest |
+| **AUTH-01 → AUTH-05 — sign-up chain** | 2026-08-02 | Email-only signup → verify → set password → name → first-action router |
+| **AUTH-10 / AUTH-11 / AUTH-12** | 2026-08-02 | Sign in with remember-me and per-account lockout; forgot/reset password |
+| **Session management** | 2026-08-02 | JWT access + rotating refresh cookie, reuse detection, logout |
+| **Google sign-in** | 2026-08-02 | ID-token verification only; our own JWT is always issued |
+| **Email delivery** | 2026-08-02 | Nodemailer; console transport in dev, SMTP/SendGrid in production |
+| **HOME-01 — universal home** | 2026-08-02 | Next-actions panel + context switcher (Personal + every company) |
 
 ### 🔄 In Progress
-| Item | Notes |
-|---|---|
-| Documentation baseline (docs 01–14) | Foundational docs written; API/component guides await first implementation |
+**M1 — Identity.** Remaining: AUTH-13 (SSO conflict resolution) and AUTH-14 (session and context
+return).
 
 ### ⏳ Pending — immediate
 | Item | Blocked by |
 |---|---|
-| Monorepo scaffold (`apps/web`, `apps/api`, `packages/shared`) | **CTO approval of architecture** |
-| MongoDB connection + health check | Scaffold |
-| Auth module (AUTH-01 → AUTH-05) | Scaffold + founder HTML |
+| CAN-01 candidate home / CAN-02 profile builder | M3 — the next founder HTML batch |
+| REC-01 → REC-07 company setup | M2 |
+| SET-01 account settings | Currently a placeholder route reached from HOME-01 |
+| Convert MongoDB to a replica set | See 🚫 below |
 
 ### 🚫 Blocked
 | Item | Blocker | Owner |
 |---|---|---|
-| All screen implementation | No HTML prototypes supplied yet | Founder |
-| ADR-004 (SEO) sign-off | Awaiting CTO approval — not urgent, needed by PUB-02 | CTO |
-| Deployment configuration | Infrastructure deliberately deferred by CTO | CTO |
+| **Transactions** | The MongoDB server is standalone, not a replica set. `/api/health` reports `supportsTransactions: false`. Refresh-token rotation works without them but is not atomic. Conversion steps in `08_SETUP_GUIDE.md` §1 — not done automatically because it modifies a system service | Founder |
+| **Google sign-in on localhost** | Google returns `403` from `gsi/status` for `http://localhost:3001` unless the origin is registered in the Google Cloud console. Email auth is unaffected | Founder |
+| Terms + Privacy content | The live forms already claim consent to both (D-09) | Founder |
+| Deployment configuration | Deliberately deferred | Founder |
 
 ---
 
-## CURRENT SCREEN
+## VERIFIED STATE
 
-| Field | Value |
+**Environment:** Windows 11 · Node v22.17.0 · npm 10.2.0 · MongoDB standalone ·
+web `:3001` · api `:8081` · database `evallo-recruit`
+
+### Test suites — all passing, run one file at a time
+| Suite | Cases |
 |---|---|
-| **Name** | — none in progress — |
-| **Status** | Awaiting architecture approval and first HTML batch |
-| **APIs** | — |
-| **Database** | — |
-| **Frontend** | — |
-| **Backend** | — |
-| **Testing** | — |
+| `auth.test.js` | 46 |
+| `capabilities.test.js` | 14 |
+| `companyProfile.test.js` | 16 |
+| `companyDirectory.test.js` | 12 |
+| `verification.test.js` | 11 |
+| `earlyAccess.test.js` | 9 |
+| `home.test.js` | 6 |
+| `health.test.js` | 2 |
+| **Total** | **116** |
+
+`npm run lint` — clean across all three workspaces.
+
+### Browser-verified flows
+| Flow | Result |
+|---|---|
+| MKT-01 landing, anchors, early-access form | ✅ |
+| PUB-01 directory + filters · PUB-02 profile + interest | ✅ |
+| AUTH-01 → 02 → 03 → 04 → 05 → HOME-01, end to end | ✅ |
+| Sign in, remember-me, sign out, session revoked | ✅ |
+| HOME-01 context switcher → `/c/:slug`, browser back | ✅ |
+| Next actions change with account state; nothing auto-created | ✅ |
+| Mobile 375px, no horizontal overflow, no console errors | ✅ |
 
 ---
 
@@ -59,30 +87,35 @@ omits. **40 screens total.**
 
 Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` · `➖ Post-MVP`
 
+### Marketing
+| ID | Screen | PRD | Status |
+|---|---|---|---|
+| MKT-01 | Marketing landing page | **Not in PRD** — founder-supplied | ✅ |
+
 ### Public / anonymous
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| PUB-01 | Public company directory | §9.1, App. A | ⏳ |
-| PUB-02 | Public company profile | §7.4, §9.3 | ⏳ |
+| PUB-01 | Public company directory | §9.1, App. A | ✅ |
+| PUB-02 | Public company profile | §7.4, §9.3 | ✅ |
 
 ### Authentication
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| AUTH-01 | Create account (email only) | §6.2 | ⏳ |
-| AUTH-02 | Verification sent | §6.2 | ⏳ |
-| AUTH-03 | Set password | §6.2 | ⏳ |
-| AUTH-04 | Account setup — name | §6.2 | ⏳ |
-| AUTH-05 | First-action router | §6.2 | ⏳ |
-| AUTH-10 | Sign in | §6.3 | ⏳ |
-| AUTH-11 | Forgot password | §6.3 | ⏳ |
-| AUTH-12 | Reset password | §6.3 | ⏳ |
+| AUTH-01 | Create account (email only) | §6.2 | ✅ |
+| AUTH-02 | Verification sent | §6.2 | ✅ |
+| AUTH-03 | Set password | §6.2 | ✅ |
+| AUTH-04 | Account setup — name | §6.2 | ✅ |
+| AUTH-05 | First-action router | §6.2 | ✅ |
+| AUTH-10 | Sign in | §6.3 | ✅ |
+| AUTH-11 | Forgot password | §6.3 | ✅ |
+| AUTH-12 | Reset password | §6.3 | ✅ |
 | AUTH-13 | SSO conflict resolution | §6.3 | ⏳ |
 | AUTH-14 | Session and context return | §6.3 | ⏳ |
 
 ### Universal
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| HOME-01 | Universal home + context switcher | §5.2, App. A | ⏳ |
+| HOME-01 | Universal home + context switcher | §5.2, App. A | ✅ |
 
 ### Candidate / personal
 | ID | Screen | PRD | Status |
@@ -137,9 +170,10 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 
 | # | Milestone | Scope | Status |
 |---|---|---|---|
-| **M0** | Foundation | Docs, monorepo scaffold, DB connection, shared package, error/validation plumbing | 🔄 |
-| **M1** | Identity | AUTH-01 → AUTH-14, session management, HOME-01 | ⏳ |
-| **M2** | Company presence | REC-01 → REC-07, PUB-01, PUB-02, SEO Stage 1 | ⏳ |
+| **M0** | Foundation | Docs, monorepo scaffold, DB connection, shared package, error/validation plumbing | ✅ |
+| **M-M** | Marketing | MKT-01, shared UI primitives, `earlyAccessRequests` | ✅ (prerender deferred) |
+| **M1** | Identity | AUTH-01 → AUTH-14, session management, HOME-01 | 🔄 AUTH-13/14 remain |
+| **M2** | Company presence | REC-01 → REC-07, PUB-01, PUB-02, SEO Stage 1 | 🔄 PUB-01/02 done |
 | **M3** | Candidate identity | CAN-01 → CAN-04, question bank, evidence, visibility | ⏳ |
 | **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | ⏳ |
 | **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | ⏳ |
@@ -155,11 +189,12 @@ by technical convenience.
 
 Maintained in full in `13_BACKLOG.md`. Summary:
 
-**Features remaining** — all 40 screens.
-**Missing APIs** — all; none built yet.
-**Refactoring** — none yet; no code exists.
-**UI improvements** — none yet.
-**Bug fixes** — none yet.
+**Features remaining** — 32 of 41 screens.
+**Missing APIs** — candidate profile detail, hiring intents, interests, search, pipeline,
+messaging, notifications. Auth, `/me`, and the public/company surface are built.
+**Refactoring** — HOME-01 still creates the candidate profile directly; that action should route
+into CAN-02 once it exists.
+**Bug fixes** — none open. See `12_KNOWN_ISSUES.md` for accepted limitations.
 
 ---
 
@@ -172,6 +207,23 @@ Maintained in full in `13_BACKLOG.md`. Summary:
 | TD-03 | `QuestionBank` has no admin UI; edited via seed scripts in MVP | ADR-007 | Medium — becomes painful once non-engineers need to edit questions |
 | TD-04 | `CandidateProfile.facets` is denormalized and can drift from source collections | ADR-008 | **High** — single `refreshCandidateFacets()` path plus tests required |
 | TD-05 | Search relevance is weaker than a dedicated engine | ADR-010 | Low — PRD §10.3 discourages implying objective ranking anyway |
+| TD-06 | `earlyAccessRequests` has no operator UI and no retention policy | ADR-014 | Medium — personal data held before any account exists |
+
+---
+
+## UNSCHEDULED SCOPE
+
+Deltas from MKT-01 that supersede the PRD per ADR-016, recorded in `03_TRD.md` §15. Each adds at
+least one module and one collection. **They do not block MKT-01** — the page can describe them —
+but they need a milestone before they are built.
+
+| Delta | Adds | Decision needed |
+|---|---|---|
+| D-01 Native assessments | `modules/assessments`, item bank, attempts, scoring | MVP or post-MVP? |
+| D-02 Video prompt responses | Media pipeline, storage/transcode dependency | MVP or post-MVP? |
+| D-03 Job postings | `jobPostings` collection alongside `hiringIntents` | MVP or post-MVP? |
+| D-05 Candidate role search | New screen; depends on D-03 | Follows D-03 |
+| D-09 Terms + Privacy pages | Content only | **Needed before the MKT-01 form collects data** |
 
 ---
 
@@ -179,23 +231,23 @@ Maintained in full in `13_BACKLOG.md`. Summary:
 
 > **One task only.**
 
-### ▶ Scaffold the monorepo foundation (M0)
+### ▶ Send the next HTML batch
 
-**Blocked on:** CTO approval of the architecture in `03_TRD.md`, `07_PROJECT_STRUCTURE.md`,
-and ADRs 001–012.
+**HOME-01 is complete and PRD-compliant.** Per the agreed workflow the next step is
+founder-supplied HTML: HTML → analysis → approval → implementation → integration → testing →
+docs → commit.
 
-**Scope when unblocked:**
-1. npm workspaces root + `apps/web`, `apps/api`, `packages/shared`
-2. Vite + React + React Router + Tailwind, configured with the PRD §19.1 design tokens
-   (`#0671E0` primary, `#0A0A0B` text)
-3. Express app skeleton: config validation, Mongoose connection, `/health`, centralised error
-   handler, request validation middleware
-4. `packages/shared` seeded with the permission matrix (§4.2), visibility states (§4.3), and
-   state-machine constants (§14.2)
-5. One end-to-end proof: React → Axios → Express → MongoDB → response rendered
+Two candidates, in PRD milestone order:
 
-**Explicitly not in scope:** authentication, any screen, any business logic.
+1. **REC-01 → REC-07 (company setup, M2)** — follows the strategic wedge in PRD §2.3: company
+   presence before candidate acquisition. HOME-01 and AUTH-05 both already route to a company
+   creation flow that is currently a modal plus a placeholder `/c/:companySlug`.
+2. **CAN-01 / CAN-02 (candidate identity, M3)** — HOME-01's "Start your candidate profile" action
+   currently creates the profile inline; CAN-02 is what it should route to.
 
-**Definition of done:** `npm install && npm run dev` at the repo root starts both apps; the
-health check returns a live database status in the browser; `08_SETUP_GUIDE.md` is accurate
-enough for a new engineer to reproduce it unaided.
+**Not blocking, but outstanding:**
+- AUTH-13 (SSO conflict resolution) and AUTH-14 (return-path preservation) close out M1.
+- Terms + Privacy content (D-09) — the live forms already claim consent to both.
+- D-01 / D-02 / D-03 milestone decisions.
+- ADR-013 build-time prerender — deferred; MKT-01 ships client-rendered.
+- MongoDB replica-set conversion, for transaction support.

@@ -23,7 +23,7 @@ users ──1:1── candidateProfiles ──1:N── experiences
   │                    │
   │                    └──1:N── accessGrants ──N:1── companies
   │
-  ├──1:N── sessions
+  ├──1:N── authSessions
   ├──1:N── verificationTokens
   └──1:N── companyMemberships ──N:1── companies ──1:N── hiringIntents
                                           │       ──1:N── interests
@@ -52,30 +52,43 @@ consequential schema decision in the project.
 
 | Field | Type | Req | Notes |
 |---|---|:--:|---|
-| `_id` | ObjectId | ✅ | |
-| `email` | String | ✅ | Lowercased, trimmed. **Unique** |
-| `emailVerifiedAt` | Date | | `null` until AUTH-03. Gates almost everything |
-| `passwordHash` | String | | bcrypt cost ≥ 12. Absent for SSO-only accounts |
-| `fullName` | String | | Required at AUTH-04, not at sign-up (PRD §21.1) |
-| `photoUrl` | String | | Optional, deferred (PRD §6.2) |
-| `headline` | String | | Personal layer, distinct from candidate headline |
-| `location` | Object | | `{ country, region, city, timezone }` |
-| `languages` | [String] | | |
-| `authMethods` | [Object] | | `{ provider: 'password'\|'google'\|'microsoft', providerId, linkedAt }` |
-| `status` | String | ✅ | `pending_verification \| active \| suspended \| deletion_pending \| deleted` (PRD §14.2) |
-| `notificationPrefs` | Object | | PRD §15 |
-| `lastLoginAt` | Date | | |
-| `deletedAt` | Date | | Anonymisation, not removal (PRD §16.1) |
+| Field | as built | Type | Req | Notes |
+|---|---|---|:--:|---|
+| `_id` | ✅ | ObjectId | ✅ | |
+| `email` | ✅ | String | ✅ | Lowercased, trimmed. **Unique** |
+| `emailVerified` | ✅ | Boolean | | `false` until AUTH-03. Gates almost everything. *(Implemented as a boolean, not the `emailVerifiedAt` date this document originally specified.)* |
+| `passwordHash` | ✅ | String | | bcrypt cost 12. `select: false`. Absent until AUTH-03, and for social-only accounts |
+| `name` | ✅ | String | | Collected at AUTH-04, never at sign-up (PRD §21.1). *(Named `name`, not `fullName`.)* |
+| `profilePicture` | ✅ | String | | Optional, deferred (PRD §6.2). *(Named `profilePicture`, not `photoUrl`.)* |
+| `provider` | ✅ | String | | How the account was first created: `password \| google \| microsoft` |
+| `googleId` / `microsoftId` | ✅ | String | | Provider's stable id, for lookup. Never a provider token |
+| `platformRole` | ✅ | String | | `member \| support \| admin`. **Evallo staff access only** — not an application role, and not what ADR-001 forbids |
+| `headline` | ✅ | String | | Personal layer, distinct from candidate headline |
+| `location` | ✅ | Object | | `{ country, region, city, timezone }` |
+| `languages` | ✅ | [String] | | |
+| `failedLoginAttempts` / `lockUntil` | ✅ | Number / Date | | Per-account throttling (AUTH-10). Both reset on a successful sign-in |
+| `onboardingCompletedAt` | ✅ | Date | | AUTH-05 first-action router has been seen. **Not a role and not a capability** — just "has this screen been shown" |
+| `status` | ✅ | String | ✅ | `active \| suspended \| deletion_pending \| deleted` (PRD §14.2) |
+| `lastLoginAt` | ✅ | Date | | |
+| `deletedAt` | ✅ | Date | | Anonymisation, not removal (PRD §16.1) |
+| `authMethods` | ⏳ | [Object] | | Multi-provider linking. Superseded for now by `provider` + `googleId`/`microsoftId`; needed for AUTH-13 |
+| `notificationPrefs` | ⏳ | Object | | PRD §15, arrives with M6 |
 
-**Indexes**
+**Indexes** (as built)
 ```js
 { email: 1 }                    // unique
+{ googleId: 1 }                 // unique, partialFilterExpression: { googleId: { $type: 'string' } }
+{ microsoftId: 1 }              // unique, same partial filter
 { status: 1, createdAt: -1 }    // admin/ops listing
 ```
 
+**Partial, not sparse.** A sparse unique index still indexes `null`, so every password account —
+all of which have no `googleId` — would collide with every other. `partialFilterExpression` on
+`$type: 'string'` excludes them entirely. This was a real outage during AUTH-01.
+
 **Constraints**
 - `email` unique — **the** guard against the duplicate-account failure in PRD §6.4 and AUTH-13.
-- `passwordHash` and `authMethods` may not both be empty for an `active` user.
+- An `active` account must have either a `passwordHash` or a linked social identity.
 - **No `role` field. Ever.** Adding one silently breaks ADR-001, ADR-006, and PRD §21.6.
 
 **Sample**
@@ -96,9 +109,14 @@ consequential schema decision in the project.
 
 ---
 
-## 3. `sessions`
+## 3. `authSessions`
 
-Backs refresh-token rotation and reuse detection (ADR-005). Its existence is what makes
+Backs refresh-token rotation and reuse detection (ADR-005).
+
+> **The collection is `authSessions`, not `sessions`.** The MongoDB host is shared with the main
+> Evallo platform, whose `sessions` collection holds tutoring sessions. Using that name here would
+> have merged two unrelated datasets — and the TTL index this collection needs would have deleted
+> the platform's rows. Never rename it back. Its existence is what makes
 "recruiter removed from company loses access immediately" (PRD §21.6) achievable.
 
 | Field | Type | Req | Notes |
@@ -110,7 +128,8 @@ Backs refresh-token rotation and reuse detection (ADR-005). Its existence is wha
 | `expiresAt` | Date | ✅ | TTL index |
 | `revokedAt` | Date | | |
 | `revokedReason` | String | | `rotated \| logout \| reuse_detected \| password_change \| admin` |
-| `replacedBy` | ObjectId → sessions | | Rotation chain link |
+| `replacedBy` | ObjectId → authSessions | | Rotation chain link |
+| `ttlDays` | Number | | Set to `1` for a "remember me: no" sign-in; carried across rotations so a short session is never upgraded (AUTH-10) |
 | `userAgent`, `ip` | String | | Suspicious-login monitoring (PRD §16.4) |
 
 **Indexes**
@@ -135,7 +154,7 @@ lifecycle, differing only by `purpose`.
 | Field | Type | Req | Notes |
 |---|---|:--:|---|
 | `tokenHash` | String | ✅ | Raw token only ever exists in the email |
-| `purpose` | String | ✅ | `email_verification \| password_reset \| company_invitation` |
+| `purpose` | String | ✅ | `email_verification \| password_setup \| password_reset \| company_invitation` |
 | `userId` | ObjectId | | Absent for invitations to unregistered emails |
 | `email` | String | ✅ | |
 | `payload` | Object | | Invitation: `{ companyId, role }`. Signup: `{ returnTo, companyId, hiringIntentId, source }` |
@@ -155,8 +174,14 @@ company/role intent to survive sign-up. Verification links are frequently opened
 different browser from the one that started the flow, so client storage cannot carry it. The
 intent must travel with the token.
 
+**`password_setup` (AUTH-03).** Issued by `POST /auth/verify-email` when the account has no
+credential yet, with a **30-minute** TTL rather than the 24 hours a verification link gets. It is
+the only thing that authorises `POST /auth/set-password`, which is how a password can be created
+exactly once, only by whoever opened the emailed link, and without a session existing first.
+
 **Constraints** — issuing a `password_reset` invalidates all prior unconsumed reset tokens for
-that user (PRD §6.3, AUTH-12).
+that user (PRD §6.3, AUTH-12). Consuming an `email_verification` token likewise invalidates every
+other outstanding verification token for that account.
 
 ---
 
@@ -379,6 +404,65 @@ Moderation queue: `{ reporterId, targetType, targetId, reason, status, resolutio
 
 ---
 
+## 10a. `earlyAccessRequests` — M-M (marketing)
+
+Pilot waitlist captured by the marketing landing page (MKT-01). **Not in PRD §14.1** — this
+collection exists because the marketing page introduced a lead-capture surface the PRD does not
+describe. See **ADR-014** for why this is deliberately not the `users` collection.
+
+| Field | Type | Req | Notes |
+|---|---|:--:|---|
+| `email` | String | ✅ | Lowercased, trimmed. **Unique** |
+| `name` | String | ✅ | Unicode permitted |
+| `segment` | String | ✅ | `business \| educator`. **Marketing attribute only** |
+| `status` | String | ✅ | `new \| contacted \| invited \| converted \| declined \| spam` |
+| `source` | Object | | `{ referrer, utmSource, utmMedium, utmCampaign, landingPath }` — server-derived |
+| `consentedAt` | Date | ✅ | Terms/privacy acknowledgement at submission |
+| `submissionCount` | Number | ✅ | Incremented on repeat submission; default `1` |
+| `lastSubmittedAt` | Date | ✅ | |
+| `invitedUserId` | ObjectId → users | | Set when the lead converts to an account |
+| `notes` | String | | Internal operator notes |
+| `ip`, `userAgent` | String | | Abuse triage only; subject to retention policy |
+
+**Indexes**
+```js
+{ email: 1 }                        // unique — the idempotency guarantee
+{ status: 1, createdAt: -1 }        // operator triage queue
+{ segment: 1, createdAt: -1 }       // funnel analytics (PRD §18.1 Acquisition)
+```
+
+**Constraints**
+- `email` unique. This index — not application-level checking — is what makes the endpoint
+  idempotent under concurrent submits.
+- **`segment` must never be copied onto a `User` document.** It records what a lead *said* on a
+  marketing form, not an account type. Writing it to `users` would reintroduce the role field
+  ADR-001 exists to prevent.
+- **No link to `users` until conversion.** A row here is not an account and grants nothing.
+
+**Privacy**
+- This is personal data collected before any account exists. It falls under the same deletion,
+  export, and retention obligations as PRD §16.1.
+- **A retention policy is required before pilot launch** — indefinitely retained marketing leads
+  are a liability, not an asset. Tracked in `13_BACKLOG.md`.
+
+**Sample**
+```json
+{
+  "_id": "66aa22119d3e4b0012f8a2c7",
+  "email": "priya@sevensquare.example",
+  "name": "Priya Raman",
+  "segment": "business",
+  "status": "new",
+  "source": { "referrer": "https://www.google.com/", "utmCampaign": "pilot-launch", "landingPath": "/" },
+  "consentedAt": "2026-07-31T10:22:00.000Z",
+  "submissionCount": 1,
+  "lastSubmittedAt": "2026-07-31T10:22:00.000Z",
+  "createdAt": "2026-07-31T10:22:00.000Z"
+}
+```
+
+---
+
 ## 11. Transactions
 
 MongoDB multi-document transactions (requiring a replica set — **a deployment constraint worth
@@ -387,7 +471,7 @@ noting now**, per `03_TRD.md` §13) are required for:
 | Operation | Documents | Why |
 |---|---|---|
 | Interest submission (§8.7) | `interests`, `accessGrants`, `pipelineEntries`, `notifications`, `auditEvents` | Partial failure grants profile access with no interest record — a privacy defect |
-| Refresh rotation (ADR-005) | `sessions` × 2 | Prevents a window where neither token is valid |
+| Refresh rotation (ADR-005) | `authSessions` × 2 | Prevents a window where neither token is valid |
 | Ownership transfer (§4.2) | `companyMemberships` × 2 | Must never leave a company with zero owners |
 | Company publish (§7.2) | `companies`, `hiringIntents`, `auditEvents` | Publishing must be atomic with intent activation |
 

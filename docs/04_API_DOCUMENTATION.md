@@ -2,9 +2,9 @@
 
 **Base URL:** `/api` · **Format:** JSON · **Auth:** Bearer access token (ADR-005)
 
-> **Status: no endpoints implemented yet.** This document defines the conventions every endpoint
-> must follow, and the template each entry uses. It is updated **in the same commit** as the
-> endpoint it documents — an undocumented endpoint is an incomplete endpoint.
+> **Status: M1 (auth + current user) and the public/company surface used by M2 are implemented.**
+> This document defines the conventions every endpoint must follow, and is updated **in the same
+> commit** as the endpoint it documents — an undocumented endpoint is an incomplete endpoint.
 
 ---
 
@@ -140,6 +140,382 @@ published company data and can never reach a candidate collection (PRD §21.2).
 
 ---
 
-## 4. Endpoints
+## 4. Implemented surface at a glance
 
-*None implemented. First entries land with M1 (authentication).*
+| Method | Path | Auth | Screen |
+|---|---|---|---|
+| `GET` | `/api/health` | None | ops diagnostic |
+| `GET` | `/api/auth/config` | None | reports whether Google sign-in is configured |
+| `POST` | `/api/auth/signup` | None | AUTH-01 |
+| `POST` | `/api/auth/verify-email` | None | AUTH-03 (link target) |
+| `POST` | `/api/auth/set-password` | Setup token | AUTH-03 |
+| `POST` | `/api/auth/resend-verification` | None | AUTH-02 |
+| `POST` | `/api/auth/change-email` | None | AUTH-02 |
+| `POST` | `/api/auth/login` | None | AUTH-10 |
+| `POST` | `/api/auth/google` | None | AUTH-01 / AUTH-10 |
+| `POST` | `/api/auth/refresh` | Refresh cookie | session |
+| `POST` | `/api/auth/logout` | Refresh cookie | session |
+| `POST` | `/api/auth/forgot-password` | None | AUTH-11 |
+| `POST` | `/api/auth/reset-password` | Reset token | AUTH-12 |
+| `GET` | `/api/me` | Bearer | HOME-01 |
+| `PATCH` | `/api/me` | Bearer | AUTH-04 |
+| `POST` | `/api/me/complete-onboarding` | Bearer | AUTH-05 |
+| `GET` | `/api/me/candidate-profile` | Bearer | HOME-01 |
+| `POST` | `/api/me/candidate-profile` | Bearer | HOME-01 |
+| `POST` | `/api/companies` | Bearer | HOME-01 |
+| `GET` | `/api/companies/:companyId/members` | Bearer + `member:manage` | REC-18 |
+| `POST` | `/api/public/early-access` | None | MKT-01 |
+| `GET` | `/api/public/companies` | None | PUB-01 |
+| `GET` | `/api/public/companies/facets` | None | PUB-01 |
+| `GET` | `/api/public/companies/:slug` | None | PUB-02 |
+| `POST` | `/api/public/companies/:slug/interest` | None | PUB-02 |
+
+`authLimiter` rate-limits every `/api/auth` write. All limiters are skipped when `NODE_ENV=test`.
+
+---
+
+## 5. Endpoints — authentication
+
+The sign-up chain is **email → verify → password → name → router**. A password is never accepted
+before the email is proven (PRD §6.1, §21.1), and signup never issues a session.
+
+### `POST /api/auth/signup`
+
+**Purpose** — AUTH-01. Create an unverified account from an email address and send the
+verification link.
+
+**Authentication** — None.
+
+**Request**
+```json
+{ "email": "sarah@example.com" }
+```
+| Field | Type | Required | Rules |
+|---|---|:--:|---|
+| `email` | string | ✅ | Valid email, lowercased. **The only accepted field** |
+
+A client that also sends `password` or `name` has them stripped by the schema — they cannot be
+smuggled in.
+
+**Response — `201`**
+```json
+{ "success": true,
+  "data": { "user": { "id": "…", "email": "…", "emailVerified": false },
+            "emailVerificationRequired": true } }
+```
+
+**No token, no cookie, no session.** The account cannot be used until the email is verified and a
+password is set.
+
+**Errors** — `400 VALIDATION_ERROR` · `409 CONFLICT` (email already registered) · `429 RATE_LIMITED`
+
+**Collections** — `users`, `verificationTokens`
+
+---
+
+### `POST /api/auth/verify-email`
+
+**Purpose** — AUTH-03. Consume the emailed token, mark the address verified, and hand back a
+single-use **setup token** when the account has no credential yet.
+
+**Authentication** — None; the token in the body is the proof.
+
+**Request** — `{ "token": "<raw token from the link>" }`
+
+**Response — `200`**
+```json
+{ "success": true,
+  "data": { "verified": true, "email": "sarah@example.com",
+            "needsPassword": true, "setupToken": "…" } }
+```
+`needsPassword: false` (and no `setupToken`) when the account already has a password — the client
+sends that user to sign-in instead.
+
+**Errors** — `400 VERIFICATION_TOKEN_INVALID` · `410 VERIFICATION_TOKEN_EXPIRED` (24-hour window) ·
+`409 ALREADY_VERIFIED`
+
+**Notes** — Verification does **not** authenticate. Consuming a token invalidates every other
+outstanding verification token for that account.
+
+---
+
+### `POST /api/auth/set-password`
+
+**Purpose** — AUTH-03. First point at which a credential exists for the account. Establishes the
+session that carries onboarding through AUTH-04 and AUTH-05.
+
+**Authentication** — The single-use setup token from `verify-email` (30-minute lifetime).
+
+**Request**
+```json
+{ "token": "…", "password": "…", "confirmPassword": "…" }
+```
+| Field | Type | Required | Rules |
+|---|---|:--:|---|
+| `token` | string | ✅ | Setup token, single use |
+| `password` | string | ✅ | Min 8 chars; bcrypt cost 12 at rest |
+| `confirmPassword` | string | ✅ | Must equal `password` |
+
+**Response — `200`** — `{ "accessToken": "…", "user": { … } }`, sets a persistent refresh cookie.
+
+**Errors** — `400 VALIDATION_ERROR` (weak password, mismatch, spent/unknown token) · `429 RATE_LIMITED`
+
+---
+
+### `POST /api/auth/resend-verification` · `POST /api/auth/change-email`
+
+**Purpose** — AUTH-02. Resend the link, or correct a mistyped address before verification.
+
+**Authentication** — None **by design**: after signup the user has no session, so the account is
+identified by email. Both are rate limited and privacy-safe — the response is identical whether or
+not the account exists, so neither is an enumeration oracle.
+
+**Notes** — A 60-second resend cooldown is enforced server-side; the client mirrors it as a
+countdown.
+
+---
+
+### `POST /api/auth/login`
+
+**Purpose** — AUTH-10. Global sign-in for one account across every personal and company context.
+
+**Request**
+```json
+{ "email": "sarah@example.com", "password": "…", "rememberMe": true }
+```
+| Field | Type | Required | Rules |
+|---|---|:--:|---|
+| `rememberMe` | boolean | | Default `false`. Unticked → session cookie (no `Max-Age`) and a 1-day server session; ticked → persistent cookie and the full `REFRESH_TOKEN_TTL_DAYS` |
+
+**Response — `200`** — `{ "accessToken": "…", "user": { … } }`, sets the refresh cookie.
+
+**Errors**
+| Status | Code | When |
+|---|---|---|
+| 401 | `UNAUTHENTICATED` | Wrong credentials — the message never reveals which field |
+| 403 | `EMAIL_NOT_VERIFIED` | Verified **after** the password check, so it is not a verification oracle |
+| 429 | `ACCOUNT_LOCKED` | 10 failed attempts locks the account for 15 minutes, per account (not per IP) |
+
+**Notes** — A successful sign-in clears the failure counter and the lock.
+
+---
+
+### `POST /api/auth/google`
+
+**Purpose** — Google sign-in. Verifies the Google **ID token** with `google-auth-library`, then
+issues our own JWT. Google's token is never used for API authorization and is discarded after
+verification. Links to an existing account by verified email rather than creating a duplicate.
+
+**Request** — `{ "credential": "<Google ID token>" }`
+
+**Notes** — Optional feature. With `GOOGLE_CLIENT_ID` unset, `GET /api/auth/config` reports
+`googleEnabled: false` and the client renders the button disabled; email auth is unaffected.
+
+---
+
+### `POST /api/auth/refresh` · `POST /api/auth/logout`
+
+**Purpose** — Rotate the refresh token / revoke the session.
+
+**Authentication** — The `evallo_rt` httpOnly cookie. Never a body or header.
+
+**Response — `200`** — refresh returns a new `accessToken` and sets a rotated cookie; logout
+returns `{ "ok": true }`.
+
+**Notes** — **Rotation with reuse detection (ADR-005).** Every session belongs to a `familyId`.
+Presenting an already-rotated token revokes that entire family — a stolen token cannot outlive one
+use. Revocation is family-scoped, so unrelated sessions on other devices survive. The cookie
+lifetime is inherited across rotations, so a "remember me: no" session is never silently upgraded.
+
+---
+
+### `POST /api/auth/forgot-password` · `POST /api/auth/reset-password`
+
+**Purpose** — AUTH-11 / AUTH-12.
+
+**Notes** — `forgot-password` returns an **identical** response whether or not the account exists
+(PRD §6.3). Issuing a new reset token invalidates all prior unconsumed ones. A completed reset
+verifies the email and **revokes every existing session**.
+
+---
+
+## 6. Endpoints — current user
+
+### `GET /api/me`
+
+**Purpose** — The authenticated user plus their **derived** capabilities. This single call renders
+HOME-01 in full, including the context switcher.
+
+**Authentication** — Bearer.
+
+**Response — `200`**
+```json
+{ "success": true,
+  "data": {
+    "user": { "id": "…", "email": "…", "emailVerified": true, "name": "Sarah Jenkins",
+              "profilePicture": null, "provider": "password", "platformRole": "member",
+              "headline": null, "location": null,
+              "onboardingCompletedAt": "2026-08-02T09:00:58.400Z", "createdAt": "…" },
+    "capabilities": {
+      "hasCandidateProfile": false,
+      "candidateProfile": null,
+      "companies": [
+        { "companyId": "…", "name": "Northwind Academy", "slug": "northwind-academy",
+          "logoUrl": null, "initials": "NA", "status": "published",
+          "role": "owner", "permissions": ["company:edit", "…"] }
+      ],
+      "isRecruiterAnywhere": true
+    } } }
+```
+
+**Notes**
+- `capabilities` is **recomputed on every request** from `CandidateProfile` and active
+  `CompanyMember` rows. It is never stored on the user, so a revoked membership disappears on the
+  next call (ADR-001, ADR-006).
+- `role` is per company. There is no global role on `user` — and never will be.
+- `permissions` is resolved server-side from the shared matrix so the client never re-implements it.
+
+---
+
+### `PATCH /api/me`
+
+**Purpose** — AUTH-04 and later personal profile edits.
+
+**Request** — any of `name`, `headline`, `profilePicture`, `location`, `languages`.
+
+**Notes** — Allowlisted. `email`, `password`, `provider`, `platformRole`, `status`, and
+`onboardingCompletedAt` are **not** settable here.
+
+---
+
+### `POST /api/me/complete-onboarding`
+
+**Purpose** — AUTH-05. Records that the first-action router has been seen, so it never shows again.
+
+**Authentication** — Bearer. No request body.
+
+**Response — `200`** — the same envelope as `GET /api/me`, with `user.onboardingCompletedAt` set.
+
+**Notes**
+- **Creates nothing.** No candidate profile, no company, no role — the user's choice on AUTH-05 is
+  a redirect, not a capability (PRD §21.1, ADR-001).
+- **Idempotent**: the first stamp wins, so a second call or a second tab never moves the timestamp.
+- A dedicated endpoint rather than a field on `PATCH /api/me` so the client can only stamp "now",
+  never an arbitrary value, and can never un-set it.
+
+---
+
+### `GET` / `POST /api/me/candidate-profile`
+
+**Purpose** — Read or create the caller's candidate profile. Creating one is what makes the user a
+candidate; nothing else does.
+
+**Notes** — One profile per user, enforced by a unique index. Creation is explicit and
+user-initiated — no screen creates a profile as a side effect.
+
+---
+
+## 7. Endpoints — companies
+
+### `POST /api/companies`
+
+**Purpose** — Create a company. The creator becomes its `owner` via a `CompanyMember` row.
+
+**Authentication** — Bearer. Any authenticated user may create one: it grants a **membership**,
+not a new identity.
+
+**Request** — `{ "name": "…", "organizationType": "tutoring_center", "country": "IN" }`
+
+**Notes** — The slug is derived from the name and must be unique.
+
+### `GET /api/companies/:companyId/members`
+
+**Authentication** — Bearer + active membership + `member:manage`. Enforced by
+`resolveCompanyContext()` then `requirePermission()` — the four-layer model in ADR-006.
+
+---
+
+## 8. Endpoints — public (unauthenticated)
+
+`GET /api/public/companies` (directory, filtered/paginated) · `GET /api/public/companies/facets`
+(filter counts) · `GET /api/public/companies/:slug` (published profile) ·
+`POST /api/public/companies/:slug/interest` (expression of interest).
+
+**These serve published company data only and can never reach a candidate collection** (PRD §21.2).
+
+---
+
+## 9. Endpoints — marketing
+
+### `POST /api/public/early-access`
+
+**Purpose** — Capture an early-access / pilot waitlist request from the marketing landing page
+(MKT-01). **Does not create a user account** — see ADR-014 for why these are deliberately
+separate.
+
+**Authentication** — None. Public endpoint.
+
+**Request**
+```json
+{
+  "segment": "business",
+  "name": "Priya Raman",
+  "email": "priya@sevensquare.example"
+}
+```
+| Field | Type | Required | Rules |
+|---|---|:--:|---|
+| `segment` | string | ✅ | `business` \| `educator`. **Marketing segmentation only — never written to `users`** (ADR-001) |
+| `name` | string | ✅ | 1–120 chars, trimmed, Unicode permitted (PRD §19 i18n) |
+| `email` | string | ✅ | Valid email, lowercased and trimmed by the schema before storage |
+
+Validated by `earlyAccessRequestSchema` in `packages/shared` — the same schema the React form
+uses (ADR-009).
+
+**Optional request header**
+| Header | Purpose |
+|---|---|
+| `x-landing-path` | Page the form was submitted from. Must be listed in the CORS `allowedHeaders` allowlist, or the browser blocks the request after a successful preflight |
+
+**Server-derived fields** — never accepted from the client body:
+`consentedAt` (submission time), `source.referrer`, `source.utm*`, `source.landingPath`,
+`ip`, `userAgent`, `status`, `submissionCount`.
+
+**Response — `201`**
+```json
+{ "success": true, "data": { "status": "received" } }
+```
+
+**Response — `200`** (idempotent replay — same email already on the list)
+```json
+{ "success": true, "data": { "status": "already_registered" } }
+```
+
+Both responses render the identical confirmation in the UI. The distinction exists for
+analytics, not for the user — see Notes.
+
+**Errors**
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Malformed input; `details` keyed by field |
+| 429 | `RATE_LIMITED` | Per-IP and per-email limits (PRD §16.4) |
+
+**Collections** — `earlyAccessRequests`
+
+**Notes**
+- **Idempotent** by unique index on `email`. A resubmission updates `name`, `segment`,
+  `lastSubmittedAt`, and increments `submissionCount`; it never creates a duplicate and never
+  returns `409`. A concurrent duplicate that loses the race on the unique index is caught and
+  returned as `already_registered` rather than surfacing as an error.
+- **Operator-managed fields survive resubmission.** `status` and `notes` are never overwritten,
+  so triage work is not lost when a lead submits the form again.
+- **The response must not reveal whether an email is already on the list.** Both outcomes return
+  success and the UI renders an identical confirmation. Returning a distinguishable error would
+  make this endpoint an email-enumeration oracle — the same reasoning that governs password reset
+  in PRD §6.3 (AUTH-11).
+- Rate limited via `publicWriteLimiter` (5 per hour per IP). Skipped when `NODE_ENV=test`.
+- No email is sent to the submitter in MVP; onboarding is operator-initiated (ADR-014).
+
+**Tests** — `apps/api/tests/integration/earlyAccess.test.js` (9 cases): storage, email
+normalisation, idempotency, non-enumeration, operator-field preservation, and four validation
+cases including rejection of client-supplied server-owned fields.

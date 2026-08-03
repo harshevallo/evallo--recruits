@@ -1,20 +1,54 @@
 # 12 — Known Issues & Limitations
 
-**Last updated:** 2026-07-31
+**Last updated:** 2026-08-02
 
-> No code exists yet, so there are no bugs. What follows are **known limitations accepted by
-> decision** — each traceable to an ADR or a PRD constraint. Recording them now prevents a future
-> engineer from mistaking a deliberate trade-off for an oversight and "fixing" it.
+> Open issues first, then **known limitations accepted by decision** — each traceable to an ADR or
+> a PRD constraint. Recording the latter prevents a future engineer from mistaking a deliberate
+> trade-off for an oversight and "fixing" it.
 
 ---
 
-## 1. Current bugs
+## 1. Current issues
 
-*None. No code implemented.*
+### I-01 — Integration suites cannot run concurrently
+**Severity:** Medium · **Workaround:** run one file at a time
+
+Every suite points at the same remote `evallo-recruit` database and clears collections in
+`beforeEach`. Node's test runner parallelises across files by default, so two suites clobber each
+other's fixtures and fail non-deterministically. Each file passes in isolation.
+
+**Fix:** run with `--test-concurrency=1`, or namespace fixtures per suite so they cannot collide.
+Related: the suites call `Session.deleteMany({})` unscoped, which signs out every real user in the
+shared development database.
+
+### I-02 — Google sign-in does not work on localhost
+**Severity:** Low · **Workaround:** use email authentication
+
+Google's `gsi/status` returns `403` for `http://localhost:3001` unless the origin is registered as
+an authorised JavaScript origin in the Google Cloud console. The client detects the resulting
+zero-size iframe and unmounts it, so it never becomes an invisible focusable tab stop, and shows a
+disabled fallback instead.
+
+### I-03 — MongoDB is standalone, so there are no transactions
+**Severity:** Medium
+
+`/api/health` reports `supportsTransactions: false`. The four operations listed in
+`05_DATABASE_SCHEMA.md` §11 — refresh rotation among them — currently run without atomicity.
+Conversion steps are in `08_SETUP_GUIDE.md` §1.
+
+### I-04 — HOME-01 creates the candidate profile inline
+**Severity:** Low
+
+"Start your candidate profile" calls `POST /api/me/candidate-profile` directly. Creation belongs
+to CAN-02; when that screen exists, HOME-01's action should route to it instead. Behaviour is
+correct today — nothing is created without an explicit click — but the responsibility sits in the
+wrong screen.
 
 ---
 
 ## 2. Accepted limitations
+
+---
 
 ### L-01 — No compile-time type safety
 **Source:** ADR-002 (CTO decision) · **Severity:** Medium

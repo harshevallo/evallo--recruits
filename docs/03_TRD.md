@@ -84,7 +84,8 @@ Routes are grouped by **the object being managed**, per PRD §5.3 — not by use
 would contradict ADR-001.
 
 ```
-/                                   → HOME-01 (universal home)     [auth]
+/                                   → MKT-01 marketing landing      [public, prerendered]
+/home                               → HOME-01 universal home        [auth]
 /signin  /signup  /verify  /set-password
 /forgot-password  /reset-password                                   [public]
 
@@ -140,6 +141,34 @@ company, hiring intent, campaign source, and return path — not in `localStorag
 storage would not survive the email-verification round trip, which frequently completes in a
 different browser from where it started.
 
+### 4.4 Public rendering strategies
+
+Three public surfaces, three different data profiles, three strategies. The strategy follows
+from the data, not from preference.
+
+| Screen | Data at request time | Strategy | ADR |
+|---|---|---|---|
+| MKT-01 marketing | **None** — fully static | **Build-time prerender** into `index.html` | ADR-013 |
+| PUB-01 directory | Company list from MongoDB | Runtime metadata injection; SSR if triggered | ADR-004 |
+| PUB-02 company page | One company from MongoDB | Runtime metadata injection; SSR if triggered | ADR-004 |
+
+All three use `react-dom/server`, which ships with React. None changes the stack (ADR-002).
+
+MKT-01 is the cheapest and highest-value case: because nothing varies per request, it can be
+rendered once at build time and served as complete static HTML, giving Googlebot the full page
+on first byte with **no runtime cost and no indexing-latency risk**. It is therefore exempt from
+limitation L-02.
+
+### 4.5 Anchor navigation
+
+MKT-01 uses in-page anchors (`#businesses`, `#educators`, `#features`, `#get-started`). **React
+Router does not scroll to a hash fragment on navigation** — this must be handled explicitly by a
+small `ScrollToHash` effect in the public layout that reads `location.hash` and scrolls the
+target into view after paint.
+
+The effect must respect `prefers-reduced-motion`: the prototype sets `scroll-smooth` globally
+with no guard, which is a vestibular-accessibility problem (PRD §19 Accessibility).
+
 ---
 
 ## 5. Authentication
@@ -150,7 +179,11 @@ Full rationale in **ADR-005**.
 | Token | Form | Lifetime | Stored |
 |---|---|---|---|
 | Access | JWT `{ userId, sessionId }` | 15 min | JavaScript memory only |
-| Refresh | Opaque random | 30 days, rotating | `httpOnly; Secure; SameSite=Lax` cookie; **hashed** in `sessions` |
+| Refresh | Opaque random | 30 days, rotating | `httpOnly; Secure; SameSite=Lax` cookie (`evallo_rt`); **hashed** in `authSessions` |
+
+> The collection is `authSessions`, **not** `sessions`. The shared MongoDB host also serves the
+> main Evallo platform, whose `sessions` collection holds tutoring sessions — a name collision
+> there would have been a data-loss incident, not a naming quibble.
 
 The access token carries **no roles and no company data** — required by ADR-001/006, because
 company authority must be revocable instantly (PRD §21.6).
@@ -161,14 +194,37 @@ Email verification precedes password creation. PRD §21.1 requires that the sign
 for no role, no company, no profile detail, and **no password**.
 
 ```
-AUTH-01  email only          → verification token issued, emailed
-AUTH-02  verification sent   → masked email, rate-limited resend, change email
-AUTH-03  link opened         → token validated, email marked verified → set password
-AUTH-04  basic setup         → full name (required)
-AUTH-05  first-action router → candidate / company / explore — routing, NOT a role
+AUTH-01  email only          → POST /auth/signup          → verification token issued, emailed
+AUTH-02  verification sent   → POST /auth/resend-verification | /auth/change-email
+AUTH-03  link opened         → POST /auth/verify-email     → { needsPassword, setupToken }
+         set password        → POST /auth/set-password     → session created here, first time
+AUTH-04  basic setup         → PATCH /me { name }
+AUTH-05  first-action router → POST /me/complete-onboarding → then candidate | company | explore
+                             → HOME-01 /home
 ```
 
-`AUTH-05` writes **no role anywhere.** It is navigation only (ADR-001).
+**As built:**
+
+- **Signup issues no session.** `POST /auth/signup` accepts an email and nothing else; the schema
+  strips `password`/`name` so they cannot be smuggled in. The account has no `passwordHash` until
+  AUTH-03.
+- **`verify-email` returns a single-use setup token** (30-minute TTL, purpose
+  `password_setup`) rather than authenticating. That token is the only thing that authorises
+  `set-password`, so the credential can only be created by whoever opened the emailed link.
+- **`set-password` is where the session begins** — it sets the password, marks the email verified,
+  clears any lockout, and issues the token pair that carries onboarding to `/home`.
+- **Login enforces verification *after* the password check**, so a wrong password on an unverified
+  account returns the same generic `401` and the endpoint is not a verification oracle.
+- **Remember me** (AUTH-10): unticked ⇒ session cookie with no `Max-Age` and a 1-day server
+  session; ticked ⇒ persistent cookie and the full TTL. The choice is carried across rotations, so
+  a short session is never silently upgraded to a long one.
+- **Failed-attempt throttling is per account**, not per IP (10 attempts ⇒ 15-minute lock), so
+  rotating IPs does not dodge it. A successful sign-in clears the counter.
+
+`AUTH-05` writes **no role anywhere.** It is navigation only (ADR-001). Its single side effect is
+stamping `users.onboardingCompletedAt` so the screen is shown once — a timestamp is required
+because the "Explore" branch leaves no other trace, and nothing derivable could distinguish a
+returning user from a new one.
 
 ### 5.3 SSO (Google, Microsoft)
 PRD §6.3 AUTH-13 requires that an email already tied to a password or another provider must
@@ -270,8 +326,20 @@ verification. Implemented with a unique compound index plus upsert semantics —
 `{ candidateId, companyId, hiringIntentId }` unique among active records (PRD §4.1). A retry
 returns the existing record with `200`, never a duplicate. This satisfies PRD §21.5.
 
-### 7.3 Full endpoint catalogue
+### 7.3 CORS and custom headers
+
+Any custom request header the client sends must appear in the CORS `allowedHeaders` allowlist in
+`middleware/security.js`. If it does not, the preflight succeeds but the browser blocks the
+actual request — and the failure surfaces as a generic network error, not a CORS message, which
+makes it easy to misdiagnose.
+
+Currently allowed: `Content-Type`, `Authorization`, `x-request-id`, `x-landing-path`.
+
+### 7.4 Full endpoint catalogue
 Maintained in **`04_API_DOCUMENTATION.md`**, updated as each endpoint is built.
+
+**Implemented:** `GET /api/health` (development diagnostic) ·
+`POST /api/public/early-access` (MKT-01).
 
 ---
 
@@ -423,3 +491,51 @@ Tracked from PRD §20.5 and Appendix D. These do **not** block M0 or M1.
 
 **Q3 is the only one that could block M1** and should be resolved before authentication work
 begins — email verification is unbuildable without a delivery path.
+
+---
+
+## 15. Scope deltas — where the product has moved past the PRD
+
+Per **ADR-016**, founder-supplied HTML is the newer requirement source and supersedes
+`Evallo_Recruit_PRD_v1.pdf` (v1.0, 30 July 2026). This section is the running record of every
+place the current design differs from that baseline.
+
+**A delta is recorded, not contested.** The only ones that gate implementation are those that add
+a collection, a module, an external dependency, or an authorization path — flagged 🔴 below.
+
+### 15.1 From MKT-01 (`evallo_recruit_marketing.html`)
+
+| # | Delta | PRD baseline | Architectural impact |
+|---|---|---|---|
+| D-01 🔴 | **Native in-platform assessments** — adaptive digital SAT/ACT testing taken on-platform before applying | §20.3 defers expanded assessments to Phase 2 | **New domain.** `modules/assessments`, item bank, attempt/scoring/proctoring state, anti-cheat, result→evidence linkage. Comparable in size to the candidate profile domain |
+| D-02 🔴 | **Company-set video prompts with candidate video responses** | §3.2 non-goal: no native recording/hosting; embeds only | **New media pipeline.** Recording capture, upload, transcode, storage, playback, retention. Adds an external dependency (§14 Q2 becomes urgent) |
+| D-03 🔴 | **"Post a Job"** as the primary conversion CTA | §7.5: no mandatory job description; lightweight hiring intent | **New entity.** A `jobPostings` collection alongside `hiringIntents`, plus `JobPosting` structured data currently excluded by §17 |
+| D-04 | **"Centralized applicant tracking"** positioning | §20.1 scopes a lightweight pipeline | Low. The planned pipeline (§7.9) largely satisfies this; it is positioning, not a new object |
+| D-05 | **Candidate-facing role search** — "Find Teaching Roles" | §8.2 CAN-05 is company-first discovery | Medium. A role-centric browse surface is a new screen, not a new domain. Depends on D-03 |
+| D-06 | Marketing landing page owns `/` | Not in Appendix A | Resolved — ADR-013, ADR-015 |
+| D-07 | Early-access waitlist capture | Not in §14.1 | Resolved — ADR-014 |
+| D-08 | Marketing surfaces: pricing, blog, help centre, guides, about, contact | Not in PRD | Low. Content pages. **Pricing implies a monetisation model the PRD does not define** |
+| D-09 | Terms of Service and Privacy Policy pages | §6.2 requires acknowledgement at AUTH-01 | Low technically. The MKT-01 form already claims consent to both, so they are needed **before** that form collects data |
+| D-10 | Top-aligned form labels | §19.1 mandates floating labels | Low. **Shipped as top-aligned** per "preserve the UI exactly". Affects the shared `FormField` primitive — resolve before AUTH-01, where §19.1 applies directly |
+
+### 15.3 Implementation status
+
+| Delta | Status |
+|---|---|
+| D-06 marketing page owns `/` | ✅ Shipped — ADR-015 |
+| D-07 early-access capture | ✅ Shipped — ADR-014, `POST /api/public/early-access` |
+| D-10 top-aligned labels | ✅ Shipped as-is; decision deferred to AUTH-01 |
+| D-01, D-02, D-03, D-05 | Described on the page; **not built, not scheduled** |
+| D-04 | Positioning only; planned pipeline covers it |
+| D-08, D-09 | Footer links are placeholders. **D-09 (Terms, Privacy) is referenced by the live consent text and needed before the form collects real data** |
+
+### 15.2 Status of the gated deltas
+
+**D-01, D-02, and D-03 are not scheduled and not designed.** Each adds at least one module and one
+collection; D-02 also adds an external service dependency. They do not block MKT-01 — the page can
+ship describing them — but they must be sequenced into the milestone plan before they are built.
+
+**Awaiting founder decision on:** whether each is MVP or post-MVP, and where it sits relative to
+M1–M6. Until then `14_PROGRESS_TRACKER.md` carries them as unscheduled.
+
+None of the three changes any decision already accepted in ADRs 001–015.

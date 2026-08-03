@@ -20,6 +20,7 @@ Route bindings: `03_TRD.md` §4.
 
 | Group | Screens | Context |
 |---|---|---|
+| Marketing | MKT-01 | Anonymous |
 | Public | PUB-01, PUB-02 | Anonymous |
 | Auth | AUTH-01…05, AUTH-10…14 | Account |
 | Universal | HOME-01 | Signed-in user |

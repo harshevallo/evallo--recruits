@@ -1,0 +1,56 @@
+/**
+ * API error codes — 04_API_DOCUMENTATION.md §1.
+ *
+ * Shared so the client can branch on a stable code rather than parsing a human-readable
+ * message. The server sends these; the client interprets them.
+ */
+
+export const ERROR_CODES = Object.freeze({
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  UNAUTHENTICATED: 'UNAUTHENTICATED',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
+  RATE_LIMITED: 'RATE_LIMITED',
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
+  ALREADY_VERIFIED: 'ALREADY_VERIFIED',
+  RESEND_TOO_SOON: 'RESEND_TOO_SOON',
+  /** AUTH-03 — distinct so the UI can offer "request a new link" only when it helps. */
+  VERIFICATION_TOKEN_INVALID: 'VERIFICATION_TOKEN_INVALID',
+  VERIFICATION_TOKEN_EXPIRED: 'VERIFICATION_TOKEN_EXPIRED',
+  /** AUTH-04 — too many failed sign-in attempts for one account. */
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  MEMBERSHIP_REQUIRED: 'MEMBERSHIP_REQUIRED',
+  CANDIDATE_NOT_VISIBLE: 'CANDIDATE_NOT_VISIBLE',
+  INTENT_CLOSED: 'INTENT_CLOSED',
+  SERVER_ERROR: 'SERVER_ERROR',
+});
+
+export const ERROR_CODE_VALUES = Object.freeze(Object.values(ERROR_CODES));
+
+/**
+ * Default HTTP status per code. The single mapping used by the server error handler.
+ *
+ * Note CANDIDATE_NOT_VISIBLE → 404, not 403. Returning 403 would confirm the candidate exists,
+ * which is an information leak under PRD §16.1.
+ */
+export const ERROR_STATUS = Object.freeze({
+  [ERROR_CODES.VALIDATION_ERROR]: 400,
+  [ERROR_CODES.UNAUTHENTICATED]: 401,
+  [ERROR_CODES.TOKEN_EXPIRED]: 401,
+  [ERROR_CODES.FORBIDDEN]: 403,
+  [ERROR_CODES.EMAIL_NOT_VERIFIED]: 403,
+  [ERROR_CODES.ALREADY_VERIFIED]: 409,
+  [ERROR_CODES.RESEND_TOO_SOON]: 429,
+  [ERROR_CODES.VERIFICATION_TOKEN_INVALID]: 400,
+  [ERROR_CODES.VERIFICATION_TOKEN_EXPIRED]: 410,
+  [ERROR_CODES.ACCOUNT_LOCKED]: 429,
+  [ERROR_CODES.MEMBERSHIP_REQUIRED]: 403,
+  [ERROR_CODES.NOT_FOUND]: 404,
+  [ERROR_CODES.CANDIDATE_NOT_VISIBLE]: 404,
+  [ERROR_CODES.CONFLICT]: 409,
+  [ERROR_CODES.INTENT_CLOSED]: 409,
+  [ERROR_CODES.RATE_LIMITED]: 429,
+  [ERROR_CODES.SERVER_ERROR]: 500,
+});

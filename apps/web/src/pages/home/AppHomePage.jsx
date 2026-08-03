@@ -1,0 +1,246 @@
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Badge, Button, Container, Icon, Modal } from '@/components/ui';
+import { StatusRegion } from '@/components/feedback/StatusRegion';
+import { CreateCompanyForm } from '@/features/account/components/CreateCompanyForm';
+import { ContextSwitcher } from '@/features/home/components/ContextSwitcher';
+import { NextActionCard } from '@/features/home/components/NextActionCard';
+import { CompanyContextCard } from '@/features/home/components/CompanyContextCard';
+import { useAuth } from '@/context/AuthContext';
+import { createCandidateProfile } from '@/services';
+import { PATHS } from '@/router/paths';
+
+/**
+ * HOME-01 — universal home: "combined next actions and context switcher" (PRD Appendix A).
+ *
+ * Three responsibilities, and no more (PRD §5.2):
+ *   1. Emphasise the next setup actions for whatever state the account is in.
+ *   2. Offer a context switcher covering Personal and every company (PRD §5.3).
+ *   3. Route into the personal and company surfaces.
+ *
+ * It is deliberately NOT a profile page — CAN-01 owns candidate detail and REC-10 owns company
+ * activity. Both capabilities are shown together because one account holds both; nothing here
+ * reads or writes a global role, because there isn't one (ADR-001).
+ */
+export function AppHomePage() {
+  const { user, capabilities, error, refresh } = useAuth();
+
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [candidateStatus, setCandidateStatus] = useState(null);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+
+  const location = useLocation();
+  const candidateSection = useRef(null);
+
+  const companies = capabilities?.companies ?? [];
+  const hasCandidateProfile = Boolean(capabilities?.hasCandidateProfile);
+  const hasCompany = companies.length > 0;
+  const isNewAccount = !hasCandidateProfile && !hasCompany;
+
+  /**
+   * AUTH-05 hands over an intent, never a completed action. "company" opens the creation form;
+   * "candidate" brings the card into view. Neither creates anything — the user still confirms.
+   */
+  const intent = location.state?.intent;
+  useEffect(() => {
+    if (intent === 'company') setCompanyModalOpen(true);
+    if (intent === 'candidate') {
+      candidateSection.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [intent]);
+
+  /** Explicit, user-initiated. HOME-01 never creates a profile on its own. */
+  async function startCandidateProfile() {
+    setIsCreatingProfile(true);
+    setCandidateStatus(null);
+    try {
+      await createCandidateProfile({});
+      await refresh();
+      setCandidateStatus({ tone: 'success', text: 'Candidate profile created.' });
+    } catch (apiError) {
+      setCandidateStatus({ tone: 'error', text: apiError.message ?? 'Could not create profile.' });
+    } finally {
+      setIsCreatingProfile(false);
+    }
+  }
+
+  return (
+    <Container className="py-32">
+      <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">
+            Welcome{user?.name ? `, ${user.name}` : ''}
+          </h1>
+          <p className="mt-2 max-w-xl text-gray-600">
+            One account. Build a candidate profile, run companies, or both — nothing here locks you
+            into a single role.
+          </p>
+        </div>
+
+        {/* PRD §5.3: the switcher shows Personal and every company the user belongs to. */}
+        <ContextSwitcher companies={companies} current="personal" />
+      </header>
+
+      {error && (
+        <StatusRegion tone="error" className="mb-6">
+          {error.message ?? 'We could not load your account.'}
+        </StatusRegion>
+      )}
+
+      {/*
+        PRD §5.2 — "Home emphasizes next setup actions." Setup actions only, and only the ones
+        still outstanding; once both capabilities exist there is nothing to set up and the whole
+        section goes away. Persistent navigation (Explore, Settings) lives at the foot of the page
+        so it does not disappear with this block.
+      */}
+      {(!hasCandidateProfile || !hasCompany) && (
+        <section aria-labelledby="next-actions" className="mb-10">
+          <h2 id="next-actions" className="mb-1 text-lg font-bold text-brand-dark">
+            {isNewAccount ? 'Set up your account' : 'Next steps'}
+          </h2>
+          <p className="mb-5 text-sm text-gray-600">
+            {isNewAccount
+              ? 'Pick whichever fits — you can add the other at any time.'
+              : 'Optional. Your account already works as it is.'}
+          </p>
+
+          <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {!hasCandidateProfile && (
+              <NextActionCard
+                icon="user"
+                title="Start your candidate profile"
+                description="Let education businesses find you. Creating a profile does not change your account — you keep every company you belong to."
+                cta="Start candidate profile"
+                onSelect={startCandidateProfile}
+                busy={isCreatingProfile}
+              />
+            )}
+
+            {!hasCompany && (
+              <NextActionCard
+                icon="building"
+                title="Create a company"
+                description="Set up an organisation, publish its page, and start receiving interest from educators. You become its owner."
+                cta="Create company"
+                onSelect={() => setCompanyModalOpen(true)}
+              />
+            )}
+          </ul>
+        </section>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Personal context */}
+        <section
+          ref={candidateSection}
+          aria-labelledby="personal-context"
+          className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id="personal-context" className="text-lg font-bold text-brand-dark">
+              Your candidate profile
+            </h2>
+            {hasCandidateProfile && (
+              <Badge tone="successLight" size="sm" radius="full">
+                {capabilities.candidateProfile.status}
+              </Badge>
+            )}
+          </div>
+
+          {hasCandidateProfile ? (
+            <>
+              <p className="text-sm text-gray-600">
+                {capabilities.candidateProfile.headline ||
+                  'Your profile exists but has no headline yet.'}
+              </p>
+              <p className="mt-3 text-xs text-gray-400">
+                Visibility: {capabilities.candidateProfile.status} · Contact:{' '}
+                {capabilities.candidateProfile.contactVisibility}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-600">
+              You have not created a candidate profile yet. Use “Start your candidate profile”
+              above whenever you are ready — nothing is created until you choose to.
+            </p>
+          )}
+
+          {candidateStatus && (
+            <StatusRegion tone={candidateStatus.tone} className="mt-4">
+              {candidateStatus.text}
+            </StatusRegion>
+          )}
+        </section>
+
+        {/* Company contexts — one row per membership, each with its own role */}
+        <section
+          aria-labelledby="company-contexts"
+          className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 id="company-contexts" className="text-lg font-bold text-brand-dark">
+              Your companies
+            </h2>
+            <Button variant="primary" size="sm" onClick={() => setCompanyModalOpen(true)}>
+              Create company
+            </Button>
+          </div>
+
+          {hasCompany ? (
+            <ul className="space-y-3">
+              {companies.map((company) => (
+                <CompanyContextCard key={company.companyId} company={company} />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-gray-600">
+              You do not belong to any company yet. Create one to start recruiting, or accept an
+              invitation.
+            </p>
+          )}
+        </section>
+      </div>
+
+      {/*
+        PRD §5.2 signed-in navigation: Explore companies and Account settings stay available
+        whatever the account's state — unlike the setup actions above, which disappear once done.
+        Settings appears exactly once ("Do not duplicate account settings").
+      */}
+      <nav aria-label="Account" className="mt-10 flex flex-wrap gap-3">
+        <Button
+          to={PATHS.COMPANY_DIRECTORY}
+          variant="outlineDark"
+          size="md"
+          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+        >
+          <Icon name="compass" />
+          Explore companies
+        </Button>
+
+        <Button
+          to={PATHS.ACCOUNT_SETTINGS}
+          variant="outlineDark"
+          size="md"
+          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+        >
+          <Icon name="gear" />
+          Account settings
+        </Button>
+      </nav>
+
+      <Modal
+        open={companyModalOpen}
+        onClose={() => setCompanyModalOpen(false)}
+        title="Create a company"
+        description="You become its owner. Your personal profile is unaffected."
+      >
+        <CreateCompanyForm
+          onCreated={async () => {
+            await refresh();
+            setCompanyModalOpen(false);
+          }}
+        />
+      </Modal>
+    </Container>
+  );
+}

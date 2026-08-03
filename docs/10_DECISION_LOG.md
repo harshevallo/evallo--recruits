@@ -20,6 +20,12 @@ Decisions are never silently reversed: a superseded ADR keeps its number, is mar
 | [010](#adr-010) | MongoDB-only search behind an internal SearchService boundary | Accepted | 2026-07-31 |
 | [011](#adr-011) | Feature-module backend structure, not MVC-by-type | Accepted | 2026-07-31 |
 | [012](#adr-012) | ES Modules everywhere | Accepted | 2026-07-31 |
+| [013](#adr-013) | Marketing site lives inside `apps/web`, prerendered at build time | **Proposed** | 2026-07-31 |
+| [014](#adr-014) | Early-access capture is a lead record, not account creation | **Proposed** | 2026-07-31 |
+| [015](#adr-015) | `/` is the marketing page; HOME-01 moves to `/home` | **Proposed** | 2026-07-31 |
+| [016](#adr-016) | Founder HTML supersedes the PRD as the newer requirement source | Accepted | 2026-07-31 |
+| [017](#adr-017) | In-house authentication; no external identity provider | Accepted | 2026-08-01 |
+| [018](#adr-018) | `onboardingCompletedAt` — a timestamp, not a role | Accepted | 2026-08-02 |
 
 ---
 
@@ -611,3 +617,296 @@ Express server **without a dual build**, one module system must work in both. Un
 
 ### Impact
 All `package.json` files; Node version requirement in `08_SETUP_GUIDE.md`.
+
+---
+
+<a id="adr-013"></a>
+## ADR-013 — Marketing site lives inside `apps/web`, prerendered at build time
+
+**Status:** ⚠️ **Proposed** · 2026-07-31 · Triggered by `evallo_recruit_marketing.html`
+
+### Decision (proposed)
+The marketing landing page (**MKT-01**) is a React route inside `apps/web/src/routes/public/`,
+not a separate site or CMS. Because its content is **entirely static** — no per-request database
+reads — it is rendered to HTML **at build time** by a prerender step using
+`react-dom/server`'s `renderToString`, and the result written into the built `index.html`.
+
+### Context
+The founder supplied a marketing landing page that is not in PRD Appendix A. It is the root URL
+and therefore the single most SEO-critical page in the product, ahead of company pages.
+
+It differs from PUB-01/PUB-02 in one decisive way: **it has no dynamic data.** Company pages need
+per-request database reads, which is why ADR-004 proposed runtime metadata injection for them.
+The marketing page needs nothing at request time, so the far cheaper option is available.
+
+### Alternatives considered
+1. **Separate marketing site (Webflow, Framer, static generator)** — Lets non-engineers iterate
+   without a deploy, and keeps marketing churn out of the app repo. **Rejected for now:** the
+   design system, `Button`, `Logo`, `Footer`, and form primitives would be duplicated and drift.
+   With one engineer there is no marketing team to unblock, so the main benefit does not apply.
+   **Revisit if a marketing hire joins** — at that point the calculus genuinely inverts.
+2. **React route, client-rendered only** — Simplest. **Rejected:** the root URL served as an empty
+   `<div id="root">` is the worst possible case for the product's primary SEO and LCP target, and
+   it also breaks social link previews for the homepage.
+3. **React route with runtime SSR (ADR-004 Stage 2 machinery)** — Correct but wasteful: it pays a
+   per-request render cost forever for content that never changes between deploys.
+4. **React route, prerendered at build time (chosen)** — Crawlers and users receive complete HTML
+   with zero runtime cost.
+
+### Relationship to ADR-004
+This **refines** ADR-004 rather than replacing it. The two are complementary:
+
+| Page type | Data | Strategy |
+|---|---|---|
+| MKT-01 marketing | None — static | **Build-time prerender** (this ADR) |
+| PUB-01 / PUB-02 company | Per-request from MongoDB | Runtime metadata injection, SSR if triggered (ADR-004) |
+
+Both use `react-dom/server`, already part of React. Neither changes the stack (ADR-002).
+
+### Consequences
+**Pros**
+- Full HTML on first byte for the highest-value SEO page, at zero runtime cost.
+- One design system, one `Button`, one `Footer` — no duplication.
+- Removes MKT-01 entirely from the ADR-004 indexing-latency risk (L-02).
+- The prerender script is a natural stepping stone to ADR-004 Stage 2 if it is ever triggered.
+
+**Cons**
+- Adds a build step to `apps/web`; the prerendered route must stay free of browser-only APIs
+  during render, which the `routes/public/` constraint already enforces.
+- Content changes require an engineer and a deploy. Acceptable at one engineer; **this is the
+  cost that flips the decision if a marketing function is ever hired.**
+
+### Impact
+`apps/web` build config; one prerender script; `routes/public/`. No backend impact.
+
+---
+
+<a id="adr-014"></a>
+## ADR-014 — Early-access capture is a lead record, not account creation
+
+**Status:** ⚠️ **Proposed** · 2026-07-31
+
+### Decision (proposed)
+The marketing page's "Request Early Access" form writes to a new `earlyAccessRequests`
+collection. It **does not** create a `User`, does not send a verification link, and does not begin
+the AUTH-01 sign-up flow. Onboarding from the waitlist is operator-initiated.
+
+### Context
+The form collects **segment ("I am a…"), name, and email**. PRD §6.2 and §21.1 are explicit about
+what the sign-up screen may ask:
+
+> The sign-up page does **not** ask candidate/recruiter role, company information, detailed
+> profile information, or password.
+
+If this form triggered sign-up, the product would violate its own acceptance criterion at the
+very first touchpoint — the "I am a…" selector is precisely the role question AUTH-01 forbids.
+
+The two surfaces also serve different purposes. PRD §20 describes a pilot with a **limited,
+selected** set of businesses and candidates: *"onboarding a select group."* A waitlist that
+operators triage and invite matches that; open self-service signup does not.
+
+### Alternatives considered
+1. **Form triggers AUTH-01 sign-up** — One flow, fewer moving parts. **Rejected:** violates
+   PRD §21.1, and turns a curated pilot into open registration.
+2. **Drop the segment field and treat it as sign-up** — Preserves one flow and satisfies §21.1.
+   **Rejected:** segment is genuinely useful marketing data, and it costs nothing to keep it on a
+   lead record where it is harmless. On a `User` it would be actively harmful (ADR-001).
+3. **Separate lead collection (chosen)** — Keeps marketing capture and identity strictly apart.
+
+### Consequences
+**Pros**
+- AUTH-01 stays PRD-compliant; the sign-up screen never learns about roles.
+- Matches the curated pilot model in PRD §20.
+- `segment` is captured without any risk of becoming a user role (ADR-001).
+- Marketing funnel analytics (PRD §18.1 Acquisition) are cleanly separable from account funnels.
+
+**Cons**
+- Two paths to becoming a user: waitlist→invite, and direct sign-up once open. Both must work.
+- Operators need a way to review the list. **No admin UI exists in MVP** — triage happens against
+  the database directly. Tracked as a limitation.
+- Personal data is collected before an account exists, so deletion, export, and **retention**
+  obligations apply from day one (PRD §16.1). A retention policy is required before pilot launch.
+
+### Impact
+New `earlyAccessRequests` collection; one public endpoint; `modules/public`.
+
+---
+
+<a id="adr-015"></a>
+## ADR-015 — `/` is the marketing page; HOME-01 moves to `/home`
+
+**Status:** ⚠️ **Proposed** · 2026-07-31
+
+### Decision (proposed)
+`/` serves MKT-01 (public marketing). HOME-01, the authenticated universal home, moves to
+`/home`. An authenticated user landing on `/` is **not** redirected — they see the marketing page
+with the navigation CTAs swapped to "Go to dashboard".
+
+### Context
+`03_TRD.md` §4.1 originally assigned `/` to HOME-01, following PRD Appendix A, which has no
+marketing page. The supplied HTML claims `/`. Both cannot have it.
+
+### Alternatives considered
+1. **Redirect authenticated users from `/` to `/home`** — Common pattern; gets users to their
+   workspace fast. **Rejected:** it makes the homepage unreachable for logged-in users, which
+   breaks sharing the marketing link with a colleague, blocks the team from reviewing their own
+   landing page while signed in, and — the deciding factor — **a redirect on the prerendered root
+   URL risks Googlebot encountering redirect behaviour on the most SEO-critical page.**
+2. **Marketing at `/welcome`, HOME-01 stays at `/`** — Preserves the TRD. **Rejected:** the
+   marketing page must own the root URL. It is the SEO and acquisition entry point (PRD §2.3), and
+   a non-root landing page forfeits most of its value.
+3. **Marketing at `/`, HOME-01 at `/home`, no redirect (chosen).**
+
+### Consequences
+**Pros** — Root URL is public, static, and prerendered, which is optimal for SEO. Authenticated
+users retain access to the marketing page. Post-login redirect targets one unambiguous path.
+**Cons** — `/home` is one extra hop after sign-in versus landing on `/`. Every place that assumed
+`/` meant "the app" — post-login redirect, `returnTo` defaults, the logo link when authenticated —
+must be checked. Cheap to fix now, tedious after M1 ships.
+
+### Impact
+`03_TRD.md` §4.1 routing table (updated); post-authentication redirect; AUTH-14 return-path
+defaults; the logo destination in the authenticated app shell.
+
+---
+
+<a id="adr-016"></a>
+## ADR-016 — Founder HTML supersedes the PRD as the newer requirement source
+
+**Status:** Accepted · 2026-07-31 · **Decided by: Founder**
+
+### Decision
+When a founder-supplied HTML screen differs from `Evallo_Recruit_PRD_v1.pdf`, **the HTML is
+treated as the newer design iteration and wins.** The PRD is a v1.0 document dated 30 July 2026;
+HTML arrives afterwards and reflects current product thinking.
+
+Engineering's job on a difference is to **document it**, not to reject the design or argue it
+back to the PRD.
+
+**The one exception:** where a difference changes **architecture or business logic**, it is
+explicitly flagged and **implementation waits for founder approval**. Documenting a difference is
+never blocked; *acting* on an architectural one is.
+
+### Requirement precedence
+```
+1. Founder HTML + direct instruction     ← newest, authoritative
+2. Evallo_Recruit_PRD_v1.pdf             ← baseline product definition
+3. /docs                                 ← derived; stale if it disagrees with 1 or 2
+```
+
+### Context
+The founder supplies HTML incrementally, 2–3 screens at a time. During the MKT-01 analysis,
+engineering flagged four capabilities present in the HTML but listed as non-goals or Phase 2 in
+the PRD, and recommended revising the HTML copy to match the PRD.
+
+The founder corrected this: the PRD is the older artifact. Treating it as permanently
+authoritative would freeze the product at its 30 July definition and force every design evolution
+to be re-litigated against a document that predates it.
+
+### Alternatives considered
+1. **PRD always authoritative; HTML must conform** — Maximum consistency with the written spec.
+   **Rejected:** makes the PRD a ceiling on the product and turns every iteration into a
+   negotiation. It also inverts reality — the founder owns the product definition, and the PRD is
+   an expression of it, not a constraint on it.
+2. **HTML always wins, no gate at all** — Fastest. **Rejected:** a screen can imply an entire new
+   domain (assessments, media hosting, job requisitions) whose cost is invisible in the markup. A
+   silent architectural commitment made from a visual prototype is exactly the failure this
+   project's approval gate exists to prevent.
+3. **HTML wins; architectural and business-logic deltas gated on approval (chosen)** — Design
+   iterates freely; only decisions with structural cost require a conversation.
+
+### Consequences
+**Pros**
+- Design can evolve without re-opening the PRD.
+- Engineering stops spending analysis effort arguing scope and spends it on decomposition.
+- The founder retains a decision point precisely where cost is non-obvious.
+
+**Cons**
+- The PRD progressively drifts from reality. Mitigated by recording every delta in `03_TRD.md` §15,
+  which becomes the running record of where the product has moved past the PRD.
+- Requires judgment on what counts as "architectural." Working rule: **if it adds a collection, a
+  module, an external dependency, or an authorization path, it is architectural.** Visual, copy,
+  layout, and interaction changes are not.
+
+### Documentation policy (also set by this decision)
+Per-HTML analysis updates **only**: `03_TRD.md`, `06_COMPONENT_GUIDE.md`,
+`04_API_DOCUMENTATION.md` (when endpoints change), `14_PROGRESS_TRACKER.md`, and this log (only
+when architecture changes).
+
+**Not** updated per HTML: `11_CHANGELOG.md`, `13_BACKLOG.md`, `12_KNOWN_ISSUES.md`. These are
+maintained at feature-completion and release boundaries instead.
+
+### Impact
+Governs all future HTML batches. Retroactively reframes the MKT-01 analysis: its four "PRD
+conflicts" are **scope deltas pending approval**, recorded in `03_TRD.md` §15.
+
+
+---
+
+<a id="adr-017"></a>
+## ADR-017 — In-house authentication; no external identity provider
+
+**Status:** Accepted · 2026-08-01 · **Supersedes** an unrecorded Auth0 spike
+
+### Context
+An early iteration integrated Auth0. The founder reversed it: *"We are NOT using Auth0. Do not
+introduce any external authentication provider unless I explicitly request it later."*
+
+### Decision
+Authentication is implemented in this codebase: bcrypt (cost 12) password hashing,
+`jsonwebtoken` access tokens, opaque rotating refresh tokens in an httpOnly cookie (ADR-005), and
+our own email verification and password-reset tokens.
+
+**Google sign-in is identity only.** `google-auth-library` verifies the Google **ID token**; the
+token is then discarded and *our* JWT is issued. Google's token never authorizes an API call, and
+Google is never in the request path after sign-in. A SPA using `@react-oauth/google` performs no
+code exchange, so `GOOGLE_CLIENT_SECRET` is not used at all.
+
+### Consequences
+**Pros** — no per-MAU vendor cost; no third party in the authentication path; the `User` document
+stays the single identity record, which ADR-001's capability model depends on; the whole flow is
+testable offline with the console mail transport.
+
+**Cons** — we own the security-sensitive code: lockout, rotation, reuse detection, and
+non-enumerating responses are ours to get right and to keep right. Mitigated by 46 integration
+tests over the auth surface.
+
+### Impact
+No `AUTH0_*` variable, dependency, or code path may be reintroduced without a superseding ADR.
+Every remaining reference has been removed from the code and documentation.
+
+---
+
+<a id="adr-018"></a>
+## ADR-018 — `onboardingCompletedAt` is a timestamp, not a role
+
+**Status:** Accepted · 2026-08-02
+
+### Context
+AUTH-05 (first-action router) must be shown exactly once, immediately after AUTH-04. Nothing in
+the existing model could express "this screen has been seen": the PRD's `users` schema has no
+onboarding field, and capabilities are derived, never stored.
+
+Deriving it was considered first — "has a candidate profile **or** a company membership" — and
+rejected. The **Explore** branch deliberately creates nothing, so a user who chose it would see
+the router forever. Client-side storage was also rejected: it does not survive a new browser or
+device, and the requirement is per account, not per browser.
+
+### Decision
+Add a single nullable `Date` to `users`, written only by `POST /api/me/complete-onboarding`.
+
+### Why this does not violate ADR-001
+It records **that a screen was shown**, not what the user may do. It grants nothing, gates nothing,
+and is never consulted for authorization. Capabilities remain derived per request from
+`CandidateProfile` and `CompanyMember`. Had it stored the *choice* — "this is a candidate account"
+— that would have been exactly the permanent user type ADR-001 exists to prevent.
+
+### Consequences
+**Pros** — smallest possible change; survives devices; idempotent, so the first stamp wins and a
+second tab cannot move it.
+
+**Cons** — one more field on the most-read document, and accounts predating it have no value (they
+are simply never routed to AUTH-05).
+
+**Rejected alternative:** exposing the field through `PATCH /api/me`. A dedicated endpoint means
+the client can only stamp "now" and can never un-set it.

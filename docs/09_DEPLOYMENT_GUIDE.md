@@ -37,11 +37,18 @@ Same variables as `08_SETUP_GUIDE.md` §3, with these differences:
 | Variable | Production requirement |
 |---|---|
 | `NODE_ENV` | `production` |
-| `MONGODB_URI` | Replica set with authentication and TLS |
+| `MONGODB_CLOUD` | Replica set with authentication and TLS, targeting the `evallo-recruit` database |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Distinct, ≥ 48 random bytes, from a secret manager — **never** from a repository file |
 | `CLIENT_ORIGIN` | Exact production origin. **No wildcard** — incompatible with `credentials: true` |
-| `COOKIE_DOMAIN` | Registrable domain shared by web and api |
+| `APP_URL` | Production web origin — verification and reset links are built from it |
+| `MAIL_PROVIDER` | `sendgrid` (or `smtp`). **`console` in production silently sends nothing** — verification links would only appear in server logs |
+| `EMAIL_HOST` / `EMAIL_USER` / `EMAIL_PASS` | From a secret manager. For SendGrid: host `smtp.sendgrid.net`, user the literal `apikey`, pass the API key |
+| `GOOGLE_CLIENT_ID` | Must also list the production origin as an authorised JavaScript origin in the Google Cloud console, or the button cannot render |
 | `VITE_API_BASE_URL` | Baked in at build time — a rebuild is required to change it |
+
+There is **no `COOKIE_DOMAIN` variable**; the refresh cookie is host-scoped. Web and API must
+therefore share a registrable domain (or the API must be reachable on the same site) for the
+cookie to be sent — see `03_TRD.md` §13.
 
 Rotating `JWT_REFRESH_SECRET` invalidates every session and signs all users out. Treat it as a
 planned action, not a routine one.
@@ -49,8 +56,6 @@ planned action, not a routine one.
 ---
 
 ## 3. Build
-
-*Intended commands; confirmed when M0 lands.*
 
 ```bash
 npm ci
@@ -69,7 +74,10 @@ npm run build --workspace=apps/web
 - [ ] All required env vars set; secrets from a secret manager, not files
 - [ ] `NODE_ENV=production`
 - [ ] `CLIENT_ORIGIN` exact, no wildcard
-- [ ] `COOKIE_DOMAIN` shared by web and api
+- [ ] `APP_URL` is the production web origin
+- [ ] `MAIL_PROVIDER` is **not** `console`, and a test email actually arrives
+- [ ] Web and API share a registrable domain so the refresh cookie is sent
+- [ ] Production origin registered in the Google Cloud console (if Google sign-in is enabled)
 
 **Database**
 - [ ] Replica set confirmed (`rs.status()`)

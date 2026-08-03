@@ -2,8 +2,10 @@
 
 Education-specialized talent discovery, candidate profiles, and company recruiting.
 
-> **Project status: architecture defined, awaiting approval to scaffold.**
-> No application code exists yet. See [`docs/14_PROGRESS_TRACKER.md`](docs/14_PROGRESS_TRACKER.md).
+> **Project status: M1 (Identity) in progress.** Shipped: the marketing landing page, the public
+> company directory and profile, the full sign-up chain (AUTH-01…05), sign-in, password reset,
+> Google sign-in, session management, and the universal home (HOME-01). Next: candidate and
+> recruiter modules. See [`docs/14_PROGRESS_TRACKER.md`](docs/14_PROGRESS_TRACKER.md).
 
 ---
 
@@ -35,11 +37,16 @@ one document before touching code, read [ADR-001](docs/10_DECISION_LOG.md#adr-00
 
 | Layer | Technology |
 |---|---|
-| Client | React (Vite) · React Router · Tailwind CSS · Axios · JavaScript |
-| Server | Node.js 18+ · Express.js · ESM |
+| Client | React 18 (Vite) · React Router v6 · Tailwind CSS · Axios · JavaScript |
+| Server | Node.js 18+ (`.nvmrc` pins 18.18.0) · Express · ESM |
 | Database | MongoDB · Mongoose |
-| Auth | JWT access token (memory) + rotating refresh token (httpOnly cookie) |
+| Auth | In-house: bcrypt · JWT access token (memory) + rotating refresh token (httpOnly cookie) · Google ID-token sign-in |
+| Email | Nodemailer — console transport in dev, SMTP/SendGrid in production |
 | Validation | Zod, shared between client and server |
+
+**Authentication is in-house.** There is no Auth0 or other external identity provider, and adding
+one would need an ADR. Google sign-in verifies Google's ID token and then issues *our* JWT —
+Google's token is never used to authorize an API call.
 
 Fixed by the CTO — see [ADR-002](docs/10_DECISION_LOG.md#adr-002). No TypeScript, no Next.js,
 no second database. Changing any of it requires a new ADR and explicit approval.
@@ -63,12 +70,30 @@ Full detail: [`docs/07_PROJECT_STRUCTURE.md`](docs/07_PROJECT_STRUCTURE.md)
 
 ## Getting started
 
-Setup, environment variables, and troubleshooting:
+```bash
+npm install
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+npm run dev
+```
+
+Web on **http://localhost:3001**, API on **http://localhost:8081**. Check the stack with
+`curl http://localhost:8081/api/health` — it reports the database name, mail transport, and
+whether Google sign-in is configured.
+
+With the default `MAIL_PROVIDER=console` no real email is sent: verification and reset links are
+printed to the API console, so the whole sign-up flow works offline.
+
+Full setup, environment variables, and troubleshooting:
 [`docs/08_SETUP_GUIDE.md`](docs/08_SETUP_GUIDE.md)
 
-One thing worth knowing before you start: **run MongoDB as a single-node replica set, not
-standalone.** Four operations depend on transactions, and a standalone `mongod` silently doesn't
-support them — so those paths behave differently locally than in production.
+Two things worth knowing before you start:
+
+- **Point `MONGODB_CLOUD` at the `evallo-recruit` database.** The `evallo` database belongs to the
+  main Evallo platform and is out of scope — never read or write it.
+- **Run MongoDB as a single-node replica set, not standalone.** Four operations depend on
+  transactions, and a standalone `mongod` silently doesn't support them, so those paths behave
+  differently locally than in production.
 
 ---
 
