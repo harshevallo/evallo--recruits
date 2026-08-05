@@ -12,6 +12,12 @@ import { VisibilitySettingsPage } from '@/pages/candidate/VisibilitySettingsPage
 import { CandidateCompanyPage } from '@/pages/candidate/CandidateCompanyPage';
 import { MyInterestsPage } from '@/pages/candidate/MyInterestsPage';
 import { MessagesPage } from '@/pages/candidate/MessagesPage';
+import { CompanyStartPage } from '@/pages/company/CompanyStartPage';
+import { CompanySetupPage } from '@/pages/company/CompanySetupPage';
+import { CompanyPreviewPage } from '@/pages/company/CompanyPreviewPage';
+import { CompanyTeamPage } from '@/pages/company/CompanyTeamPage';
+import { CompanyHomePage } from '@/pages/company/CompanyHomePage';
+import { CompanyInterestsPage } from '@/pages/company/CompanyInterestsPage';
 import { MarketingPage } from '@/pages/marketing/MarketingPage';
 import { CompanyDirectoryPage } from '@/pages/public/CompanyDirectoryPage';
 import { CompanyProfilePage } from '@/pages/public/CompanyProfilePage';
@@ -121,6 +127,10 @@ export const router = createBrowserRouter([
                 ),
               },
 
+              // REC-01 — create or join. Authenticated only: RequireCompany cannot apply,
+              // because the point of the screen is that you are not a member yet.
+              { path: PATHS.COMPANY_START, element: <CompanyStartPage /> },
+
               // Personal / candidate context (CAN-*). RequireCandidate sends a user with no
               // candidate profile back to HOME-01, where creating one is an explicit action.
               {
@@ -152,16 +162,16 @@ export const router = createBrowserRouter([
               {
                 element: <RequireCompany />,
                 children: [
-                  {
-                    path: PATHS.COMPANY_HOME,
-                    element: (
-                      <PlaceholderPage
-                        title="Company home"
-                        description="Recruiting activity, interests, pipeline, and team for this company."
-                        replacedBy="REC-10"
-                      />
-                    ),
-                  },
+                  // REC-10. Open to any active member; the server decides which sections load.
+                  { path: PATHS.COMPANY_HOME, element: <CompanyHomePage /> },
+                  // REC-02 and REC-06. The server additionally requires company:edit.
+                  { path: PATHS.COMPANY_SETUP, element: <CompanySetupPage /> },
+                  { path: PATHS.COMPANY_PREVIEW, element: <CompanyPreviewPage /> },
+                  // REC-07. The server additionally requires member:manage, so a recruiter or
+                  // viewer who reaches this URL gets an error rather than a team roster.
+                  { path: PATHS.COMPANY_TEAM, element: <CompanyTeamPage /> },
+                  // REC-11. The server requires interest:view, which every company role holds.
+                  { path: PATHS.COMPANY_INTERESTS, element: <CompanyInterestsPage /> },
                 ],
               },
             ],

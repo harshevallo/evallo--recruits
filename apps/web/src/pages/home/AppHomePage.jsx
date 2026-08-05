@@ -121,8 +121,8 @@ export function AppHomePage() {
                 icon="building"
                 title="Create a company"
                 description="Set up an organisation, publish its page, and start receiving interest from educators. You become its owner."
-                cta="Create company"
-                onSelect={() => setCompanyModalOpen(true)}
+                cta="Create or join a company"
+                to={PATHS.COMPANY_START}
               />
             )}
           </ul>
@@ -191,8 +191,8 @@ export function AppHomePage() {
             <h2 id="company-contexts" className="text-lg font-bold text-brand-dark">
               Your companies
             </h2>
-            <Button variant="primary" size="sm" onClick={() => setCompanyModalOpen(true)}>
-              Create company
+            <Button to={PATHS.COMPANY_START} variant="primary" size="sm">
+              Create or join
             </Button>
           </div>
 

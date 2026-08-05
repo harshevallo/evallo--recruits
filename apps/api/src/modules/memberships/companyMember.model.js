@@ -14,11 +14,28 @@ import { COMPANY_ROLES, MEMBERSHIP_STATUS, PERMISSION_VALUES } from '@evallo/sha
 
 const companyMemberSchema = new mongoose.Schema(
   {
+    /**
+     * Absent ONLY while an invitation is outstanding for an email with no account yet (REC-07).
+     * It is stamped the moment the invitation is accepted, so every ACTIVE membership has one.
+     *
+     * The alternative — creating a shell User at invite time — was rejected: `signup` refuses an
+     * email that already exists, so inviting someone would lock them out of registering.
+     */
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
     },
+
+    /**
+     * The address the invitation was sent to (REC-07). Recorded for every invitation, including
+     * ones addressed to an existing account, so the team list can show who was invited without
+     * a join, and so duplicate detection has one field to check.
+     *
+     * An invitee is matched to this address only once they have VERIFIED it (PRD §6.4: an
+     * invited member joins only after email verification) — otherwise registering someone
+     * else's address would hand over their invitations.
+     */
+    invitedEmail: { type: String, lowercase: true, trim: true },
 
     companyId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -52,14 +69,43 @@ const companyMemberSchema = new mongoose.Schema(
 
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     invitedAt: Date,
+    /** Moves on every resend; `invitedAt` does not, so the original invite date survives. */
+    invitationLastSentAt: Date,
     acceptedAt: Date,
     removedAt: Date,
   },
   { timestamps: true, collection: 'companyMembers' },
 );
 
-/** One membership per user per company. */
-companyMemberSchema.index({ userId: 1, companyId: 1 }, { unique: true });
+/**
+ * One membership per user per company.
+ *
+ * PARTIAL, because an invitation to an address with no account has no `userId` at all — without
+ * the filter every such invitation would index as (null, companyId) and the second one at any
+ * company would be rejected as a duplicate.
+ */
+companyMemberSchema.index(
+  { userId: 1, companyId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } },
+);
+
+/**
+ * One OUTSTANDING invitation per address per company (REC-07 duplicate prevention), enforced by
+ * the database rather than only by a service check, so a double-submit cannot create two.
+ *
+ * Restricted to `invited` on purpose: a cancelled or declined invitation keeps its row (PRD
+ * §21.6 retains the audit trail), and that row must not block a fresh invitation later.
+ */
+companyMemberSchema.index(
+  { companyId: 1, invitedEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: MEMBERSHIP_STATUS.INVITED,
+      invitedEmail: { $type: 'string' },
+    },
+  },
+);
 
 /** Hot path: "which companies does this user belong to?" — runs on nearly every request. */
 companyMemberSchema.index({ userId: 1, status: 1 });

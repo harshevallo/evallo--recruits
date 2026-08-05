@@ -62,24 +62,30 @@ function DisabledButton({ label, hint }) {
 /**
  * Detects a Google button that never actually renders.
  *
- * GSI refuses to draw the button when the page origin is not listed in the OAuth client's
- * "Authorized JavaScript origins" (Google answers /gsi/status with 403). It fails SILENTLY,
- * leaving a 0×0 iframe in the DOM — invisible, yet still a focusable tab stop, so keyboard
- * focus lands on nothing and keystrokes disappear into a cross-origin frame.
+ * GSI can fail SILENTLY — for example when the page origin is not listed in the OAuth client's
+ * "Authorized JavaScript origins" — leaving nothing visible. We then show a labelled fallback
+ * rather than an empty gap.
  *
- * Polling for real dimensions lets us unmount that iframe and show a labelled fallback instead,
- * which removes the focus hazard whatever the underlying cause.
+ * WHAT TO LOOK FOR. Google renders its button as a `div[role="button"]` styled with CSS, NOT as
+ * a sized iframe. The only iframe GSI creates is an auxiliary FedCM/communication frame that is
+ * ALWAYS 0×0, on success just as much as on failure. An earlier version of this hook polled for
+ * `iframe` with a non-zero width, a condition that can therefore never be satisfied: it discarded
+ * a perfectly good button after six seconds and replaced it with the disabled fallback. That is
+ * why sign-in appeared to "work, then stop working until refresh".
  */
+const GSI_BUTTON_SELECTOR = '[role="button"]';
+const GSI_RENDER_TIMEOUT_MS = 8000;
+
 function useGoogleButtonRendered(containerRef, enabled) {
   const [state, setState] = useState('pending'); // pending | rendered | failed
 
   useEffect(() => {
     if (!enabled) return undefined;
 
-    const deadline = Date.now() + 6000;
+    const deadline = Date.now() + GSI_RENDER_TIMEOUT_MS;
     const timer = setInterval(() => {
-      const iframe = containerRef.current?.querySelector('iframe');
-      if (iframe && iframe.getBoundingClientRect().width > 0) {
+      const button = containerRef.current?.querySelector(GSI_BUTTON_SELECTOR);
+      if (button && button.getBoundingClientRect().width > 0) {
         setState('rendered');
         clearInterval(timer);
       } else if (Date.now() > deadline) {

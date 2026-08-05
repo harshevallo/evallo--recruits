@@ -67,7 +67,7 @@ function privateFields(profile) {
  * @param {object} user      The owner, for the header name
  */
 export async function getPreview(profile, user) {
-  const builder = await getBuilderState(profile);
+  const builder = await getBuilderState(profile, user);
 
   const contactRevealed = profile.contactVisibility === CONTACT_VISIBILITY.AUTHORIZED_RECRUITERS;
 
@@ -75,6 +75,9 @@ export async function getPreview(profile, user) {
     /** PRD §8.8 — the preview must be the same rendering a recruiter gets. */
     profile: profile.toRecruiterView({
       name: user.name ?? null,
+      photoUrl: user.profilePicture ?? null,
+      location: user.location ?? null,
+      languages: user.languages ?? [],
       email: user.email,
       contactRevealed,
     }),
@@ -100,8 +103,8 @@ export async function getPreview(profile, user) {
  * resulting state the candidate's choice, so this defaults to `discoverable` but accepts
  * `private` for someone who wants to share only through interest.
  */
-export async function publishProfile(profile, requestedStatus) {
-  const builder = await getBuilderState(profile);
+export async function publishProfile(profile, requestedStatus, user) {
+  const builder = await getBuilderState(profile, user);
 
   if (builder.publishBlockers.length > 0) {
     throw ApiError.validation('Your profile is not ready to publish yet.', {
@@ -131,7 +134,7 @@ export async function publishProfile(profile, requestedStatus) {
  * "hidden from NEW searches; existing authorized companies retain access". Revoking is a separate,
  * explicit act.
  */
-export async function updateVisibility(profile, input) {
+export async function updateVisibility(profile, input, user) {
   if (input.status !== undefined) {
     if (!CANDIDATE_VISIBILITY_VALUES.includes(input.status)) {
       throw ApiError.validation('Unknown visibility.', { status: 'Choose one of the options.' });
@@ -142,7 +145,7 @@ export async function updateVisibility(profile, input) {
       profile.status === CANDIDATE_VISIBILITY.DRAFT &&
       input.status !== CANDIDATE_VISIBILITY.DRAFT
     ) {
-      const builder = await getBuilderState(profile);
+      const builder = await getBuilderState(profile, user);
       if (builder.publishBlockers.length > 0) {
         throw ApiError.validation('Finish your profile before making it visible.', {
           status: `Still needed: ${builder.publishBlockers.join(', ')}.`,

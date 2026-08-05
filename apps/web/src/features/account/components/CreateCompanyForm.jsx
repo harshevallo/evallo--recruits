@@ -67,7 +67,8 @@ export function CreateCompanyForm({ onCreated }) {
       setStatus('success');
       setMessage(`${company.name} created — you are its owner.`);
       setValues({ name: '', organizationType: ORGANIZATION_TYPE_OPTIONS[0].value, country: '' });
-      await onCreated?.();
+      // Pass the created company so callers can route into it (REC-01 → REC-02).
+      await onCreated?.(company);
     } catch (error) {
       setStatus('error');
       setErrors(error.details ?? {});

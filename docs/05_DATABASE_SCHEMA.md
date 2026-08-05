@@ -25,7 +25,7 @@ users ──1:1── candidateProfiles ──1:N── experiences
   │
   ├──1:N── authSessions
   ├──1:N── verificationTokens
-  └──1:N── companyMemberships ──N:1── companies ──1:N── hiringIntents
+  └──1:N── companyMembers ──N:1── companies ──1:N── hiringIntents
                                           │       ──1:N── interests
                                           │       ──1:N── pipelineEntries
                                           │       ──1:N── conversations ──1:N── messages
@@ -37,7 +37,7 @@ auditEvents · notifications · reports    (cross-cutting, reference many collec
 ```
 
 ### Naming conventions
-- Collections: plural camelCase — `candidateProfiles`, `companyMemberships`
+- Collections: plural camelCase — `candidateProfiles`, `companyMembers`
 - Foreign keys: `<singular>Id` — `userId`, `companyId`
 - Timestamps: `createdAt` / `updatedAt` via `{ timestamps: true }` on every schema
 - Soft delete: `deletedAt` where PRD retention rules apply; never a hard delete on
@@ -64,8 +64,8 @@ consequential schema decision in the project.
 | `googleId` / `microsoftId` | ✅ | String | | Provider's stable id, for lookup. Never a provider token |
 | `platformRole` | ✅ | String | | `member \| support \| admin`. **Evallo staff access only** — not an application role, and not what ADR-001 forbids |
 | `headline` | ✅ | String | | Personal layer, distinct from candidate headline |
-| `location` | ✅ | Object | | `{ country, region, city, timezone }` |
-| `languages` | ✅ | [String] | | |
+| `location` | ✅ | Object | | `{ country, region, city, timezone }`. Written by the CAN-02 builder through the **`user`** answer target — PRD §8.5 makes country and time zone required for publication. `city` is captured only for on-site/hybrid candidates (Appendix C) |
+| `languages` | ✅ | [String] | | Teaching languages. Also written by CAN-02 via the `user` target |
 | `failedLoginAttempts` / `lockUntil` | ✅ | Number / Date | | Per-account throttling (AUTH-10). Both reset on a successful sign-in |
 | `onboardingCompletedAt` | ✅ | Date | | AUTH-05 first-action router has been seen. **Not a role and not a capability** — just "has this screen been shown" |
 | `status` | ✅ | String | ✅ | `active \| suspended \| deletion_pending \| deleted` (PRD §14.2) |
@@ -229,10 +229,17 @@ Public, indexable organisation profile (PRD §7.4, §13).
 - `isCurrentlyHiring: true` requires ≥ 1 `active` hiring intent (PRD §7.3, §21.2).
 - Only `status: 'published'` documents are readable by `modules/public` or appear in
   `/sitemap.xml` (PRD §9.3, §17).
+- Those publishing requirements are enforced **server-side at publish time**, not per field.
+  The REC-02 wizard writes partial drafts on purpose: a half-finished company is a legitimate
+  stored state, and only `POST /publish` refuses.
+- **The REC-02 wizard added no field to this collection.** Its three steps (basics, brand,
+  footprint) map onto columns that already existed; the wizard is a grouping of existing fields,
+  not a schema change. `publishedAt` records the first publication and survives unpublish, so a
+  republished company keeps its original date.
 
 ---
 
-## 6. `companyMemberships`
+## 6. `companyMembers`
 
 **The authorization spine.** Every recruiter permission in the system resolves through this
 collection on every request (ADR-006).
@@ -246,6 +253,12 @@ collection on every request (ADR-006).
 | `permissionOverrides` | [String] | | Explicit grants beyond role, e.g. delegated `company:transfer` |
 | `showOnPublicTeam` | Boolean | | Opt-in only — PRD §7.4 requires member consent |
 | `invitedBy`, `invitedAt`, `acceptedAt`, `removedAt` | mixed | | Audit trail |
+
+**An invitation is a row in this collection, not a separate one.** A pending invite is a
+`companyMembers` document with `status: 'invited'`; accepting it (REC-01) flips the same document
+to `active` and stamps `acceptedAt`. There is no invitations collection to reconcile, and the
+membership a recruiter ends up with is literally the record they were invited by. Declining sets
+`removed`. Creating invitations is REC-07 and is not yet implemented.
 | `assignedIntentIds` | [ObjectId] | | Scopes `hiring_manager` to assigned intents (PRD §4.2) |
 
 **Indexes**
@@ -361,11 +374,18 @@ state is exactly why these are separate collections rather than embedded arrays 
 Versioned question configuration and structured answers (**ADR-007**).
 
 `questionBanks` holds `{ version, active, publishedAt, sections[{ key, title, optional, order,
-questions[] }] }`. Each question carries `key`, `type`, `target` (`profile` | `answer`), an
-optional `field`, `requiredForPublish`, an `optionSet` key resolved from the shared taxonomy, and
-`onlyForRoles` for role-gated questions (PRD §20.2). Unique on `version`; exactly one `active`.
-Publishing a revision deactivates the previous one rather than editing it — editing would rewrite
-the meaning of answers already given.
+questions[] }] }`. Each question carries `key`, `type`, `target`, an optional `field`,
+`requiredForPublish`, an `optionSet` key resolved from the shared taxonomy, and the two conditional
+rules `onlyForRoles` (PRD §20.2) and `onlyForDeliveryModes` (Appendix C location conditionality).
+
+**`target` is one of three** — `profile` (a field on `candidateProfiles`), **`user`** (a field on
+`users`, for the personal layer: location and languages), or `answer` (`candidateAnswers`).
+`field` accepts dot paths such as `location.country`. Splitting the targets rather than copying
+personal data onto the candidate profile keeps one source of truth for a person's location.
+
+Unique on `version`; exactly one `active`. Publishing a revision deactivates the previous one
+rather than editing it — editing would rewrite the meaning of answers already given. **Current
+version: 2** (v1 retained, inactive).
 
 `candidateAnswers` stores `{ candidateId, questionKey, value, bankVersion }`, unique on
 `{ candidateId, questionKey }`, so answers stay interpretable after a reword and a re-answer
@@ -410,8 +430,13 @@ candidate per company.
 ### `conversations` · `messages` — **built (CAN-09)**
 
 `conversations`: `{ candidateId, companyId, interestId, lastMessageAt, lastMessagePreview,
-candidateUnread, companyUnread, reportedAt, reportReason }`, unique on
-`{ candidateId, companyId }` so a reply continues the thread rather than starting another.
+candidateUnread, companyUnread, candidateState, candidateRespondedAt, mutedAt, reportedAt,
+reportReason }`, unique on `{ candidateId, companyId }` so a reply continues the thread rather than
+starting another.
+
+`candidateState` is `pending | accepted | declined` — PRD §11.2's candidate-side actions. Declining
+closes the thread to further candidate replies and sets `mutedAt`; it never deletes messages,
+because the content is the record (§16.3).
 
 A conversation is between a **candidate and a company**, never two users: the company side is a
 context, so a recruiter leaving does not orphan the thread and their replacement inherits it
@@ -520,7 +545,7 @@ noting now**, per `03_TRD.md` §13) are required for:
 |---|---|---|
 | Interest submission (§8.7) | `interests`, `accessGrants`, `pipelineEntries`, `notifications`, `auditEvents` | Partial failure grants profile access with no interest record — a privacy defect |
 | Refresh rotation (ADR-005) | `authSessions` × 2 | Prevents a window where neither token is valid |
-| Ownership transfer (§4.2) | `companyMemberships` × 2 | Must never leave a company with zero owners |
+| Ownership transfer (§4.2) | `companyMembers` × 2 | Must never leave a company with zero owners |
 | Company publish (§7.2) | `companies`, `hiringIntents`, `auditEvents` | Publishing must be atomic with intent activation |
 
 A standalone `mongod` does not support transactions. If local development uses standalone, these

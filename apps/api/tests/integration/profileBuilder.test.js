@@ -8,6 +8,7 @@
 
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { QUESTION_BANK_VERSION } from '../../src/modules/question-bank/questionBank.definition.js';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, disconnectDatabase } from '../../src/lib/db.js';
 import { User } from '../../src/modules/users/user.model.js';
@@ -185,14 +186,14 @@ describe('CAN-02 saving', () => {
     const profile = await CandidateProfile.findOne({ userId });
     assert.equal(profile.headline, 'IB Physics teacher', 'searchable field on the profile');
     assert.equal(profile.summary, 'Ten years of IB physics.');
-    assert.equal(profile.bankVersion, 1);
+    assert.equal(profile.bankVersion, QUESTION_BANK_VERSION);
 
     const answer = await CandidateAnswer.findOne({
       candidateId: profile._id,
       questionKey: 'pronouns',
     });
     assert.equal(answer.value, 'she/her');
-    assert.equal(answer.bankVersion, 1, 'answers stay interpretable across rewordings');
+    assert.equal(answer.bankVersion, QUESTION_BANK_VERSION, 'answers stay interpretable across rewordings');
   });
 
   test('re-answering updates in place rather than appending', async () => {
@@ -253,6 +254,85 @@ describe('CAN-02 saving', () => {
   });
 });
 
+describe('CAN-02 personal-layer answers (PRD §8.5, schema §2)', () => {
+  test('country, region and languages are written to the USER, not the candidate profile', async () => {
+    const { accessToken, userId } = await onboardCandidate();
+
+    await authPatch('/api/me/candidate-profile/sections/professional_identity', accessToken, {
+      values: { country: 'IN', region: 'Bengaluru, Karnataka', languages: ['en', 'hi'] },
+    });
+
+    const user = await User.findById(userId);
+    assert.equal(user.location.country, 'IN', 'nested dot-path write');
+    assert.equal(user.location.region, 'Bengaluru, Karnataka');
+    assert.deepEqual([...user.languages], ['en', 'hi']);
+
+    const profile = await CandidateProfile.findOne({ userId });
+    assert.ok(!profile.get('location'), 'personal layer is NOT duplicated onto the profile');
+    assert.ok(!profile.get('languages'));
+  });
+
+  test('reads personal-layer values back into the builder', async () => {
+    const { accessToken } = await onboardCandidate();
+
+    await authPatch('/api/me/candidate-profile/sections/professional_identity', accessToken, {
+      values: { country: 'GB' },
+    });
+
+    const body = await (await authGet('/api/me/candidate-profile/builder', accessToken)).json();
+    const identity = sectionByKey(body.data, 'professional_identity');
+    const country = identity.questions.find((q) => q.key === 'country');
+
+    assert.equal(country.value, 'GB');
+    assert.ok(country.options.some((o) => o.value === 'GB'));
+  });
+
+  test('country and timezone block publication until answered (PRD §8.5)', async () => {
+    const { accessToken } = await onboardCandidate();
+    const body = await (await authGet('/api/me/candidate-profile/builder', accessToken)).json();
+
+    assert.ok(
+      body.data.publishBlockers.some((b) => /based/i.test(b)),
+      'country is required for publication',
+    );
+    assert.ok(
+      body.data.publishBlockers.some((b) => /time zone/i.test(b)),
+      'time zone is required for publication',
+    );
+  });
+
+  test('rejects a country outside the vocabulary', async () => {
+    const { accessToken } = await onboardCandidate();
+    const res = await authPatch(
+      '/api/me/candidate-profile/sections/professional_identity',
+      accessToken,
+      { values: { country: 'ZZ' } },
+    );
+    assert.equal(res.status, 400);
+    assert.ok((await res.json()).error.details.country);
+  });
+});
+
+describe('CAN-02 location conditionality (Appendix C)', () => {
+  test('the on-site question is hidden until on-site or hybrid is chosen', async () => {
+    const { accessToken } = await onboardCandidate();
+
+    let body = await (await authGet('/api/me/candidate-profile/builder', accessToken)).json();
+    let roles = sectionByKey(body.data, 'role_preferences');
+    assert.ok(
+      !roles.questions.some((q) => q.key === 'onsiteCity'),
+      'remote-only candidates are not asked commuting questions',
+    );
+
+    const res = await authPatch('/api/me/candidate-profile/sections/role_preferences', accessToken, {
+      values: { deliveryModes: ['on_site'] },
+    });
+    roles = sectionByKey((await res.json()).data, 'role_preferences');
+
+    assert.ok(roles.questions.some((q) => q.key === 'onsiteCity'), 'revealed by the choice');
+  });
+});
+
 describe('CAN-02 role-gated questions (PRD §20.2)', () => {
   test('a role-specific question appears only once its role is selected', async () => {
     const { accessToken } = await onboardCandidate();
@@ -281,6 +361,9 @@ describe('CAN-02 role-gated questions (PRD §20.2)', () => {
         headline: 'IB Physics teacher',
         summary: 'Ten years teaching IB and A-level physics.',
         pronouns: 'she/her',
+        country: 'IN',
+        region: 'Bengaluru',
+        languages: ['en'],
       },
     });
     const identity = sectionByKey((await res.json()).data, 'professional_identity');

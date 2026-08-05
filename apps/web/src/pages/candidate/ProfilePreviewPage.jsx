@@ -6,14 +6,27 @@ import {
   AVAILABILITY_LABELS,
   EMPLOYMENT_TYPE_LABELS,
   DELIVERY_MODE_LABELS,
+  COUNTRY_LABELS,
+  TIMEZONE_LABELS,
+  LANGUAGE_LABELS,
 } from '@evallo/shared';
-import { Badge, Button, Container, Icon } from '@/components/ui';
+import { Avatar, Badge, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchProfilePreview, publishProfile } from '@/services';
 import { PATHS } from '@/router/paths';
 
 const labelled = (values, labels) => (values ?? []).map((v) => labels[v] ?? v);
+
+/** PRD §8.8 header line: where the candidate is, and which time zone they work in. */
+function locationLine(location) {
+  if (!location) return null;
+  const place = [location.region, COUNTRY_LABELS[location.country] ?? location.country]
+    .filter(Boolean)
+    .join(', ');
+  const zone = TIMEZONE_LABELS[location.timezone] ?? location.timezone;
+  return [place || null, zone || null].filter(Boolean).join(' · ') || null;
+}
 
 /**
  * CAN-03 — profile preview (PRD §8.2, §8.8).
@@ -199,15 +212,38 @@ export function ProfilePreviewPage() {
         </p>
 
         <header className="border-b border-gray-100 pb-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-bold text-brand-dark">
-              {header.name ?? 'Your name'}
-            </h2>
-            <Badge tone="neutral" size="sm" radius="full">
-              {header.status}
-            </Badge>
+          <div className="flex items-start gap-4">
+            {/* PRD §8.8 — the header leads with the photo. */}
+            <Avatar
+              src={header.photoUrl}
+              initials={(header.name ?? '?').slice(0, 2).toUpperCase()}
+              size="md"
+              shape="rounded"
+              tone="brand"
+            />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-bold text-brand-dark">
+                  {header.name ?? 'Your name'}
+                </h2>
+                <Badge tone="neutral" size="sm" radius="full">
+                  {header.status}
+                </Badge>
+              </div>
+              <p className="mt-1 text-gray-600">{header.headline ?? 'No headline yet'}</p>
+
+              {locationLine(header.location) && (
+                <p className="mt-1 text-sm text-gray-500">{locationLine(header.location)}</p>
+              )}
+
+              {header.languages?.length > 0 && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Teaches in {labelled(header.languages, LANGUAGE_LABELS).join(', ')}
+                </p>
+              )}
+            </div>
           </div>
-          <p className="mt-1 text-gray-600">{header.headline ?? 'No headline yet'}</p>
 
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
             <div>

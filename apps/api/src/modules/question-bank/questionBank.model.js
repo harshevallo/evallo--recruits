@@ -24,11 +24,16 @@ export const QUESTION_TYPES = Object.freeze({
  * Where an answer is stored.
  *
  * `profile` writes to a field on `candidateProfiles` — the fields talent search will read.
- * `answer` writes to `candidateAnswers`, keyed by question. Anything without a first-class field
- * uses `answer`, so adding a question never requires a schema migration (ADR-007, ADR-008).
+ * `user`    writes to a field on `users`, for the PERSONAL layer: location, languages, and the
+ *           like. `05_DATABASE_SCHEMA.md` §2 puts those on the person, not the candidate profile,
+ *           and a person has one location whether or not they are also a candidate. Duplicating
+ *           them onto `candidateProfiles` would create two sources of truth that drift.
+ * `answer`  writes to `candidateAnswers`, keyed by question. Anything without a first-class field
+ *           uses `answer`, so adding a question never requires a schema migration (ADR-007).
  */
 export const ANSWER_TARGETS = Object.freeze({
   PROFILE: 'profile',
+  USER: 'user',
   ANSWER: 'answer',
 });
 
@@ -43,7 +48,10 @@ const questionSchema = new mongoose.Schema(
     type: { type: String, required: true, enum: Object.values(QUESTION_TYPES) },
 
     target: { type: String, required: true, enum: Object.values(ANSWER_TARGETS) },
-    /** Field on `candidateProfiles` when `target === 'profile'`. */
+    /**
+     * Field written when `target` is `profile` or `user`. Dot paths are supported, so a nested
+     * field such as `location.country` on the user document can be addressed directly.
+     */
     field: String,
 
     /** PRD §8.5 — required for PUBLICATION, never required to save a draft (§8.3). */
@@ -62,6 +70,12 @@ const questionSchema = new mongoose.Schema(
      * only when the candidate has selected one of these target roles.
      */
     onlyForRoles: [String],
+
+    /**
+     * Appendix C location conditionality: shown only when the candidate has chosen one of these
+     * delivery modes, so a remote-only candidate is never asked commuting questions.
+     */
+    onlyForDeliveryModes: [String],
   },
   { _id: false },
 );

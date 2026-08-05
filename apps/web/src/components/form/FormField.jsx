@@ -20,7 +20,12 @@ export function FormField({ label, name, error, hint, required = false, classNam
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
 
-  const describedBy = cn(error && errorId, hint && hintId) || undefined;
+  /*
+   * The hint is hidden once an error is showing (see below), so it must drop out of
+   * `aria-describedby` too — otherwise the attribute points at an element that is not in the
+   * document, and a screen-reader user is told about a description that no longer exists.
+   */
+  const describedBy = cn(error && errorId, hint && !error && hintId) || undefined;
 
   return (
     <div className={className}>

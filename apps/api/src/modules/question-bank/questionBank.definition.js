@@ -14,9 +14,9 @@
 
 import { QUESTION_TYPES, ANSWER_TARGETS } from './questionBank.model.js';
 
-export const QUESTION_BANK_VERSION = 1;
+export const QUESTION_BANK_VERSION = 2;
 
-export const QUESTION_BANK_V1 = Object.freeze([
+export const QUESTION_BANK = Object.freeze([
   {
     key: 'professional_identity',
     title: 'Professional identity',
@@ -52,6 +52,34 @@ export const QUESTION_BANK_V1 = Object.freeze([
         type: QUESTION_TYPES.SHORT_TEXT,
         target: ANSWER_TARGETS.ANSWER,
         maxLength: 40,
+      },
+      {
+        // PRD §8.5 — country/region is required for publication.
+        key: 'country',
+        label: 'Where are you based?',
+        type: QUESTION_TYPES.SINGLE_SELECT,
+        target: ANSWER_TARGETS.USER,
+        field: 'location.country',
+        optionSet: 'countries',
+        requiredForPublish: true,
+      },
+      {
+        key: 'region',
+        label: 'State, region, or city',
+        help: 'Helps companies hiring for a specific area find you.',
+        placeholder: 'Bengaluru, Karnataka',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.USER,
+        field: 'location.region',
+        maxLength: 120,
+      },
+      {
+        key: 'languages',
+        label: 'Languages you teach in',
+        type: QUESTION_TYPES.MULTI_SELECT,
+        target: ANSWER_TARGETS.USER,
+        field: 'languages',
+        optionSet: 'languages',
       },
     ],
   },
@@ -98,6 +126,31 @@ export const QUESTION_BANK_V1 = Object.freeze([
         field: 'availability',
         optionSet: 'availability',
         requiredForPublish: true,
+      },
+      {
+        // PRD §8.5 lists location/time-zone preference under work preference.
+        key: 'timezone',
+        label: 'Which time zone do you work in?',
+        type: QUESTION_TYPES.SINGLE_SELECT,
+        target: ANSWER_TARGETS.USER,
+        field: 'location.timezone',
+        optionSet: 'timezones',
+        requiredForPublish: true,
+      },
+      {
+        /*
+         * Appendix C, location conditionality: on-site interest triggers a location question;
+         * a remote-only candidate is never forced through commuting questions.
+         */
+        key: 'onsiteCity',
+        label: 'Which city or area can you work on-site in?',
+        help: 'Only asked because you selected on-site or hybrid work.',
+        placeholder: 'Central Bengaluru, up to 15 km',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.USER,
+        field: 'location.city',
+        maxLength: 120,
+        onlyForDeliveryModes: ['on_site', 'hybrid'],
       },
       {
         key: 'yearsExperience',

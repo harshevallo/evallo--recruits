@@ -20,10 +20,34 @@ import {
 import { QUESTION_TYPES, ANSWER_TARGETS } from '../question-bank/questionBank.model.js';
 import { CandidateAnswer } from './candidateAnswer.model.js';
 
+/** Reads a possibly-nested field, so a bank can address `location.country` directly. */
+function readPath(document, path) {
+  return path.split('.').reduce((value, key) => (value == null ? value : value[key]), document);
+}
+
+/** Writes a possibly-nested field, creating intermediate objects as needed. */
+function writePath(document, path, value) {
+  const keys = path.split('.');
+  const last = keys.pop();
+
+  let target = document;
+  for (const key of keys) {
+    if (target[key] == null || typeof target[key] !== 'object') target[key] = {};
+    target = target[key];
+  }
+  target[last] = value;
+
+  // Mongoose does not observe mutation inside a nested plain object.
+  if (keys.length > 0) document.markModified(keys[0]);
+}
+
 /** Reads the current value of a question, wherever it is stored. */
-function currentValue(question, profile, answersByKey) {
+function currentValue(question, profile, user, answersByKey) {
   if (question.target === ANSWER_TARGETS.PROFILE) {
-    return profile[question.field] ?? null;
+    return readPath(profile, question.field) ?? null;
+  }
+  if (question.target === ANSWER_TARGETS.USER) {
+    return readPath(user, question.field) ?? null;
   }
   return answersByKey.get(question.key)?.value ?? null;
 }
@@ -101,19 +125,20 @@ function normalise(question, value) {
  * The whole builder state: sections, the questions visible for this candidate's chosen roles,
  * their current values, and per-section completion.
  */
-export async function getBuilderState(profile) {
+export async function getBuilderState(profile, user) {
   const bank = await getActiveBank();
   if (!bank) throw ApiError.notFound('The profile builder is not configured.');
 
   const answers = await CandidateAnswer.find({ candidateId: profile._id }).lean();
   const answersByKey = new Map(answers.map((a) => [a.questionKey, a]));
   const targetRoles = profile.targetRoles ?? [];
+  const deliveryModes = profile.deliveryModes ?? [];
 
   const sections = [...bank.sections]
     .sort((a, b) => a.order - b.order)
     .map((section) => {
       const questions = section.questions
-        .filter((question) => isQuestionVisible(question, targetRoles))
+        .filter((question) => isQuestionVisible(question, targetRoles, deliveryModes))
         .map((question) => ({
           key: question.key,
           label: question.label,
@@ -125,7 +150,7 @@ export async function getBuilderState(profile) {
           maxLength: question.maxLength ?? null,
           min: question.min ?? null,
           max: question.max ?? null,
-          value: currentValue(question, profile, answersByKey),
+          value: currentValue(question, profile, user, answersByKey),
         }));
 
       const answered = questions.filter((q) => isAnswered(q.value)).length;
@@ -162,13 +187,16 @@ export async function getBuilderState(profile) {
  *
  * @returns {Promise<{ errors: Record<string,string>|null }>}
  */
-export async function saveSection(profile, sectionKey, values = {}) {
+export async function saveSection(profile, user, sectionKey, values = {}) {
   const bank = await getActiveBank();
   const section = bank?.sections.find((s) => s.key === sectionKey);
   if (!section) throw ApiError.notFound('That section does not exist.');
 
   const targetRoles = profile.targetRoles ?? [];
-  const visible = section.questions.filter((q) => isQuestionVisible(q, targetRoles));
+  const deliveryModes = profile.deliveryModes ?? [];
+  const visible = section.questions.filter((q) =>
+    isQuestionVisible(q, targetRoles, deliveryModes),
+  );
 
   // Validate everything before writing anything, so a section never half-saves.
   const errors = {};
@@ -180,13 +208,25 @@ export async function saveSection(profile, sectionKey, values = {}) {
   if (Object.keys(errors).length > 0) return { errors };
 
   const answerWrites = [];
+  let userTouched = false;
 
   for (const question of visible) {
     if (!(question.key in values)) continue;
     const value = normalise(question, values[question.key]);
 
     if (question.target === ANSWER_TARGETS.PROFILE) {
-      profile[question.field] = value;
+      writePath(profile, question.field, value);
+      continue;
+    }
+
+    /*
+     * The PERSONAL layer. `05_DATABASE_SCHEMA.md` §2 puts location and languages on `users`,
+     * because a person has one location whether or not they are also a candidate. Writing them
+     * here keeps a single source of truth rather than a copy on the candidate profile.
+     */
+    if (question.target === ANSWER_TARGETS.USER) {
+      writePath(user, question.field, value);
+      userTouched = true;
       continue;
     }
 
@@ -203,6 +243,7 @@ export async function saveSection(profile, sectionKey, values = {}) {
   profile.lastActiveAt = new Date();
 
   await profile.save();
+  if (userTouched) await user.save();
   if (answerWrites.length > 0) await CandidateAnswer.bulkWrite(answerWrites);
 
   return { errors: null };

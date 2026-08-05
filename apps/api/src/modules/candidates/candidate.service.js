@@ -9,6 +9,7 @@
 import { CANDIDATE_VISIBILITY } from '@evallo/shared';
 import { ApiError } from '../../lib/ApiError.js';
 import { CandidateProfile } from './candidateProfile.model.js';
+import { User } from '../users/user.model.js';
 import {
   getBuilderState,
   saveSection as saveBuilderSection,
@@ -35,6 +36,8 @@ import {
   getConversation,
   replyToConversation,
   reportConversation,
+  respondToConversation,
+  setConversationMuted,
 } from '../messaging/messaging.service.js';
 
 /**
@@ -180,9 +183,21 @@ async function requireProfile(userId) {
   return profile;
 }
 
+/**
+ * The builder spans two documents: `candidateProfiles` for the candidate layer and `users` for the
+ * personal layer (location, languages), per `05_DATABASE_SCHEMA.md` §2. Both are loaded as
+ * documents because a section save may write to either.
+ */
+async function requireProfileAndUser(userId) {
+  const [profile, user] = await Promise.all([requireProfile(userId), User.findById(userId)]);
+  if (!user) throw ApiError.unauthenticated('Your account could not be found.');
+  return { profile, user };
+}
+
 /** CAN-02 — the builder state for this candidate. */
 export async function getBuilder(userId) {
-  return getBuilderState(await requireProfile(userId));
+  const { profile, user } = await requireProfileAndUser(userId);
+  return getBuilderState(profile, user);
 }
 
 /**
@@ -193,12 +208,12 @@ export async function getBuilder(userId) {
  * view rather than guess which questions now apply.
  */
 export async function saveSection(userId, sectionKey, values) {
-  const profile = await requireProfile(userId);
+  const { profile, user } = await requireProfileAndUser(userId);
 
-  const { errors } = await saveBuilderSection(profile, sectionKey, values);
+  const { errors } = await saveBuilderSection(profile, user, sectionKey, values);
   if (errors) return { errors, builder: null };
 
-  return { errors: null, builder: await getBuilderState(profile) };
+  return { errors: null, builder: await getBuilderState(profile, user) };
 }
 
 /* ── CAN-03 preview · CAN-04 visibility ────────────────────────────────────────────────────── */
@@ -208,12 +223,12 @@ export async function getProfilePreview(user) {
 }
 
 export async function publish(user, status) {
-  const profile = await publishProfile(await requireProfile(user._id), status);
+  const profile = await publishProfile(await requireProfile(user._id), status, user);
   return getPreview(profile, user);
 }
 
 export async function setVisibility(user, input) {
-  const profile = await updateVisibility(await requireProfile(user._id), input);
+  const profile = await updateVisibility(await requireProfile(user._id), input, user);
   return {
     visibility: {
       status: profile.status,
@@ -234,7 +249,7 @@ export async function getVisibility(user) {
     },
     blockedCompanies: await listBlockedCompanies(profile),
     /** Naming what still blocks publication keeps CAN-04 honest about why a change was refused. */
-    publishBlockers: (await getBuilderState(profile)).publishBlockers,
+    publishBlockers: (await getBuilderState(profile, user)).publishBlockers,
   };
 }
 
@@ -294,6 +309,16 @@ export async function replyForUser(user, conversationId, body) {
 
 export async function reportConversationForUser(user, conversationId, reason) {
   return reportConversation(await requireProfile(user._id), conversationId, reason);
+}
+
+/** PRD §11.2 — accept or decline a company-initiated conversation. */
+export async function respondToConversationForUser(user, conversationId, accepted) {
+  return respondToConversation(await requireProfile(user._id), conversationId, accepted);
+}
+
+/** PRD §11.2 — mute or unmute a conversation. */
+export async function setConversationMutedForUser(user, conversationId, muted) {
+  return setConversationMuted(await requireProfile(user._id), conversationId, muted);
 }
 
 export async function createCandidateProfile(userId, input = {}) {

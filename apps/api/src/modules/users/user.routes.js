@@ -12,6 +12,12 @@ import { validate } from '../../middleware/validate.js';
 import { getMe, updateMe, completeOnboardingHandler } from './user.controller.js';
 import { updateProfileValidation } from './user.validation.js';
 import * as candidate from '../candidates/candidate.controller.js';
+import {
+  getMyInvitations,
+  acceptMyInvitation,
+  declineMyInvitation,
+} from '../memberships/invitation.controller.js';
+import { invitationParamValidation } from '../companies/company.validation.js';
 import { createCandidateProfileValidation } from './user.controller.js';
 import {
   saveSectionValidation,
@@ -25,6 +31,8 @@ import {
   conversationParamValidation,
   replyValidation,
   reportConversationValidation,
+  respondConversationValidation,
+  muteConversationValidation,
 } from '../candidates/candidate.validation.js';
 
 const router = Router();
@@ -126,10 +134,40 @@ router.post(
   validate(replyValidation),
   asyncHandler(candidate.replyToConversation),
 );
+// PRD §11.2 — accept, decline, mute. Block lives in CAN-04; report is below.
+router.post(
+  '/conversations/:conversationId/respond',
+  validate(respondConversationValidation),
+  asyncHandler(candidate.respondToConversation),
+);
+router.put(
+  '/conversations/:conversationId/mute',
+  validate(muteConversationValidation),
+  asyncHandler(candidate.setConversationMuted),
+);
 router.post(
   '/conversations/:conversationId/report',
   validate(reportConversationValidation),
   asyncHandler(candidate.reportConversation),
+);
+
+/*
+ * REC-01 — company invitations addressed to this user.
+ *
+ * Deliberately on the personal surface: the invitee is NOT yet a member, so
+ * resolveCompanyContext could never authorise them on a company-scoped route. Ownership is the
+ * user id, and every query below is scoped to it.
+ */
+router.get('/invitations', asyncHandler(getMyInvitations));
+router.post(
+  '/invitations/:invitationId/accept',
+  validate(invitationParamValidation),
+  asyncHandler(acceptMyInvitation),
+);
+router.post(
+  '/invitations/:invitationId/decline',
+  validate(invitationParamValidation),
+  asyncHandler(declineMyInvitation),
 );
 
 export default router;

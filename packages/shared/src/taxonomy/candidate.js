@@ -122,3 +122,85 @@ export const AVAILABILITY_VALUES = Object.freeze(AVAILABILITY_OPTIONS.map((o) =>
 export const AVAILABILITY_LABELS = Object.freeze(
   Object.fromEntries(AVAILABILITY_OPTIONS.map((o) => [o.value, o.label])),
 );
+
+/**
+ * Countries — PRD §8.5 makes country/region required for publication.
+ *
+ * A pragmatic list covering the pilot's markets rather than all 249 ISO entries: PRD §20 scopes
+ * the MVP to a limited pilot, and a 249-item checkbox list is worse for the candidate than a
+ * short one. Extending it is a data change, not a code change.
+ */
+export const COUNTRY_OPTIONS = Object.freeze([
+  { value: 'IN', label: 'India' },
+  { value: 'US', label: 'United States' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'AE', label: 'United Arab Emirates' },
+  { value: 'SG', label: 'Singapore' },
+  { value: 'AU', label: 'Australia' },
+  { value: 'CA', label: 'Canada' },
+  { value: 'NZ', label: 'New Zealand' },
+  { value: 'ZA', label: 'South Africa' },
+  { value: 'IE', label: 'Ireland' },
+  { value: 'MY', label: 'Malaysia' },
+  { value: 'HK', label: 'Hong Kong SAR' },
+  { value: 'QA', label: 'Qatar' },
+  { value: 'SA', label: 'Saudi Arabia' },
+  { value: 'DE', label: 'Germany' },
+  { value: 'NL', label: 'Netherlands' },
+  { value: 'ES', label: 'Spain' },
+  { value: 'OTHER', label: 'Elsewhere' },
+]);
+
+export const COUNTRY_VALUES = Object.freeze(COUNTRY_OPTIONS.map((o) => o.value));
+export const COUNTRY_LABELS = Object.freeze(
+  Object.fromEntries(COUNTRY_OPTIONS.map((o) => [o.value, o.label])),
+);
+
+/** IANA time zones covering the pilot markets — PRD §8.5 "location/time-zone preference". */
+export const TIMEZONE_OPTIONS = Object.freeze([
+  { value: 'Asia/Kolkata', label: 'India (IST)' },
+  { value: 'Asia/Dubai', label: 'Gulf (GST)' },
+  { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+  { value: 'Asia/Hong_Kong', label: 'Hong Kong (HKT)' },
+  { value: 'Europe/London', label: 'UK (GMT/BST)' },
+  { value: 'Europe/Dublin', label: 'Ireland (GMT/IST)' },
+  { value: 'Europe/Berlin', label: 'Central Europe (CET)' },
+  { value: 'Africa/Johannesburg', label: 'South Africa (SAST)' },
+  { value: 'America/New_York', label: 'US Eastern (ET)' },
+  { value: 'America/Chicago', label: 'US Central (CT)' },
+  { value: 'America/Denver', label: 'US Mountain (MT)' },
+  { value: 'America/Los_Angeles', label: 'US Pacific (PT)' },
+  { value: 'America/Toronto', label: 'Canada Eastern (ET)' },
+  { value: 'Australia/Sydney', label: 'Australia Eastern (AET)' },
+  { value: 'Pacific/Auckland', label: 'New Zealand (NZT)' },
+]);
+
+export const TIMEZONE_VALUES = Object.freeze(TIMEZONE_OPTIONS.map((o) => o.value));
+export const TIMEZONE_LABELS = Object.freeze(
+  Object.fromEntries(TIMEZONE_OPTIONS.map((o) => [o.value, o.label])),
+);
+
+/** Teaching languages — PRD §8.3 section 1, and Appendix B's Language filter group. */
+export const LANGUAGE_OPTIONS = Object.freeze([
+  { value: 'en', label: 'English' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ta', label: 'Tamil' },
+  { value: 'te', label: 'Telugu' },
+  { value: 'bn', label: 'Bengali' },
+  { value: 'mr', label: 'Marathi' },
+  { value: 'gu', label: 'Gujarati' },
+  { value: 'kn', label: 'Kannada' },
+  { value: 'ml', label: 'Malayalam' },
+  { value: 'ur', label: 'Urdu' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'fr', label: 'French' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'de', label: 'German' },
+  { value: 'zh', label: 'Mandarin' },
+  { value: 'ms', label: 'Malay' },
+]);
+
+export const LANGUAGE_VALUES = Object.freeze(LANGUAGE_OPTIONS.map((o) => o.value));
+export const LANGUAGE_LABELS = Object.freeze(
+  Object.fromEntries(LANGUAGE_OPTIONS.map((o) => [o.value, o.label])),
+);

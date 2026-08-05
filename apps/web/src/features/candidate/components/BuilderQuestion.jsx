@@ -65,7 +65,12 @@ export function BuilderQuestion({ question, value, error, disabled, onChange }) 
                * keyboard support and correct screen-reader semantics, and `fieldset`/`legend`
                * is what associates the group with its question (PRD §19 accessibility).
                */
-              <fieldset {...field} className="rounded-lg border border-gray-200 p-4">
+              <fieldset
+                id={field.id}
+                name={field.name}
+                aria-describedby={field['aria-describedby']}
+                className="rounded-lg border border-gray-200 p-4"
+              >
                 <legend className="sr-only">{label}</legend>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {(options ?? []).map((option) => (

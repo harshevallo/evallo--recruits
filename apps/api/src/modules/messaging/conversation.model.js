@@ -13,6 +13,13 @@
 
 import mongoose from 'mongoose';
 
+/** PRD §11.2 candidate-side conversation states. */
+export const CANDIDATE_CONVERSATION_STATES = Object.freeze({
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  DECLINED: 'declined',
+});
+
 const conversationSchema = new mongoose.Schema(
   {
     candidateId: {
@@ -34,6 +41,22 @@ const conversationSchema = new mongoose.Schema(
     /** Unread counts are per side, so one party's read state never affects the other's. */
     candidateUnread: { type: Number, default: 0 },
     companyUnread: { type: Number, default: 0 },
+
+    /**
+     * PRD §11.2 — "Candidates can accept, decline, mute, report, or block a company conversation."
+     *
+     * `pending` until the candidate responds to a company-initiated thread. Declining closes the
+     * thread to further candidate replies without deleting it, because the content is a record.
+     */
+    candidateState: {
+      type: String,
+      enum: Object.values(CANDIDATE_CONVERSATION_STATES),
+      default: CANDIDATE_CONVERSATION_STATES.PENDING,
+    },
+    candidateRespondedAt: Date,
+
+    /** Muted threads stay readable; they simply stop generating notifications (PRD §15). */
+    mutedAt: Date,
 
     /** PRD §8.2 CAN-09 — "safety/reporting". */
     reportedAt: Date,

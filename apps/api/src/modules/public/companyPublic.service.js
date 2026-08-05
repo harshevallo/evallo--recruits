@@ -163,34 +163,44 @@ async function attachActiveRoles(companies) {
  *
  * @param {string} slug
  */
-export async function getPublicCompanyBySlug(slug) {
-  const company = await Company.findOne({ ...publiclyVisible(), slug })
-    .select(
-      'name slug organizationType tagline logoUrl coverImageUrl website foundingYear sizeRange ' +
-        'location locations serviceRegions deliveryModes educationServices subjects ' +
-        'description isCurrentlyHiring acceptsGeneralInterest publicContact verifiedDomains ' +
-        'seo createdAt updatedAt',
-    )
-    .lean();
+/** Every field the full public profile renders. Shared so a preview selects exactly the same set. */
+export const PUBLIC_PROFILE_FIELDS =
+  'name slug organizationType tagline logoUrl coverImageUrl website foundingYear sizeRange ' +
+  'location locations serviceRegions deliveryModes educationServices subjects ' +
+  'description isCurrentlyHiring acceptsGeneralInterest publicContact verifiedDomains ' +
+  'seo status moderationStatus publishedAt createdAt updatedAt';
 
-  if (!company) return null;
+/** `_id` is exposed alongside the derived `id`; everything else must be listed above. */
+const PUBLIC_PROFILE_KEYS = ['_id', ...PUBLIC_PROFILE_FIELDS.split(/\s+/)];
 
-  company.initials = companyInitials(company.name);
+/**
+ * Reduces a company to the publicly serialisable fields.
+ *
+ * The serialiser — not the caller's query — decides what is public. `getPublicCompanyBySlug`
+ * projects the same list at the database, but that is an optimisation: a caller holding a full
+ * document (REC-06's preview does) must not be able to widen the payload by accident.
+ */
+function pickPublicFields(company) {
+  const picked = {};
+  for (const key of PUBLIC_PROFILE_KEYS) {
+    if (company[key] !== undefined) picked[key] = company[key];
+  }
+  return picked;
+}
 
-  const intents = await HiringIntent.find({
-    companyId: company._id,
-    status: HIRING_INTENT_STATUS.ACTIVE,
-  })
-    .select(
-      'title roleCategories specializations employmentTypes deliveryModes locations ' +
-        'experienceLevels minYears availability compensation description createdAt',
-    )
-    .sort({ createdAt: -1 })
-    .lean();
-
+/**
+ * Turns a company document plus its active intents into the PUBLIC shape.
+ *
+ * Exported because REC-06's preview must show **exactly** what PUB-02 shows (PRD §7.2: the
+ * recruiter previews the public page before publishing). Two serialisers would drift, and the
+ * drift would mean a recruiter publishes something other than what they reviewed. The only
+ * difference between preview and live is WHICH companies are reachable — never how they render.
+ */
+export function serialisePublicCompany(company, intents = []) {
   return {
-    ...company,
+    ...pickPublicFields(company),
     id: String(company._id),
+    initials: companyInitials(company.name),
     isVerified: (company.verifiedDomains ?? []).length > 0,
     // Never expose the raw verification records publicly — only the resulting badge.
     verifiedDomains: undefined,
@@ -203,6 +213,27 @@ export async function getPublicCompanyBySlug(slug) {
     })),
     openRoleCount: intents.length,
   };
+}
+
+/** Active hiring intents for a company, in the shape the public page renders. */
+export function findActiveIntents(companyId) {
+  return HiringIntent.find({ companyId, status: HIRING_INTENT_STATUS.ACTIVE })
+    .select(
+      'title roleCategories specializations employmentTypes deliveryModes locations ' +
+        'experienceLevels minYears availability compensation description createdAt',
+    )
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
+export async function getPublicCompanyBySlug(slug) {
+  const company = await Company.findOne({ ...publiclyVisible(), slug })
+    .select(PUBLIC_PROFILE_FIELDS)
+    .lean();
+
+  if (!company) return null;
+
+  return serialisePublicCompany(company, await findActiveIntents(company._id));
 }
 
 /**

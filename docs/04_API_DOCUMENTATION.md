@@ -180,8 +180,18 @@ published company data and can never reach a candidate collection (PRD §21.2).
 | `GET` | `/api/me/conversations` | Bearer | CAN-09 |
 | `GET` | `/api/me/conversations/:conversationId` | Bearer | CAN-09 |
 | `POST` | `/api/me/conversations/:conversationId/messages` | Bearer | CAN-09 |
+| `POST` | `/api/me/conversations/:conversationId/respond` | Bearer | CAN-09 |
+| `PUT` | `/api/me/conversations/:conversationId/mute` | Bearer | CAN-09 |
 | `POST` | `/api/me/conversations/:conversationId/report` | Bearer | CAN-09 |
-| `POST` | `/api/companies` | Bearer | HOME-01 |
+| `POST` | `/api/companies` | Bearer | REC-01 / HOME-01 |
+| `GET` | `/api/me/invitations` | Bearer | REC-01 |
+| `POST` | `/api/me/invitations/:invitationId/accept` | Bearer | REC-01 |
+| `POST` | `/api/me/invitations/:invitationId/decline` | Bearer | REC-01 |
+| `GET` | `/api/companies/:companyId/editor` | Bearer + `company:edit` | REC-02 |
+| `PATCH` | `/api/companies/:companyId/steps/:stepKey` | Bearer + `company:edit` | REC-02 |
+| `GET` | `/api/companies/:companyId/preview` | Bearer + `company:edit` | REC-06 |
+| `POST` | `/api/companies/:companyId/publish` | Bearer + `company:edit` | REC-06 |
+| `POST` | `/api/companies/:companyId/unpublish` | Bearer + `company:edit` | REC-06 |
 | `GET` | `/api/companies/:companyId/members` | Bearer + `member:manage` | REC-18 |
 | `POST` | `/api/public/early-access` | None | MKT-01 |
 | `GET` | `/api/public/companies` | None | PUB-01 |
@@ -444,8 +454,20 @@ visible for their chosen roles, current values, per-section `answered`/`total`/`
 `publishBlockers`.
 
 Sections and questions are **database configuration** (ADR-007), so adding a question is a bank
-revision, not a deploy. Questions carrying `onlyForRoles` appear only once the candidate selects a
-matching target role — PRD §20.2 limits role-specific depth to the pilot priority roles.
+revision, not a deploy. Two conditional rules apply (Appendix C):
+
+- `onlyForRoles` — shown once the candidate selects a matching target role (PRD §20.2 limits
+  role-specific depth to the pilot priority roles).
+- `onlyForDeliveryModes` — location conditionality: the on-site question appears only for a
+  candidate who selected on-site or hybrid, so remote-only candidates are never asked commuting
+  questions.
+
+**Answer targets.** Each question declares where its answer lives: `profile` (a field on
+`candidateProfiles`, what talent search will filter on), **`user`** (a field on `users` — the
+personal layer that holds location and languages per `05_DATABASE_SCHEMA.md` §2), or `answer`
+(`candidateAnswers`, keyed by question). `field` accepts dot paths, so `location.country`
+addresses a nested field directly. A person has one location whether or not they are also a
+candidate, which is why it is never duplicated onto the candidate profile.
 
 ### `PATCH /api/me/candidate-profile/sections/:sectionKey`
 
@@ -469,6 +491,11 @@ The **exact** recruiter rendering (PRD §8.8), produced by the same `toRecruiter
 recruiter will read — one code path, because two would drift and the drift would be a privacy
 defect. Also returns `privateFields` (what is withheld and *why*) and `publish`
 (`canPublish`, `blockers`, `isPublished`).
+
+`header` carries the full §8.8 set: `photoUrl`, `name`, `headline`, `location`
+(`{ country, region, city, timezone }`), `languages`, `status`, `targetRoles`, `yearsExperience`,
+`availability`, `deliveryModes`, `employmentTypes`. Photo, location and languages come from the
+`users` document and are passed into the serialiser rather than duplicated onto the profile.
 
 ### `POST /api/me/candidate-profile/publish`
 
@@ -524,9 +551,23 @@ actually withdraw anything.
 > Statuses beyond `submitted` are set by the recruiter's interest inbox (REC-11), which is not
 > built. Records therefore stay at "Submitted" — that is the accurate current state.
 
-### `GET /api/me/conversations` · `GET /api/me/conversations/:id` · `POST .../messages` · `POST .../report`
+### `GET /api/me/conversations` · `GET /api/me/conversations/:id` · `POST .../messages` · `POST .../respond` · `PUT .../mute` · `POST .../report`
 
-Thread list, thread with messages, reply, and safety reporting (PRD §11.2, §16.3).
+Thread list, thread with messages, reply, and the PRD §11.2 candidate actions.
+
+**`POST .../respond`** — `{ "accepted": true | false }`. Accepting records the state; **declining
+closes the thread to further candidate replies and mutes it, without deleting anything** — the
+messages are the record a moderation or audit review would need (§16.3). Accepting again reopens
+replies. Replying to a `pending` thread accepts it implicitly, since asking someone to click
+"accept" before a message they have already written would be ceremony.
+
+**`PUT .../mute`** — `{ "muted": true | false }`. Idempotent. A muted thread stays fully listed and
+readable; only notifications stop, so nothing is hidden from the candidate.
+
+**Block** is deliberately not here: PRD §8.2 assigns company blocking to CAN-04, and a block is
+company-wide rather than per-thread.
+
+Both endpoints return `404` for a thread the caller does not own — never `403`.
 
 **A candidate may only reply inside a thread a company opened.** Unsolicited candidate-to-company
 messaging is not a missing feature — it would make the platform a cold-outreach channel, which PRD
@@ -548,6 +589,45 @@ not a new identity.
 **Request** — `{ "name": "…", "organizationType": "tutoring_center", "country": "IN" }`
 
 **Notes** — The slug is derived from the name and must be unique.
+
+## 7a. Endpoints — company setup and publishing (REC-01, REC-02, REC-06)
+
+### `GET /api/me/invitations` · `POST .../accept` · `POST .../decline`
+
+REC-01 join. An invitation **is** a `CompanyMember` row with status `invited` — the same record
+that becomes the membership on acceptance, so there is no second table to reconcile. Accepting
+flips it to `active`, which is the entire permission change: ADR-001 derives the recruiter
+capability from an active membership.
+
+These live on the personal surface because the invitee is not yet a member, so
+`resolveCompanyContext` could never authorise them. Every query is scoped to the caller, and an
+invitation addressed to somebody else returns **404, never 403**.
+
+Creating invitations is REC-07 and is not implemented.
+
+### `GET /api/companies/:companyId/editor` · `PATCH .../steps/:stepKey`
+
+REC-02 wizard. Returns the editable company, per-step progress, and the publish checklist. Accepts
+an id **or a slug**.
+
+Steps are `basics`, `brand`, `footprint` — covering exactly the fields PRD §7.3 marks required for
+publication. **A step may only write its own fields**, so a crafted body cannot reach another
+step's data. A partial step is a valid save: the wizard is draft-first (§7.2), and requirements
+are enforced at publish time.
+
+### `GET /api/companies/:companyId/preview`
+
+REC-06. Returns `{ preview, publish, status, publishedAt, publicUrl }`, where `preview` comes from
+**`serialisePublicCompany` — the same serialiser PUB-02 uses**. What a recruiter reviews is what
+gets published; only reachability differs.
+
+### `POST /api/companies/:companyId/publish` · `POST .../unpublish`
+
+Publishing enforces the §7.3 requirements server-side and is the only transition that makes a
+company anonymously readable. Unpublishing returns it to `draft`, withdrawing it from the
+directory and public profile while preserving the record and its slug (§9.3 treats archiving as a
+separate, heavier state). `publishedAt` records the *first* publication and is not rewritten by a
+republish.
 
 ### `GET /api/companies/:companyId/members`
 

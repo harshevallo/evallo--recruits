@@ -87,7 +87,7 @@ export function FirstActionPage() {
           description="Set up your organisation's public page, mark yourself as hiring, and start receiving interest from educators."
           cta="Create company"
           disabled={Boolean(busy)}
-          onSelect={() => choose('building', PATHS.APP_HOME, { intent: 'company' })}
+          onSelect={() => choose('building', PATHS.COMPANY_START)}
         />
 
         <FirstActionChoice

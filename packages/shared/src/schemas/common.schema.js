@@ -84,3 +84,26 @@ export const location = z.object({
   city: z.string().trim().max(120).optional(),
   timezone: timezone.optional(),
 });
+
+/**
+ * A repeatable query parameter. Accepts `?a=x&a=y` and `?a=x,y`; always yields an array.
+ *
+ * Lives here rather than beside any one filter set because the public directory (PUB-01), the
+ * interest inbox (REC-11) and talent search (REC-12) all parse facets the same way — and a facet
+ * that parsed differently in one of them would be a filter that silently ignored half its input.
+ */
+export function multiValue(allowed) {
+  return z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      const list = Array.isArray(value) ? value : value.split(',');
+      const cleaned = list.map((v) => v.trim()).filter(Boolean);
+      return cleaned.length > 0 ? cleaned : undefined;
+    })
+    .refine(
+      (list) => list === undefined || list.every((v) => allowed.includes(v)),
+      'Contains an unsupported value',
+    );
+}

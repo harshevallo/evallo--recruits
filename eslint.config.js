@@ -36,7 +36,8 @@ export default [
 
   // Express API
   {
-    files: ['apps/api/**/*.js'],
+    // `.mjs` covers apps/api/scripts — one-off maintenance scripts run directly with node.
+    files: ['apps/api/**/*.js', 'apps/api/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',

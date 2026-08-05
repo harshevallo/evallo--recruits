@@ -89,6 +89,18 @@ export const replyValidation = {
   }),
 };
 
+/** PRD §11.2 — accept / decline. */
+export const respondConversationValidation = {
+  params: z.object({ conversationId: objectIdParam }),
+  body: z.object({ accepted: z.boolean() }),
+};
+
+/** PRD §11.2 — mute / unmute. */
+export const muteConversationValidation = {
+  params: z.object({ conversationId: objectIdParam }),
+  body: z.object({ muted: z.boolean() }),
+};
+
 export const reportConversationValidation = {
   params: z.object({ conversationId: objectIdParam }),
   body: z.object({

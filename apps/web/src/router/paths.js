@@ -57,7 +57,14 @@ export const PATHS = Object.freeze({
   ACCOUNT_SETTINGS: '/settings',
 
   // Company workspace
+  // REC-01 — create or join. Reached from HOME-01 and AUTH-05; not company-scoped, because the
+  // user may not belong to a company yet.
+  COMPANY_START: '/companies/start',
+
   COMPANY_HOME: '/c/:companySlug',
+  // REC-02 setup wizard and REC-06 preview. Company-scoped: both require company:edit.
+  COMPANY_SETUP: '/c/:companySlug/setup',
+  COMPANY_PREVIEW: '/c/:companySlug/preview',
   COMPANY_INTERESTS: '/c/:companySlug/interests',
   COMPANY_SEARCH: '/c/:companySlug/search',
   COMPANY_CANDIDATE: '/c/:companySlug/candidates/:candidateId',

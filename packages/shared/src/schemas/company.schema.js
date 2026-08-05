@@ -12,23 +12,7 @@ import {
   ROLE_CATEGORY_VALUES,
   DELIVERY_MODE_VALUES,
 } from '../taxonomy/index.js';
-
-/** Accepts `?a=x&a=y` and `?a=x,y`; always yields an array. */
-function multiValue(allowed) {
-  return z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((value) => {
-      if (value === undefined) return undefined;
-      const list = Array.isArray(value) ? value : value.split(',');
-      const cleaned = list.map((v) => v.trim()).filter(Boolean);
-      return cleaned.length > 0 ? cleaned : undefined;
-    })
-    .refine(
-      (list) => list === undefined || list.every((v) => allowed.includes(v)),
-      'Contains an unsupported value',
-    );
-}
+import { multiValue } from './common.schema.js';
 
 export const COMPANY_DIRECTORY_SORTS = Object.freeze({
   RELEVANCE: 'relevance',

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { COMPANY_ROLE_LABELS } from '@evallo/shared';
+import { COMPANY_ROLE_LABELS, PERMISSIONS } from '@evallo/shared';
 import { Avatar, Badge } from '@/components/ui';
 import { PATHS, buildPath } from '@/router/paths';
 
@@ -12,6 +12,13 @@ import { PATHS, buildPath } from '@/router/paths';
  */
 export function CompanyContextCard({ company }) {
   const roleLabel = COMPANY_ROLE_LABELS[company.role] ?? company.role;
+
+  /*
+   * REC-07 is only offered to a membership that actually holds `member:manage`. The permissions
+   * come from the server's resolved membership, so this hides a link the API would reject rather
+   * than guessing from the role name.
+   */
+  const canManageTeam = company.permissions?.includes(PERMISSIONS.MEMBER_MANAGE);
 
   return (
     <li>
@@ -38,6 +45,24 @@ export function CompanyContextCard({ company }) {
           {roleLabel}
         </Badge>
       </Link>
+
+      {/* Siblings, not children: the card is itself a link, and links cannot nest. */}
+      {canManageTeam && (
+        <p className="mt-2 flex gap-4 pl-3 text-xs">
+          <Link
+            to={buildPath(PATHS.COMPANY_TEAM, { companySlug: company.slug })}
+            className="font-medium text-brand-blue hover:underline focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+          >
+            Team
+          </Link>
+          <Link
+            to={buildPath(PATHS.COMPANY_SETUP, { companySlug: company.slug })}
+            className="font-medium text-brand-blue hover:underline focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
+          >
+            Company setup
+          </Link>
+        </p>
+      )}
     </li>
   );
 }

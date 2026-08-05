@@ -9,7 +9,7 @@
 
 import { ApiError } from '../../lib/ApiError.js';
 import { Company, companyInitials } from '../companies/company.model.js';
-import { Conversation } from './conversation.model.js';
+import { Conversation, CANDIDATE_CONVERSATION_STATES } from './conversation.model.js';
 import { Message, MESSAGE_SENDERS } from './message.model.js';
 
 /** PRD §8.2 CAN-09 — the thread list. Empty until a company opens one (REC-15). */
@@ -43,6 +43,8 @@ export async function listConversations(profile) {
       lastMessageAt: conversation.lastMessageAt ?? null,
       lastMessagePreview: conversation.lastMessagePreview ?? null,
       unread: conversation.candidateUnread ?? 0,
+      state: conversation.candidateState ?? CANDIDATE_CONVERSATION_STATES.PENDING,
+      muted: Boolean(conversation.mutedAt),
       reported: Boolean(conversation.reportedAt),
     };
   });
@@ -95,6 +97,8 @@ export async function getConversation(profile, conversationId) {
           initials: companyInitials(company.name),
         }
       : null,
+    state: conversation.candidateState ?? CANDIDATE_CONVERSATION_STATES.PENDING,
+    muted: Boolean(conversation.mutedAt),
     reported: Boolean(conversation.reportedAt),
     messages: messages.map((message) => ({
       id: String(message._id),
@@ -107,9 +111,62 @@ export async function getConversation(profile, conversationId) {
   };
 }
 
+/**
+ * PRD §11.2 — accept or decline a company-initiated conversation.
+ *
+ * Declining is not deletion: the thread and its messages remain, because they are the record a
+ * moderation or audit review would need (§16.3). It simply stops the candidate being drawn back
+ * into a conversation they have ended.
+ */
+export async function respondToConversation(profile, conversationId, accepted) {
+  const conversation = await ownedConversation(profile, conversationId);
+
+  conversation.candidateState = accepted
+    ? CANDIDATE_CONVERSATION_STATES.ACCEPTED
+    : CANDIDATE_CONVERSATION_STATES.DECLINED;
+  conversation.candidateRespondedAt = new Date();
+
+  // Declining implies the candidate does not want further prompting about it.
+  if (!accepted && !conversation.mutedAt) conversation.mutedAt = new Date();
+
+  await conversation.save();
+
+  return { state: conversation.candidateState, muted: Boolean(conversation.mutedAt) };
+}
+
+/**
+ * PRD §11.2 — mute. Idempotent toggle; a muted thread stays fully readable and only stops
+ * generating notifications, so nothing is hidden from the candidate.
+ */
+export async function setConversationMuted(profile, conversationId, muted) {
+  const conversation = await ownedConversation(profile, conversationId);
+
+  conversation.mutedAt = muted ? (conversation.mutedAt ?? new Date()) : null;
+  await conversation.save();
+
+  return { muted: Boolean(conversation.mutedAt) };
+}
+
 /** Replies within an existing thread. Starting one is the company's action, not the candidate's. */
 export async function replyToConversation(profile, user, conversationId, body) {
   const conversation = await ownedConversation(profile, conversationId);
+
+  // A declined conversation is closed to further candidate replies (PRD §11.2).
+  if (conversation.candidateState === CANDIDATE_CONVERSATION_STATES.DECLINED) {
+    throw ApiError.validation('You declined this conversation.', {
+      body: 'Accept it again before replying.',
+    });
+  }
+
+  /*
+   * Replying is itself acceptance — asking someone to click "accept" before a message they have
+   * already written would be ceremony, and PRD §11.2 only requires that the choice exist.
+   */
+  if (conversation.candidateState === CANDIDATE_CONVERSATION_STATES.PENDING) {
+    conversation.candidateState = CANDIDATE_CONVERSATION_STATES.ACCEPTED;
+    conversation.candidateRespondedAt = new Date();
+    await conversation.save();
+  }
 
   const message = await Message.create({
     conversationId: conversation._id,

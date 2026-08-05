@@ -123,16 +123,280 @@ export async function listCompanyMembers(companyId) {
     );
 }
 
-/** Guards the last-owner rule: a company must always have at least one active owner. */
-export async function assertNotLastOwner(companyId, membershipId) {
-  const owners = await CompanyMember.countDocuments({
-    companyId,
-    role: COMPANY_ROLES.OWNER,
-    status: MEMBERSHIP_STATUS.ACTIVE,
-    _id: { $ne: membershipId },
+/*
+ * The last-owner guard (PRD §21.2) lives in `modules/memberships/member.service.js`, beside the
+ * demotion, removal and transfer paths that are the only things able to violate it. It was
+ * briefly defined here as well, with no callers — two copies of a rule this important is exactly
+ * how the two copies end up disagreeing.
+ */
+
+/* ── REC-02 setup wizard · REC-06 preview and publish ─────────────────────────────────────── */
+
+/**
+ * Wizard steps (PRD §7.2, §7.3).
+ *
+ * Scope note. PRD §7.2 splits company setup across REC-02 (basics), REC-03 (brand and overview)
+ * and REC-04 (education footprint). The publication requirements in §7.3 draw from all three — a
+ * page cannot be published without a tagline, a short description and at least one education
+ * service. These steps therefore cover exactly the fields §7.3 marks required for publication,
+ * plus the optional enrichment that sits beside them. REC-05 hiring intent is deliberately
+ * absent: it gates `isCurrentlyHiring`, not publication.
+ *
+ * Every field maps to a column that ALREADY EXISTS on the company model — none was invented.
+ */
+export const COMPANY_WIZARD_STEPS = Object.freeze([
+  {
+    key: 'basics',
+    title: 'Company basics',
+    description: 'Who you are and where you are based.',
+    fields: ['name', 'organizationType', 'website', 'location'],
+  },
+  {
+    key: 'brand',
+    title: 'Brand and overview',
+    description: 'What a candidate sees first, and how you describe yourselves.',
+    fields: [
+      'logoUrl',
+      'coverImageUrl',
+      'tagline',
+      'descriptionShort',
+      'descriptionFull',
+      'foundingYear',
+      'sizeRange',
+    ],
+  },
+  {
+    key: 'footprint',
+    title: 'Education footprint',
+    description: 'The services you offer and how you deliver them.',
+    fields: ['educationServices', 'subjects', 'deliveryModes', 'serviceRegions'],
+  },
+]);
+
+/**
+ * PRD §7.3 publication requirements, named rather than scored.
+ *
+ * Required: name, slug, organization type, primary country, logo or generated initials, tagline,
+ * short description, and at least one education service. Initials are generated from the name, so
+ * the logo requirement is always satisfiable and is never a blocker.
+ */
+export function buildPublishChecklist(company) {
+  const items = [
+    { key: 'name', label: 'Company name', step: 'basics', done: Boolean(company.name?.trim()) },
+    { key: 'slug', label: 'Public address', step: 'basics', done: Boolean(company.slug) },
+    {
+      key: 'organizationType',
+      label: 'Organization type',
+      step: 'basics',
+      done: Boolean(company.organizationType),
+    },
+    {
+      key: 'country',
+      label: 'Primary country',
+      step: 'basics',
+      done: Boolean(company.location?.country),
+    },
+    { key: 'tagline', label: 'Tagline', step: 'brand', done: Boolean(company.tagline?.trim()) },
+    {
+      key: 'descriptionShort',
+      label: 'Short description',
+      step: 'brand',
+      done: Boolean(company.description?.short?.trim()),
+    },
+    {
+      key: 'educationServices',
+      label: 'At least one education service',
+      step: 'footprint',
+      done: (company.educationServices ?? []).length > 0,
+    },
+  ];
+
+  const blockers = items.filter((item) => !item.done);
+
+  return {
+    items,
+    blockers: blockers.map((item) => item.label),
+    canPublish: blockers.length === 0,
+  };
+}
+
+/** Per-step completion, so the wizard shows progress without a second source of truth. */
+export function buildWizardState(company) {
+  const checklist = buildPublishChecklist(company);
+
+  const steps = COMPANY_WIZARD_STEPS.map((step) => {
+    const required = checklist.items.filter((item) => item.step === step.key);
+    return {
+      key: step.key,
+      title: step.title,
+      description: step.description,
+      requiredDone: required.filter((item) => item.done).length,
+      requiredTotal: required.length,
+      complete: required.every((item) => item.done),
+      missing: required.filter((item) => !item.done).map((item) => item.label),
+    };
   });
 
-  if (owners === 0) {
-    throw ApiError.conflict('A company must always have at least one owner.');
-  }
+  return { steps, checklist };
 }
+
+/** The editable company as the wizard consumes it — flattened where the form is flat. */
+export function toEditorView(company) {
+  return {
+    id: String(company._id),
+    slug: company.slug,
+    status: company.status,
+    publishedAt: company.publishedAt ?? null,
+    name: company.name ?? '',
+    organizationType: company.organizationType ?? '',
+    website: company.website ?? '',
+    location: {
+      country: company.location?.country ?? '',
+      region: company.location?.region ?? '',
+      city: company.location?.city ?? '',
+    },
+    logoUrl: company.logoUrl ?? '',
+    coverImageUrl: company.coverImageUrl ?? '',
+    tagline: company.tagline ?? '',
+    descriptionShort: company.description?.short ?? '',
+    descriptionFull: company.description?.full ?? '',
+    foundingYear: company.foundingYear ?? null,
+    sizeRange: company.sizeRange ?? '',
+    educationServices: company.educationServices ?? [],
+    subjects: company.subjects ?? [],
+    deliveryModes: company.deliveryModes ?? [],
+    serviceRegions: company.serviceRegions ?? [],
+  };
+}
+
+/** Loads a company by id or slug — the wizard is reached by slug, the API accepts either. */
+export async function findCompany(companyIdOrSlug) {
+  const company = mongoose.isValidObjectId(companyIdOrSlug)
+    ? await Company.findById(companyIdOrSlug)
+    : await Company.findOne({ slug: companyIdOrSlug });
+
+  if (!company) throw ApiError.notFound('Company not found.');
+  return company;
+}
+
+/** REC-02 — the wizard payload: current values, per-step progress, and publish blockers. */
+export async function getCompanyEditor(companyIdOrSlug) {
+  const company = await findCompany(companyIdOrSlug);
+  return { company: toEditorView(company), ...buildWizardState(company) };
+}
+
+/**
+ * REC-02 — save one wizard step.
+ *
+ * A partial step is a valid save. The wizard is draft-first by design (PRD §7.2: "publish a
+ * credible page quickly, with optional enrichment available afterward"), so requirements are
+ * enforced at publish time rather than on every save.
+ */
+export async function saveCompanyStep(companyIdOrSlug, stepKey, values = {}) {
+  const step = COMPANY_WIZARD_STEPS.find((candidate) => candidate.key === stepKey);
+  if (!step) throw ApiError.notFound('That step does not exist.');
+
+  const company = await findCompany(companyIdOrSlug);
+  const allowed = new Set(step.fields);
+
+  /** Only fields belonging to THIS step are writable, so a crafted body cannot reach others. */
+  const set = (field, apply) => {
+    if (allowed.has(field) && values[field] !== undefined) apply(values[field]);
+  };
+
+  set('name', (v) => {
+    company.name = v;
+  });
+  set('organizationType', (v) => {
+    company.organizationType = v;
+  });
+  set('website', (v) => {
+    company.website = v || undefined;
+  });
+  set('location', (v) => {
+    company.location = {
+      country: v.country ?? company.location?.country,
+      region: v.region ?? company.location?.region,
+      city: v.city ?? company.location?.city,
+      timezone: company.location?.timezone,
+    };
+  });
+  set('logoUrl', (v) => {
+    company.logoUrl = v || undefined;
+  });
+  set('coverImageUrl', (v) => {
+    company.coverImageUrl = v || undefined;
+  });
+  set('tagline', (v) => {
+    company.tagline = v;
+  });
+  set('descriptionShort', (v) => {
+    company.description = { ...company.description?.toObject?.(), short: v };
+  });
+  set('descriptionFull', (v) => {
+    company.description = { ...company.description?.toObject?.(), full: v };
+  });
+  set('foundingYear', (v) => {
+    company.foundingYear = v ?? undefined;
+  });
+  set('sizeRange', (v) => {
+    company.sizeRange = v || undefined;
+  });
+  set('educationServices', (v) => {
+    company.educationServices = v;
+  });
+  set('subjects', (v) => {
+    company.subjects = v;
+  });
+  set('deliveryModes', (v) => {
+    company.deliveryModes = v;
+  });
+  set('serviceRegions', (v) => {
+    company.serviceRegions = v;
+  });
+
+  await company.save();
+  return { company: toEditorView(company), ...buildWizardState(company) };
+}
+
+/**
+ * REC-06 — publish.
+ *
+ * Publishing is the only transition that makes company data anonymously readable, so the §7.3
+ * requirements are enforced here rather than trusted from the client.
+ */
+export async function publishCompany(companyIdOrSlug) {
+  const company = await findCompany(companyIdOrSlug);
+  const checklist = buildPublishChecklist(company);
+
+  if (!checklist.canPublish) {
+    throw ApiError.validation('This page is not ready to publish yet.', {
+      publish: `Still needed: ${checklist.blockers.join(', ')}.`,
+    });
+  }
+
+  company.status = COMPANY_STATUS.PUBLISHED;
+  company.publishedAt = company.publishedAt ?? new Date();
+  await company.save();
+
+  return company;
+}
+
+/**
+ * REC-06 — unpublish.
+ *
+ * Returns the page to `draft`, removing it from the directory and the public profile. The record
+ * and its slug are preserved: PRD §9.3 treats archiving as a separate, heavier state.
+ */
+export async function unpublishCompany(companyIdOrSlug) {
+  const company = await findCompany(companyIdOrSlug);
+  company.status = COMPANY_STATUS.DRAFT;
+  await company.save();
+  return company;
+}
+
+/*
+ * REC-01 invitation acceptance and REC-07 invitation management live in
+ * `modules/memberships/invitation.service.js`. Both ends act on one CompanyMember row, so
+ * keeping "send" and "accept" together is what stops them drifting.
+ */

@@ -50,6 +50,31 @@ export const INTEREST_STATUS = Object.freeze({
   EXPIRED: 'expired',
 });
 
+export const INTEREST_STATUS_VALUES = Object.freeze(Object.values(INTEREST_STATUS));
+
+/**
+ * Statuses a RECRUITER may set from the REC-11 inbox.
+ *
+ * `withdrawn` is absent deliberately: PRD §21.5 gives withdrawal to the candidate alone, and a
+ * company able to write it could fabricate someone's decision to walk away. `draft` and `expired`
+ * are machine states.
+ */
+export const RECRUITER_INTEREST_STATUS_VALUES = Object.freeze([
+  INTEREST_STATUS.VIEWED,
+  INTEREST_STATUS.CONTACTED,
+  INTEREST_STATUS.PROGRESSED,
+  INTEREST_STATUS.CLOSED,
+]);
+
+/** REC-11 inbox sorts. None of them imply candidate quality (PRD §10.3). */
+export const INTEREST_INBOX_SORTS = Object.freeze({
+  NEWEST: 'newest',
+  OLDEST: 'oldest',
+  STATUS: 'status',
+});
+
+export const INTEREST_INBOX_SORT_VALUES = Object.freeze(Object.values(INTEREST_INBOX_SORTS));
+
 /**
  * Interest states counted as "active" for the unique partial index that guarantees
  * one interest per candidate/company/intent — PRD §4.1, §21.5.

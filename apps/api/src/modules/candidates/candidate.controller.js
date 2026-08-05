@@ -158,6 +158,32 @@ export async function replyToConversation(req, res) {
   );
 }
 
+/** POST /api/me/conversations/:conversationId/respond — PRD §11.2 accept / decline. */
+export async function respondToConversation(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(
+    res,
+    await candidateService.respondToConversationForUser(
+      user,
+      req.params.conversationId,
+      req.body.accepted,
+    ),
+  );
+}
+
+/** PUT /api/me/conversations/:conversationId/mute — PRD §11.2 mute / unmute. */
+export async function setConversationMuted(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(
+    res,
+    await candidateService.setConversationMutedForUser(
+      user,
+      req.params.conversationId,
+      req.body.muted,
+    ),
+  );
+}
+
 export async function reportConversation(req, res) {
   const user = await requireAppUser(req);
   return sendSuccess(

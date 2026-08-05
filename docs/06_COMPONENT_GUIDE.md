@@ -15,6 +15,7 @@
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
 | `features/candidate/components/` | `ProfileCompletenessCard` `VisibilityCard` `NextStepsCard` `OpportunitiesCard` `ActivityCard` `BuilderQuestion` `CandidateInterestModal` |
 | `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` `MessagesPage` |
+| `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` |
 | `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
 | `features/account/components/` | `CreateCompanyForm` |
 | `features/marketing/components/` | 13 components composing MKT-01 |
@@ -33,10 +34,18 @@ Five notes worth carrying forward:
   company context lives in the URL so links stay shareable and the server can verify it (TRD §4.1).
 - **`AuthLayout` takes `width="form" | "wide"`.** AUTH-05's three side-by-side choices do not fit
   the single-column form measure; every other auth screen keeps it.
-- **`GoogleButton` unmounts itself when Google refuses the origin.** Google renders a 0×0 but
-  *focusable* iframe in that case, which lands in the tab order ahead of the email field and
-  silently steals focus. The component polls for a rendered iframe and swaps in a disabled fallback
-  if none appears.
+- **`GoogleButton` swaps in a disabled fallback only if no button renders.** GIS renders its
+  button as `div[role="button"]`, and separately creates an auxiliary FedCM iframe that is always
+  0×0 — so the readiness check polls for `[role="button"]` with a non-zero width. Polling for the
+  iframe instead, as this component originally did, tore down working buttons (see I-02).
+- **REC-01/02/06 added three pages and no new company components.** `CompanyStartPage` reuses
+  `CreateCompanyForm`; `CompanyPreviewPage` renders through `CompanyOverview` and `OpenRoleCard`,
+  the same components the public PUB-02 page uses, fed by the same `serialisePublicCompany`
+  output. A separate preview renderer would have been a second definition of "what a company
+  page looks like", guaranteed to drift.
+- **`CompanySetupPage` gets its steps from the server.** Step keys, order, fields and per-step
+  progress come from `GET /companies/:id/editor`; the page renders whatever it is handed. The
+  current step lives in `?step=`, so a wizard position is a shareable, refresh-safe URL.
 
 ---
 

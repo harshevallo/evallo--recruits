@@ -1,6 +1,6 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-03
+**Last updated:** 2026-08-03 (compliance pass)
 **Current milestone:** M3 — Candidate identity 🔄 **candidate journey complete**
 **Overall:** 17 of 41 screens implemented
 
@@ -75,13 +75,14 @@ web `:3001` · api `:8081` · database `evallo-recruit`
 | `companyProfile.test.js` | 16 |
 | `companyDirectory.test.js` | 12 |
 | `verification.test.js` | 11 |
-| `candidateJourney.test.js` | 32 |
-| `profileBuilder.test.js` | 12 |
+| `candidateJourney.test.js` | 41 |
+| `companySetup.test.js` | 19 |
+| `profileBuilder.test.js` | 17 |
 | `earlyAccess.test.js` | 9 |
 | `home.test.js` | 6 |
 | `candidateHome.test.js` | 11 |
 | `health.test.js` | 2 |
-| **Total** | **171** |
+| **Total** | **204** |
 
 `npm run lint` — clean across all three workspaces.
 
@@ -154,12 +155,12 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 ### Company / recruiter — setup
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| REC-01 | Create or join company | §7.2 | ⏳ |
-| REC-02 | Company basics | §7.2 | ⏳ |
+| REC-01 | Create or join company | §7.2 | ✅ |
+| REC-02 | Company basics | §7.2 | ✅ |
 | REC-03 | Brand and overview | §7.2 | ⏳ |
 | REC-04 | Education footprint | §7.2 | ⏳ |
 | REC-05 | Hiring intent | §7.2, §7.5 | ⏳ |
-| REC-06 | Preview and publish | §7.2 | ⏳ |
+| REC-06 | Preview and publish | §7.2 | ✅ |
 | REC-07 | Invite team | §7.2 | ⏳ |
 
 ### Company / recruiter — workspace

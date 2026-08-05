@@ -10,6 +10,8 @@ import {
   fetchConversation,
   sendReply,
   reportConversation,
+  respondToConversation,
+  setConversationMuted,
 } from '@/services';
 import { PATHS } from '@/router/paths';
 
@@ -112,6 +114,57 @@ export function MessagesPage() {
       setReply('');
     } catch (error) {
       setFeedback({ tone: 'error', text: error.message ?? 'We could not send that message.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** PRD 11.2 - accept or decline a company-initiated conversation. */
+  async function respond(accepted) {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const result = await respondToConversation(thread.id, accepted);
+      setThread((current) => ({ ...current, state: result.state, muted: result.muted }));
+      setList((current) => ({
+        ...current,
+        threads: current.threads.map((t) =>
+          t.id === thread.id ? { ...t, state: result.state, muted: result.muted } : t,
+        ),
+      }));
+      setFeedback({
+        tone: 'success',
+        text: accepted
+          ? 'Accepted. You can reply below.'
+          : 'Declined. The company can no longer expect a reply, and the thread is muted.',
+      });
+    } catch (error) {
+      setFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** PRD 11.2 - mute. The thread stays readable; only notifications stop. */
+  async function toggleMute() {
+    setBusy(true);
+    try {
+      const result = await setConversationMuted(thread.id, !thread.muted);
+      setThread((current) => ({ ...current, muted: result.muted }));
+      setList((current) => ({
+        ...current,
+        threads: current.threads.map((t) =>
+          t.id === thread.id ? { ...t, muted: result.muted } : t,
+        ),
+      }));
+      setFeedback({
+        tone: 'success',
+        text: result.muted
+          ? 'Muted. You will not be notified about this conversation.'
+          : 'Unmuted.',
+      });
+    } catch (error) {
+      setFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
     } finally {
       setBusy(false);
     }
@@ -230,21 +283,68 @@ export function MessagesPage() {
               </p>
             ) : (
               <>
-                <div className="mb-5 flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
                   <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
                     {thread.company?.name ?? 'Conversation'}
+                    {thread.state === 'declined' && (
+                      <span className="ml-2 align-middle text-xs font-normal text-gray-500">
+                        Declined
+                      </span>
+                    )}
                   </h2>
-                  <Button
-                    variant="link"
-                    size="none"
-                    radius="none"
-                    className="text-sm"
-                    onClick={handleReport}
-                    disabled={thread.reported}
-                  >
-                    {thread.reported ? 'Reported' : 'Report'}
-                  </Button>
+
+                  {/* PRD 11.2 candidate controls. Block lives in visibility settings. */}
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Button
+                      variant="link"
+                      size="none"
+                      radius="none"
+                      className="text-sm"
+                      onClick={toggleMute}
+                      disabled={busy}
+                    >
+                      {thread.muted ? 'Unmute' : 'Mute'}
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="none"
+                      radius="none"
+                      className="text-sm"
+                      onClick={handleReport}
+                      disabled={thread.reported}
+                    >
+                      {thread.reported ? 'Reported' : 'Report'}
+                    </Button>
+                  </div>
                 </div>
+
+                {thread.state === 'pending' && (
+                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4">
+                    <p className="min-w-0 flex-1 text-sm text-blue-900">
+                      {thread.company?.name ?? 'This company'} started this conversation. Would you
+                      like to continue it?
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      radius="lg"
+                      disabled={busy}
+                      onClick={() => respond(true)}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      variant="outlineDark"
+                      size="sm"
+                      radius="lg"
+                      className="!border-gray-300 !text-brand-dark hover:!bg-white"
+                      disabled={busy}
+                      onClick={() => respond(false)}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                )}
 
                 <ol className="mb-6 space-y-4" aria-live="polite">
                   {thread.messages.map((message) => (
@@ -274,10 +374,28 @@ export function MessagesPage() {
                   <li ref={endRef} aria-hidden="true" />
                 </ol>
 
-                <form onSubmit={handleSend}>
-                  <label htmlFor="reply" className="mb-2 block text-sm font-medium text-gray-700">
-                    Reply
-                  </label>
+                {thread.state === 'declined' ? (
+                  <div className="rounded-xl bg-gray-50 p-4">
+                    <p className="text-sm text-gray-600">
+                      You declined this conversation, so replies are closed. The messages stay here
+                      as a record.
+                    </p>
+                    <Button
+                      variant="link"
+                      size="none"
+                      radius="none"
+                      className="mt-2 text-sm font-medium"
+                      onClick={() => respond(true)}
+                      disabled={busy}
+                    >
+                      Accept it after all
+                    </Button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSend}>
+                    <label htmlFor="reply" className="mb-2 block text-sm font-medium text-gray-700">
+                      Reply
+                    </label>
                   <Textarea
                     id="reply"
                     name="reply"
@@ -299,7 +417,8 @@ export function MessagesPage() {
                     {busy ? 'Sending…' : 'Send'}
                     <Icon name="arrow-right" className="text-xs" />
                   </Button>
-                </form>
+                  </form>
+                )}
               </>
             )}
           </section>

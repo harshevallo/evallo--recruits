@@ -14,9 +14,12 @@ import {
   EMPLOYMENT_TYPES,
   EMPLOYMENT_TYPE_LABELS,
   DELIVERY_MODE_OPTIONS,
+  COUNTRY_OPTIONS,
+  TIMEZONE_OPTIONS,
+  LANGUAGE_OPTIONS,
 } from '@evallo/shared';
 import { QuestionBank } from './questionBank.model.js';
-import { QUESTION_BANK_V1, QUESTION_BANK_VERSION } from './questionBank.definition.js';
+import { QUESTION_BANK, QUESTION_BANK_VERSION } from './questionBank.definition.js';
 
 const OPTION_SETS = Object.freeze({
   candidateRoles: CANDIDATE_ROLE_OPTIONS.map(({ value, label }) => ({ value, label })),
@@ -28,6 +31,9 @@ const OPTION_SETS = Object.freeze({
     value,
     label: EMPLOYMENT_TYPE_LABELS[value] ?? value,
   })),
+  countries: COUNTRY_OPTIONS,
+  timezones: TIMEZONE_OPTIONS,
+  languages: LANGUAGE_OPTIONS,
 });
 
 export function optionsFor(optionSet) {
@@ -42,15 +48,26 @@ export function optionsFor(optionSet) {
  */
 export async function getActiveBank() {
   const existing = await QuestionBank.findOne({ active: true });
-  if (existing) return existing;
+  if (existing && existing.version >= QUESTION_BANK_VERSION) return existing;
 
+  /*
+   * Publishing a revision DEACTIVATES the previous one rather than editing it (ADR-007). Editing
+   * in place would rewrite the meaning of answers already given; existing `candidateAnswers` keep
+   * the `bankVersion` they were captured under, so they stay interpretable.
+   */
   try {
-    return await QuestionBank.create({
+    const published = await QuestionBank.create({
       version: QUESTION_BANK_VERSION,
       active: true,
       publishedAt: new Date(),
-      sections: QUESTION_BANK_V1,
+      sections: QUESTION_BANK,
     });
+
+    if (existing) {
+      await QuestionBank.updateOne({ _id: existing._id }, { $set: { active: false } });
+    }
+
+    return published;
   } catch (error) {
     // Lost the race with another process — its document is the winner.
     if (error?.code === 11000) return QuestionBank.findOne({ active: true });
@@ -65,7 +82,18 @@ export async function getActiveBank() {
  * `onlyForRoles` appears only once the candidate has actually selected one of them. Everything
  * else is generic and always shown.
  */
-export function isQuestionVisible(question, targetRoles = []) {
-  if (!question.onlyForRoles?.length) return true;
-  return question.onlyForRoles.some((role) => targetRoles.includes(role));
+export function isQuestionVisible(question, targetRoles = [], deliveryModes = []) {
+  if (question.onlyForRoles?.length && !question.onlyForRoles.some((r) => targetRoles.includes(r))) {
+    return false;
+  }
+
+  // Appendix C: remote-only candidates are not forced through commuting questions.
+  if (
+    question.onlyForDeliveryModes?.length &&
+    !question.onlyForDeliveryModes.some((m) => deliveryModes.includes(m))
+  ) {
+    return false;
+  }
+
+  return true;
 }

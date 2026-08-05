@@ -87,12 +87,22 @@ async function readyCandidate({ complete = true } = {}) {
           summary: 'Ten years teaching IB and A-level physics.',
           targetRoles: ['school_teacher'],
           employmentTypes: ['full_time'],
-          deliveryModes: ['onsite'],
+          deliveryModes: ['on_site'],
           availability: 'immediately',
           subjects: ['physics'],
           learnerSegments: ['high_school'],
         },
       },
+    );
+
+    /*
+     * Location lives on the PERSONAL layer (05_DATABASE_SCHEMA §2), and PRD §8.5 makes
+     * country/region and time zone required for publication — so a "complete" fixture must set
+     * them on the user, not the candidate profile.
+     */
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { 'location.country': 'IN', 'location.timezone': 'Asia/Kolkata' } },
     );
   }
 
@@ -662,6 +672,137 @@ describe('CAN-09 messages', () => {
       // Owned by nobody real, so the suite's candidate-scoped cleanup cannot reach it.
       await Conversation.deleteOne({ _id: foreign._id });
     }
+  });
+
+  test('accepting records the state (PRD §11.2)', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const conversation = await companyOpensThread(profile, company);
+
+    const res = await authPost(`/api/me/conversations/${conversation._id}/respond`, accessToken, {
+      accepted: true,
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.data.state, 'accepted');
+
+    const after = await Conversation.findById(conversation._id);
+    assert.equal(after.candidateState, 'accepted');
+    assert.ok(after.candidateRespondedAt);
+  });
+
+  test('declining closes the thread to replies but keeps the messages (PRD §16.3)', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const conversation = await companyOpensThread(profile, company);
+
+    const declined = await authPost(
+      `/api/me/conversations/${conversation._id}/respond`,
+      accessToken,
+      { accepted: false },
+    );
+    assert.equal((await declined.json()).data.state, 'declined');
+
+    const reply = await authPost(
+      `/api/me/conversations/${conversation._id}/messages`,
+      accessToken,
+      { body: 'Actually, hello again' },
+    );
+    assert.equal(reply.status, 400, 'a declined conversation refuses further replies');
+
+    assert.equal(
+      await Message.countDocuments({ conversationId: conversation._id }),
+      1,
+      'declining never deletes the record',
+    );
+  });
+
+  test('declining also mutes, and accepting again re-opens replies', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const conversation = await companyOpensThread(profile, company);
+
+    const declined = await authPost(
+      `/api/me/conversations/${conversation._id}/respond`,
+      accessToken,
+      { accepted: false },
+    );
+    assert.equal((await declined.json()).data.muted, true);
+
+    await authPost(`/api/me/conversations/${conversation._id}/respond`, accessToken, {
+      accepted: true,
+    });
+
+    const reply = await authPost(
+      `/api/me/conversations/${conversation._id}/messages`,
+      accessToken,
+      { body: 'Happy to talk after all' },
+    );
+    assert.equal(reply.status, 201);
+  });
+
+  test('replying accepts a pending conversation implicitly', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const conversation = await companyOpensThread(profile, company);
+
+    await authPost(`/api/me/conversations/${conversation._id}/messages`, accessToken, {
+      body: 'Yes, I am interested',
+    });
+
+    const after = await Conversation.findById(conversation._id);
+    assert.equal(after.candidateState, 'accepted');
+  });
+
+  test('mute toggles and is idempotent, without hiding the thread', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const conversation = await companyOpensThread(profile, company);
+
+    const muted = await authPut(`/api/me/conversations/${conversation._id}/mute`, accessToken, {
+      muted: true,
+    });
+    assert.equal((await muted.json()).data.muted, true);
+
+    const again = await authPut(`/api/me/conversations/${conversation._id}/mute`, accessToken, {
+      muted: true,
+    });
+    assert.equal((await again.json()).data.muted, true, 'idempotent');
+
+    // Still listed and readable — muting suppresses notifications, not the conversation.
+    const list = await (await authGet('/api/me/conversations', accessToken)).json();
+    assert.equal(list.data.length, 1);
+    assert.equal(list.data[0].muted, true);
+
+    const unmuted = await authPut(`/api/me/conversations/${conversation._id}/mute`, accessToken, {
+      muted: false,
+    });
+    assert.equal((await unmuted.json()).data.muted, false);
+  });
+
+  test('conversation actions reject a foreign or malformed thread', async () => {
+    const { accessToken } = await readyCandidate();
+    const foreignId = '0'.repeat(24);
+
+    assert.equal(
+      (await authPost(`/api/me/conversations/${foreignId}/respond`, accessToken, { accepted: true }))
+        .status,
+      404,
+    );
+    assert.equal(
+      (await authPut(`/api/me/conversations/${foreignId}/mute`, accessToken, { muted: true })).status,
+      404,
+    );
+    assert.equal(
+      (await authPut(`/api/me/conversations/not-an-id/mute`, accessToken, { muted: true })).status,
+      400,
+    );
+    assert.equal(
+      (await authPost(`/api/me/conversations/${foreignId}/respond`, accessToken, {})).status,
+      400,
+      'accepted is required',
+    );
   });
 
   test('reporting flags the thread without deleting it (PRD §16.3)', async () => {

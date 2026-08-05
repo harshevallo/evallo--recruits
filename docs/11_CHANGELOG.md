@@ -45,6 +45,34 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 > releases and shipped features, not analysis passes.
 
 ### Added
+- **2026-08-04 — REC-01 create or join a company.** One screen for both routes into the recruiter
+  capability. Creation reuses the existing `CreateCompanyForm` and `POST /api/companies`; joining
+  accepts or declines a `CompanyMember` row with status `invited`. Creating invitations is REC-07
+  and is not implemented.
+- **2026-08-04 — REC-02 company setup wizard.** Three steps (basics, brand, education footprint)
+  covering exactly the fields PRD §7.3 requires for publication. Draft-first, per-step progress,
+  save-and-continue, deep-linkable via `?step=`, and pending edits are persisted before switching
+  steps. **No field was added to the company model** — every one already existed.
+- **2026-08-04 — REC-06 preview and publish.** The preview renders through
+  `serialisePublicCompany`, the same serialiser PUB-02 uses, and the same `CompanyOverview` /
+  `OpenRoleCard` components — neither data nor rendering is duplicated. Publish enforces the §7.3
+  requirements server-side; unpublish returns the page to draft.
+- **2026-08-03 — PRD compliance pass on CAN-02, CAN-03, CAN-09.**
+  - **CAN-02:** country/region, languages, time zone, and an on-site location question. PRD §8.5
+    marks country and time zone **required for publication**; they were previously absent, so a
+    profile could publish with no location at all. Adds a third answer target, **`user`**, writing
+    the personal layer to `users` per `05_DATABASE_SCHEMA.md` §2 rather than duplicating it onto
+    the candidate profile. `field` now accepts dot paths (`location.country`). Implements
+    Appendix C **location conditionality** via `onlyForDeliveryModes` — remote-only candidates are
+    never asked commuting questions. Published as **question bank v2**; v1 retained and
+    deactivated, per ADR-007.
+  - **CAN-03:** the recruiter header now carries photo, location/time zone and languages, completing
+    PRD §8.8. Same `toRecruiterView` serialiser, so preview and recruiter view stay identical.
+  - **CAN-09:** accept, decline and mute — the PRD §11.2 candidate actions that were missing.
+    Declining closes the thread to replies and mutes it **without deleting messages** (§16.3);
+    accepting reopens it; replying accepts a pending thread implicitly. Mute is idempotent and
+    never hides the thread. New fields on `conversations`: `candidateState`,
+    `candidateRespondedAt`, `mutedAt`.
 - **2026-08-03 — CAN-02 profile builder.** Section navigation, per-section progress, save and exit,
   validation, and role-gated dynamic questions, all driven by a **versioned question bank**
   (ADR-007) rather than a hard-coded form. New collections `questionBanks` and `candidateAnswers`;
@@ -99,6 +127,30 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 - **2026-08-02** — The refresh-session collection is `authSessions`, not `sessions`.
 
 ### Fixed
+- **2026-08-04 — Google button vanished after six seconds.** `useGoogleButtonRendered` polled for
+  a non-zero-width `iframe`, but GSI renders its button as a `div[role="button"]`; its only iframe
+  is an auxiliary FedCM frame that is always 0×0. The predicate could never be satisfied, so a
+  working button was replaced by the disabled fallback on every load.
+- **2026-08-04 — the public serialiser did not control its own field list.**
+  `serialisePublicCompany` spread whatever document it was handed, so the public shape was really
+  decided by each caller's `.select()`. PUB-02 projected the right fields; REC-06's preview passed
+  a full document and leaked `__v` and `slugHistory`. The serialiser now picks
+  `PUBLIC_PROFILE_FIELDS` itself, and the REC-06 test compares the entire payload instead of
+  sampling six keys — the sampling is what hid it.
+- **2026-08-04 — `hasError` was spread onto `<fieldset>`** in the CAN-02 builder and the REC-02
+  wizard, producing a React DOM warning on every render.
+- **2026-08-03 — test suites destroyed real data.** Six unscoped `deleteMany({})` calls wiped every
+  candidate profile and company membership and signed out every user on each run; `auth.test.js`
+  additionally matched every other suite's `@example.com` fixtures and deleted their users
+  mid-run. All cleanup is now scoped to each suite's own fixtures.
+- **2026-08-03 — an anonymous interest permanently blocked the signed-in candidate.** The unique
+  index keys on `contact.email` while the service matched on `candidateId`, so a public-page
+  submission from the same address made the authenticated one fail forever with a contradictory
+  "already submitted". An authenticated submission now **adopts** the anonymous record (PRD §8.7
+  steps 2–3) — one record, now owned, with the access grant created.
+- **2026-08-03** — Profile builder discarded unsaved edits when switching sections. Pending edits
+  are saved first; invalid input keeps the user on the section with the errors.
+- **2026-08-03** — Messages: unread badge and thread preview went stale after reading or replying.
 - **2026-08-03** — The capability route guards evaluated before capabilities finished loading, so a
   hard reload of `/me` or `/c/:slug` redirected a genuine candidate or company member away.
 - **2026-08-03** — `company.initials` was `undefined` on the public directory and company profile

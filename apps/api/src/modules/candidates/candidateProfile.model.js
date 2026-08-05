@@ -95,12 +95,20 @@ candidateProfileSchema.methods.toOwnerView = function toOwnerView() {
  * drift would be a privacy defect: the candidate would be shown a profile that is not what
  * recruiters actually see.
  *
- * @param {{ name?: string, contactRevealed?: boolean }} viewer
+ * PRD §8.8 fixes the header contents: photo, name, headline, location/time zone, languages,
+ * open-to-work status, role types, primary expertise, years of experience. Photo, location and
+ * languages belong to the PERSONAL layer on `users` (05_DATABASE_SCHEMA §2), so the caller passes
+ * them in rather than this document duplicating them.
+ *
+ * @param {{ name?, photoUrl?, location?, languages?, email?, contactRevealed? }} viewer
  */
 candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(viewer = {}) {
   return {
     header: {
       name: viewer.name ?? null,
+      photoUrl: viewer.photoUrl ?? null,
+      location: viewer.location ?? null,
+      languages: viewer.languages ?? [],
       headline: this.headline ?? null,
       status: this.status,
       targetRoles: this.targetRoles ?? [],

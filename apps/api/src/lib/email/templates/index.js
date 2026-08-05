@@ -57,7 +57,9 @@ If you didn't request this, ignore this email — your password will not change.
 
 /**
  * REC-07 — invite a teammate into a company.
- * Not wired to a route yet; the template exists so the invitation feature is a controller away.
+ *
+ * `url` points at REC-01's screen rather than a one-click accept link: the invitation is claimed
+ * by whoever proves they own the address, so acceptance has to happen behind authentication.
  */
 export function companyInvitationTemplate({ name, companyName, inviterName, url }) {
   const inviter = inviterName ? `${inviterName} has` : 'You have been';

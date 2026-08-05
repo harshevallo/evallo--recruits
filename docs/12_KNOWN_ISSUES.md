@@ -21,13 +21,23 @@ other's fixtures and fail non-deterministically. Each file passes in isolation.
 Related: the suites call `Session.deleteMany({})` unscoped, which signs out every real user in the
 shared development database.
 
-### I-02 — Google sign-in does not work on localhost
-**Severity:** Low · **Workaround:** use email authentication
+### I-02 — ~~Google sign-in does not work on localhost~~ RESOLVED 2026-08-04
+**Severity:** — · **Resolution:** fixed in `GoogleButton.jsx`
 
-Google's `gsi/status` returns `403` for `http://localhost:3001` unless the origin is registered as
-an authorised JavaScript origin in the Google Cloud console. The client detects the resulting
-zero-size iframe and unmounts it, so it never becomes an invisible focusable tab stop, and shows a
-disabled fallback instead.
+The cause was ours, not Google's. `useGoogleButtonRendered` waited for a non-zero-width `iframe`
+inside the container, but GIS renders its button as a `div[role="button"]`; the only iframe it
+creates is an auxiliary FedCM frame that is *always* 0×0. The predicate was therefore
+unsatisfiable, and after the timeout a fully working button was torn down and replaced by the
+disabled fallback — which is why it looked intermittent: whether you saw the button depended
+entirely on whether you looked before or after the timer fired.
+
+Two things that looked like evidence but were not. `accounts.google.com/gsi/button` returning
+`403` is that same auxiliary frame and does not stop the button rendering. And a server-side
+`fetch` with a spoofed `Origin` header proves nothing about origin authorisation — a bare fetch
+has no browsing context. The client ID was confirmed valid by loading Google's authorisation
+endpoint directly, which returned `200` and "Sign in to continue to Evallo Recruit".
+
+The check now polls for `[role="button"]` with a non-zero width.
 
 ### I-03 — MongoDB is standalone, so there are no transactions
 **Severity:** Medium
@@ -35,6 +45,13 @@ disabled fallback instead.
 `/api/health` reports `supportsTransactions: false`. The four operations listed in
 `05_DATABASE_SCHEMA.md` §11 — refresh rotation among them — currently run without atomicity.
 Conversion steps are in `08_SETUP_GUIDE.md` §1.
+
+### I-05 — `npm run lint` does not catch missing cross-module exports
+**Severity:** Low · **Mitigation:** run `npm run build --workspace=apps/web`
+
+ESLint resolves imports per file, so a symbol imported from a barrel that does not export it lints
+clean and then fails at runtime with a blank page. `vite build` catches it. Add the build to any
+verification that touches `services/index.js` or another barrel.
 
 ### I-04a — CAN-02 covers four of the PRD's twelve profile sections
 **Severity:** Medium
