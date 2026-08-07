@@ -77,12 +77,17 @@ web `:3001` · api `:8081` · database `evallo-recruit`
 | `verification.test.js` | 11 |
 | `candidateJourney.test.js` | 41 |
 | `companySetup.test.js` | 19 |
+| `teamInvitations.test.js` | 22 |
+| `teamManagement.test.js` | 23 |
+| `companyDashboard.test.js` | 11 |
+| `interestInbox.test.js` | 20 |
+| `talentSearch.test.js` | 19 |
 | `profileBuilder.test.js` | 17 |
 | `earlyAccess.test.js` | 9 |
 | `home.test.js` | 6 |
 | `candidateHome.test.js` | 11 |
 | `health.test.js` | 2 |
-| **Total** | **204** |
+| **Total** | **299** |
 
 `npm run lint` — clean across all three workspaces.
 
@@ -161,21 +166,26 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 | REC-04 | Education footprint | §7.2 | ⏳ |
 | REC-05 | Hiring intent | §7.2, §7.5 | ⏳ |
 | REC-06 | Preview and publish | §7.2 | ✅ |
-| REC-07 | Invite team | §7.2 | ⏳ |
+| REC-07 | Invite team | §7.2 | ✅ |
 
 ### Company / recruiter — workspace
 | ID | Screen | PRD | Status |
 |---|---|---|---|
-| REC-10 | Company home | §7.6 | ⏳ |
-| REC-11 | Interest inbox | §7.6 | ⏳ |
-| REC-12 | Talent search | §7.6, §7.7, §10 | ⏳ |
+| REC-10 | Company home | §7.6 | ✅ |
+| REC-11 | Interest inbox | §7.6 | ✅ |
+| REC-12 | Talent search | §7.6, §7.7, §10 | ✅ |
 | REC-13 | Candidate profile viewer | §7.6, §8.8 | ⏳ |
 | REC-14 | Pipeline | §7.6, §7.9 | ⏳ |
 | REC-15 | Messages | §7.6, §11.2 | ⏳ |
 | REC-16 | Hiring intents | §7.6 | ⏳ |
 | REC-17 | Company profile editor | §7.6 | ⏳ |
-| REC-18 | Team and permissions | §7.6, §4.2 | ⏳ |
+| REC-18 | Team and permissions | §7.6, §4.2 | 🔄 |
 | REC-19 | Recruiter settings | §7.6 | ⏳ |
+
+**REC-18 is partial.** The member list, role changes, removal and ownership transfer are built
+and behind `member:manage`; per-member permission overrides, hiring-manager intent assignment,
+and suspend/reactivate are not. Its screen shipped early, alongside REC-07, because REC-07 creates
+members and nothing could then manage them.
 
 ### Settings
 | ID | Screen | PRD | Status |
@@ -192,10 +202,10 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 | **M0** | Foundation | Docs, monorepo scaffold, DB connection, shared package, error/validation plumbing | ✅ |
 | **M-M** | Marketing | MKT-01, shared UI primitives, `earlyAccessRequests` | ✅ (prerender deferred) |
 | **M1** | Identity | AUTH-01 → AUTH-14, session management, HOME-01 | 🔄 AUTH-13/14 remain |
-| **M2** | Company presence | REC-01 → REC-07, PUB-01, PUB-02, SEO Stage 1 | 🔄 PUB-01/02 done |
+| **M2** | Company presence | REC-01 → REC-07, PUB-01, PUB-02, SEO Stage 1 | 🔄 REC-01/02/06/07, PUB-01/02 done; REC-03/04/05 remain |
 | **M3** | Candidate identity | CAN-01 → CAN-04, question bank, evidence, visibility | 🔄 CAN-01…04 done; evidence layer remains |
-| **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | 🔄 candidate side done; REC-11 remains |
-| **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | 🔄 CAN-09 candidate side done |
+| **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | 🔄 candidate side + REC-11 done |
+| **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | 🔄 REC-12 + CAN-09 done |
 | **M6** | Administration & trust | REC-17 → REC-19, SET-01, SET-02, audit, moderation, notifications | ⏳ |
 
 Milestone order follows PRD §2.3's strategic wedge — public company presence precedes

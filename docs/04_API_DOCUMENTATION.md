@@ -193,6 +193,18 @@ published company data and can never reach a candidate collection (PRD §21.2).
 | `POST` | `/api/companies/:companyId/publish` | Bearer + `company:edit` | REC-06 |
 | `POST` | `/api/companies/:companyId/unpublish` | Bearer + `company:edit` | REC-06 |
 | `GET` | `/api/companies/:companyId/members` | Bearer + `member:manage` | REC-18 |
+| `PATCH` | `/api/companies/:companyId/members/:memberId` | Bearer + `member:manage` | REC-18 |
+| `DELETE` | `/api/companies/:companyId/members/:memberId` | Bearer + `member:manage` | REC-18 |
+| `POST` | `/api/companies/:companyId/members/:memberId/transfer-ownership` | Bearer + `member:manage` | REC-18 |
+| `GET` | `/api/companies/:companyId/invitations` | Bearer + `member:manage` | REC-07 |
+| `POST` | `/api/companies/:companyId/invitations` | Bearer + `member:manage` | REC-07 |
+| `POST` | `/api/companies/:companyId/invitations/:invitationId/resend` | Bearer + `member:manage` | REC-07 |
+| `POST` | `/api/companies/:companyId/invitations/:invitationId/cancel` | Bearer + `member:manage` | REC-07 |
+| `GET` | `/api/companies/:companyId/dashboard` | Bearer + membership | REC-10 |
+| `GET` | `/api/companies/:companyId/interests` | Bearer + `interest:view` | REC-11 |
+| `PATCH` | `/api/companies/:companyId/interests/:interestId` | Bearer + `interest:view` | REC-11 |
+| `POST` | `/api/companies/:companyId/interests/:interestId/viewed` | Bearer + `interest:view` | REC-11 |
+| `GET` | `/api/companies/:companyId/search/candidates` | Bearer + `candidate:search` | REC-12 |
 | `POST` | `/api/public/early-access` | None | MKT-01 |
 | `GET` | `/api/public/companies` | None | PUB-01 |
 | `GET` | `/api/public/companies/facets` | None | PUB-01 |
@@ -590,7 +602,7 @@ not a new identity.
 
 **Notes** — The slug is derived from the name and must be unique.
 
-## 7a. Endpoints — company setup and publishing (REC-01, REC-02, REC-06)
+## 7a. Endpoints — company workspace (REC-01 … REC-12)
 
 ### `GET /api/me/invitations` · `POST .../accept` · `POST .../decline`
 
@@ -603,7 +615,7 @@ These live on the personal surface because the invitee is not yet a member, so
 `resolveCompanyContext` could never authorise them. Every query is scoped to the caller, and an
 invitation addressed to somebody else returns **404, never 403**.
 
-Creating invitations is REC-07 and is not implemented.
+Creating invitations is REC-07, documented below.
 
 ### `GET /api/companies/:companyId/editor` · `PATCH .../steps/:stepKey`
 
@@ -629,10 +641,101 @@ directory and public profile while preserving the record and its slug (§9.3 tre
 separate, heavier state). `publishedAt` records the *first* publication and is not rewritten by a
 republish.
 
-### `GET /api/companies/:companyId/members`
+### `GET /api/companies/:companyId/invitations` · `POST` · `.../resend` · `.../cancel`
 
-**Authentication** — Bearer + active membership + `member:manage`. Enforced by
-`resolveCompanyContext()` then `requirePermission()` — the four-layer model in ADR-006.
+REC-07. `member:manage` throughout — the permission §4.2 gives owners and admins only. Reading the
+list is gated as tightly as sending, because the list is a roster of people's email addresses.
+
+An invitee need not have an account: the invitation binds to the address and is claimed by whoever
+**verifies** it (§6.4). No shell user is created — `signup` refuses an address that already exists,
+so creating one would lock the invitee out of registering.
+
+`member:manage` is not the whole answer. Inviting someone as `owner` additionally requires
+`company:transfer`, so an admin cannot mint a second owner and reach ownership sideways.
+Duplicates are impossible by index rather than by check: a partial unique index on
+`{companyId, invitedEmail}` filtered to `status: 'invited'`. Resending is rate-limited per
+invitation (60s), so the button cannot be used to mail-bomb whoever was invited. Cancelling marks
+the row `removed` and retains it (§21.6).
+
+### `GET /api/companies/:companyId/members` · `PATCH .../:memberId` · `DELETE .../:memberId`
+
+REC-18 (team and permissions). `member:manage` gates all three. Anything touching an OWNER — promoting to one, changing
+one's role, removing one — additionally requires `company:transfer`, checked in the service beside
+the last-owner guard it works with.
+
+Two invariants: a company can **never be left without an owner** (§21.2), and nobody may change or
+remove their own membership. Removal writes `status: 'removed'`, never a delete. A role change
+takes effect on the target's very next request, because permissions are re-read per request
+(ADR-006) rather than baked into a token.
+
+### `POST /api/companies/:companyId/members/:memberId/transfer-ownership`
+
+REC-18. Owner-only. Promotes the successor and demotes the caller to **admin** — a transfer, not a
+resignation — then asserts exactly one active owner remains before returning.
+
+Deliberately not "promote, then demote": that sequence passes through a two-owner state and would
+stay there if the second write failed. With no transactions available on a standalone MongoDB
+(I-03) the order is chosen to fail safe — promote first, so a crash between the writes leaves two
+owners, which is recoverable, rather than none, which is not.
+
+### `GET /api/companies/:companyId/dashboard`
+
+REC-10 company home. Open to any ACTIVE member with **no** `requirePermission`: this is where a
+member lands after switching company, so gating the whole page would leave a viewer with nowhere
+to go. Sections are withheld individually instead, and a count the caller may not see comes back
+as `null` rather than `0` — "withheld" and "none" are different facts.
+
+Owns no data. The publish checklist is `buildPublishChecklist`, the same function REC-06 refuses
+to publish against, so the dashboard cannot invite someone to publish a page the publish endpoint
+would reject.
+
+### `GET /api/companies/:companyId/interests` · `PATCH .../:interestId` · `POST .../viewed`
+
+REC-11 interest inbox. `interest:view`, which §4.2 grants to every company role. Reads the **same**
+`expressionsOfInterest` rows CAN-07 writes and CAN-08 shows the candidate — there is no
+recruiter-side interest model.
+
+Every row passes through `resolveCandidateAccess` before its profile summary is attached, so a
+candidate who blocked this company, or paused after writing to it, is not rendered from stale
+data. Contact details follow the CANDIDATE's rule and never the recruiter's role: an owner sees
+nothing a viewer would not.
+
+A recruiter may set `viewed`, `contacted`, `progressed`, `closed`. **`withdrawn` is not settable**
+— §21.5 gives withdrawal to the candidate alone, and a withdrawn interest cannot be reopened by
+the company. `POST .../viewed` only ever moves `submitted → viewed`, so opening one a colleague has
+already progressed changes nothing.
+
+Filters: `status` (multi), `hiringIntentId`, `generalOnly`, `q`, `sort`, `page`, `limit`. Offset
+paging, because the inbox shows per-status counts that need a stable total. Those counts ignore
+the active filter, so the tabs stay still while a recruiter narrows down.
+
+### `GET /api/companies/:companyId/search/candidates`
+
+REC-12 talent search. `candidate:search` — owner, admin and recruiter; withheld from hiring manager
+and viewer (§21.4). All query construction lives in `modules/search/search.service.js` per
+**ADR-010**; no other module builds a search query.
+
+Blocks and visibility are the FIRST `$match`, before the join, the facets, the count and the
+paging. §21.4 requires them applied "before results are displayed, not after ranking", and a
+post-filter would let an excluded candidate leave a hole in a page. Only `discoverable` profiles
+appear: `private` and `paused` are reachable through a grant but are excluded from search by §4.3,
+grant or no grant.
+
+Facets: `role`, `subject`, `learnerSegment`, `employmentType`, `deliveryMode`, `availability`,
+`country`, `language` — OR within a facet, AND between facets (§21.4). Plus `region`, `minYears`,
+`maxYears`, and `q` across headline, summary, subjects, roles and name. Country, region and
+language live on `users`, so the pipeline joins the personal layer rather than pretending they sit
+on the profile.
+
+Each result carries `matchedOn`: which of the caller's own criteria it satisfied (§21.4, "show why
+each candidate matches"). It is an explanation, never a score — nothing is summed or weighted, and
+**there is no relevance sort**. §10.3 forbids implying objective quality ranking, and with no
+relevance signal in the data a "best match" option would be an arbitrary order wearing an
+authoritative name. Sorts are `recent`, `newest`, `name`.
+
+Cards are built from `toRecruiterView()` — the one recruiter representation, shared with CAN-03 —
+then stripped of evidence and contact. This screen is discovery: a card is a reason to open a
+profile, not a substitute for opening one.
 
 ---
 

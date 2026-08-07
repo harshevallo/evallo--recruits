@@ -15,7 +15,7 @@
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
 | `features/candidate/components/` | `ProfileCompletenessCard` `VisibilityCard` `NextStepsCard` `OpportunitiesCard` `ActivityCard` `BuilderQuestion` `CandidateInterestModal` |
 | `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` `MessagesPage` |
-| `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` |
+| `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` `CompanyTeamPage` `CompanyHomePage` `CompanyInterestsPage` `CompanyTalentSearchPage` |
 | `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
 | `features/account/components/` | `CreateCompanyForm` |
 | `features/marketing/components/` | 13 components composing MKT-01 |
@@ -43,6 +43,26 @@ Five notes worth carrying forward:
   the same components the public PUB-02 page uses, fed by the same `serialisePublicCompany`
   output. A separate preview renderer would have been a second definition of "what a company
   page looks like", guaranteed to drift.
+- **`CompanyTeamPage` carries REC-07 and REC-18 together**, because they are one question —
+  who belongs to this company, and with what authority — and both act on the same
+  `CompanyMember` row. The TRD binds `/c/:companySlug/team` to REC-18, which is where it lives. Role changes are inline and reversible; removal and ownership transfer are
+  confirmed in a `Modal`, because neither can be undone by the person who clicked. The role
+  dropdown never offers `owner`: promotion is a transfer, and listing it beside four reversible
+  choices would disguise that.
+- **`CompanyHomePage` renders whatever the server hands it.** Which sections exist is a
+  permission decision made server-side, so the page tests no roles itself. A stat of `null`
+  renders as "—", never `0` — withheld and none are different facts.
+- **`CompanyInterestsPage` and `CompanyTalentSearchPage` keep their whole filter set in the URL.**
+  A filtered inbox or search is a shareable, refresh-safe link, and the back button behaves. No
+  list is filtered client-side: the privacy rules deciding who may appear can only run on the
+  server, so every narrowing is a new request.
+- **A search card is built from `toRecruiterView()`**, the same serializer CAN-03 previews, then
+  stripped of evidence and contact. A card therefore cannot show something the full profile would
+  withhold — and REC-12 ships no contact details at all, because discovery is not evaluation.
+- **`PlaceholderPage` is contextual.** "Go back" returns to the previous screen, and the secondary
+  link resolves to company home inside a company, `/home` when signed in, `/` when anonymous.
+  Sending a recruiter who clicked "Open profile" out to the marketing page reads as being logged
+  out, which is why it no longer does.
 - **`CompanySetupPage` gets its steps from the server.** Step keys, order, fields and per-step
   progress come from `GET /companies/:id/editor`; the page renders whatever it is handed. The
   current step lives in `?step=`, so a wizard position is a shareable, refresh-safe URL.

@@ -1,27 +1,56 @@
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Container } from '@/components/ui';
-import { PATHS } from '@/router/paths';
+import { useAuth } from '@/context/AuthContext';
+import { PATHS, buildPath } from '@/router/paths';
 
 /**
  * Temporary destination for routes whose feature or content is not built yet.
  *
  * Exists so no link on a shipped page is dead. Each usage names what will replace it.
+ *
+ * The back action is deliberately contextual. A recruiter who clicks "Open profile" from the
+ * interest inbox is deep inside a company; sending them to the marketing home page — as this once
+ * did — discards where they were and reads as though something had gone wrong. "Go back" returns
+ * them to the screen they came from, and the secondary link lands somewhere useful for whichever
+ * context they are in.
  */
 export function PlaceholderPage({ title, description, replacedBy }) {
+  const navigate = useNavigate();
+  const { companySlug } = useParams();
+  const { isAuthenticated } = useAuth();
+
+  /*
+   * Three contexts, three different "home". Sending a signed-in user to `/` drops them on the
+   * marketing site — technically a home page, but not theirs, and it reads as being logged out.
+   */
+  let fallback = { to: PATHS.HOME, label: 'Back to home' };
+  if (companySlug) {
+    fallback = { to: buildPath(PATHS.COMPANY_HOME, { companySlug }), label: 'Company home' };
+  } else if (isAuthenticated) {
+    fallback = { to: PATHS.APP_HOME, label: 'Back to home' };
+  }
+
   return (
     <Container size="prose" className="py-32 text-center">
       <h1 className="text-3xl font-bold tracking-tight text-brand-dark">{title}</h1>
 
-      <p className="mt-4 text-gray-600">
-        {description ?? 'This page is not available yet.'}
-      </p>
+      <p className="mt-4 text-gray-600">{description ?? 'This page is not available yet.'}</p>
 
-      {replacedBy && (
-        <p className="mt-2 text-sm text-gray-400">Coming with {replacedBy}.</p>
-      )}
+      {replacedBy && <p className="mt-2 text-sm text-gray-400">Coming with {replacedBy}.</p>}
 
-      <Button to={PATHS.HOME} variant="primary" size="md" className="mt-8">
-        Back to home
-      </Button>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <Button type="button" variant="primary" size="md" onClick={() => navigate(-1)}>
+          Go back
+        </Button>
+        <Button
+          to={fallback.to}
+          variant="outlineDark"
+          size="md"
+          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+        >
+          {fallback.label}
+        </Button>
+      </div>
     </Container>
   );
 }

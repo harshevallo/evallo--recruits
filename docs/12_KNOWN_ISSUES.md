@@ -39,6 +39,27 @@ endpoint directly, which returned `200` and "Sign in to continue to Evallo Recru
 
 The check now polls for `[role="button"]` with a non-zero width.
 
+### I-06 — Candidate profile arrays are not validated against the taxonomy
+**Severity:** Medium · **Workaround:** write through the API, never directly
+
+`candidateProfiles.subjects`, `learnerSegments`, `deliveryModes` and `targetRoles` are bare
+`[String]` with no enum. REC-12 validates *input* against the shared taxonomy, so a profile
+holding a value outside it — `in_person` instead of `on_site`, say — is accepted on write and then
+permanently unfindable by that facet. Found while seeding demo data, which is exactly how it will
+be found in production.
+
+The fix is an enum on the model, which is a schema change and was left out of REC-12's scope.
+
+### I-07 — Candidate profile access is not logged
+**Severity:** Medium · **Blocks:** PRD §21.4 acceptance
+
+§21.4 requires profile access to be logged with company, user, timestamp and source, and §16.1
+lists profile views among the events that must be auditable. Nothing records them. REC-11 moves an
+interest to `viewed` but writes no audit event, and REC-12 records nothing at all.
+
+Search is discovery rather than profile access, so REC-12 does not trigger the requirement — but
+REC-13 opens profiles directly and cannot ship without it.
+
 ### I-03 — MongoDB is standalone, so there are no transactions
 **Severity:** Medium
 

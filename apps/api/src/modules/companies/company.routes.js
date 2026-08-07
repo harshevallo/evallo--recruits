@@ -42,6 +42,8 @@ import {
   interestStatusValidation,
   interestParamValidation,
 } from '../interests/interest.validation.js';
+import { getCandidateSearch } from '../search/search.controller.js';
+import { candidateSearchValidation } from '../search/search.validation.js';
 import {
   patchMemberRole,
   deleteMember,
@@ -191,6 +193,22 @@ router.post(
   resolveCompanyContext(),
   requirePermission(PERMISSIONS.INTEREST_VIEW),
   asyncHandler(postInterestViewed),
+);
+
+/*
+ * REC-12 talent search.
+ *
+ * `candidate:search` — held by owner, admin and recruiter, and withheld from hiring manager and
+ * viewer (PRD §4.2, §21.4: "Only active company members with candidate:search / candidate:view
+ * can use search"). The candidate's own visibility settings constrain the results independently
+ * of this permission, inside the search service.
+ */
+router.get(
+  '/:companyId/search/candidates',
+  validate(candidateSearchValidation),
+  resolveCompanyContext(),
+  requirePermission(PERMISSIONS.CANDIDATE_SEARCH),
+  asyncHandler(getCandidateSearch),
 );
 
 /*

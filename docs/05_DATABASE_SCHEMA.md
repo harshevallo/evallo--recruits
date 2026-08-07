@@ -232,6 +232,9 @@ Public, indexable organisation profile (PRD §7.4, §13).
 - Those publishing requirements are enforced **server-side at publish time**, not per field.
   The REC-02 wizard writes partial drafts on purpose: a half-finished company is a legitimate
   stored state, and only `POST /publish` refuses.
+- **Nothing in REC-07 … REC-12 added a field or an index to any collection.** The two partial
+  unique indexes on `companyMembers` were already in place and are what make invitations
+  duplicate-proof and memberships single.
 - **The REC-02 wizard added no field to this collection.** Its three steps (basics, brand,
   footprint) map onto columns that already existed; the wizard is a grouping of existing fields,
   not a schema change. `publishedAt` records the first publication and survives unpublish, so a
@@ -258,7 +261,12 @@ collection on every request (ADR-006).
 `companyMembers` document with `status: 'invited'`; accepting it (REC-01) flips the same document
 to `active` and stamps `acceptedAt`. There is no invitations collection to reconcile, and the
 membership a recruiter ends up with is literally the record they were invited by. Declining sets
-`removed`. Creating invitations is REC-07 and is not yet implemented.
+`removed`. Creating invitations (REC-07) writes the same row with `status: 'invited'`.
+
+**No collection was added for any REC-07 … REC-12 screen.** Team management, ownership transfer,
+the company dashboard, the interest inbox and talent search are all reads and status changes over
+collections that already existed — `companyMembers`, `expressionsOfInterest`, `hiringIntents`,
+`candidateProfiles`, `accessGrants`.
 | `assignedIntentIds` | [ObjectId] | | Scopes `hiring_manager` to assigned intents (PRD §4.2) |
 
 **Indexes**

@@ -6,10 +6,19 @@ import { MobileNavDrawer } from './MobileNavDrawer';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/utils/cn';
 
+/*
+ * Path-qualified fragments, not bare `#businesses`.
+ *
+ * These sections exist only on the marketing page, but this navbar renders on EVERY page that
+ * uses MarketingLayout — the company directory, the authenticated app home, the placeholders. A
+ * bare fragment there resolves against the current URL and matches nothing, so the link silently
+ * did nothing. `/#businesses` sends the reader to the section wherever they click it, and the
+ * browser handles the scroll natively in both the same-page and cross-page cases.
+ */
 const NAV_LINKS = [
-  { href: '#businesses', label: 'For Businesses' },
-  { href: '#educators', label: 'For Educators' },
-  { href: '#features', label: 'Features' },
+  { href: `${PATHS.HOME}#businesses`, label: 'For Businesses' },
+  { href: `${PATHS.HOME}#educators`, label: 'For Educators' },
+  { href: `${PATHS.HOME}#features`, label: 'Features' },
 ];
 
 const MOBILE_LINKS = [...NAV_LINKS, { to: PATHS.SIGN_IN, label: 'Log in' }];

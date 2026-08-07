@@ -45,6 +45,36 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 > releases and shipped features, not analysis passes.
 
 ### Added
+- **2026-08-05 — REC-07 team invitations.** Invite by email with a role, list, resend, cancel.
+  An invitation is a `CompanyMember` row with status `invited` — the same record that becomes the
+  membership — so there is no second table. The invitee need not have an account; the invitation
+  binds to the address and is claimed only once that address is **verified** (PRD §6.4). An admin
+  cannot invite an owner: that needs `company:transfer`.
+- **2026-08-05 — REC-18 team management and ownership transfer (partial).** Member list, role
+  changes, removal, and ownership transfer. Delivered ahead of its M6 milestone because REC-07
+  creates members and nothing could then manage them. A company can never be left without an owner, and nobody may
+  alter their own membership. Transfer promotes then demotes — never the reverse — so a failure
+  between the two writes leaves two owners rather than none, and asserts exactly one owner before
+  returning. The outgoing owner stays on as an admin.
+- **2026-08-05 — REC-10 company home.** Recruiting overview, pending actions, inbound-interest and
+  hiring summaries, quick actions. Owns no data: the publish checklist is REC-06's own
+  `buildPublishChecklist`, so the dashboard can never invite someone to publish a page the publish
+  endpoint would reject. Open to every member — sections are withheld individually rather than the
+  page being gated.
+- **2026-08-05 — REC-11 interest inbox.** Filters, sorting, paging, status changes, and a route
+  into the candidate profile. Reads the same `expressionsOfInterest` rows CAN-07 writes and CAN-08
+  tracks. A recruiter cannot write `withdrawn` and cannot reopen a withdrawn interest (§21.5), and
+  contact details follow the candidate's rule rather than the recruiter's role.
+- **2026-08-05 — REC-12 talent search.** Keyword plus eight facets, OR within a facet and AND
+  between them, server-side paging, and a per-result explanation of which criteria matched (§21.4).
+  Query construction is confined to `modules/search/search.service.js` per ADR-010. Blocks and
+  visibility are the first pipeline stage, before the join, the count and the paging. There is
+  deliberately **no relevance sort** — §10.3 forbids implying objective quality ranking, and no
+  relevance signal exists in the data to build one from honestly.
+- **2026-08-05 — `candidateAccess.service`.** One answer to "may this company see this candidate,
+  and how much of them". REC-11, REC-12 and the contact-visibility rules all resolve through it;
+  three copies of PRD §4.3 would eventually disagree, and a disagreement in that direction is a
+  privacy breach rather than a bug report.
 - **2026-08-04 — REC-01 create or join a company.** One screen for both routes into the recruiter
   capability. Creation reuses the existing `CreateCompanyForm` and `POST /api/companies`; joining
   accepts or declines a `CompanyMember` row with status `invited`. Creating invitations is REC-07
@@ -127,6 +157,18 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 - **2026-08-02** — The refresh-session collection is `authSessions`, not `sessions`.
 
 ### Fixed
+- **2026-08-05 — seven company routes 404'd, three of them reachable by clicking.** `search`,
+  `candidates/:id`, `hiring`, `pipeline`, `messages`, `profile/edit` and `settings` were declared
+  in `paths.js` and linked from shipped pages but never registered, so React Router fell through
+  to `*`. They now resolve to labelled placeholders naming the PRD section that will replace them.
+- **2026-08-05 — three navbar links did nothing off the marketing page.** "For Businesses",
+  "For Educators" and "Features" used bare fragments (`#businesses`), which resolve against the
+  current URL and matched nothing anywhere else. Path-qualified to `/#…`, as the footer already did.
+- **2026-08-05 — anchor navigation never scrolled.** `ScrollToHash` looked the target up once, a
+  single `requestAnimationFrame` after the hash changed, and returned silently if it was absent —
+  which it always is when the app is still booting. It now retries on a timer for a bounded
+  window; a timer rather than rAF, because rAF does not fire in a backgrounded tab and "the anchor
+  works unless you switched away" is not worth shipping.
 - **2026-08-04 — Google button vanished after six seconds.** `useGoogleButtonRendered` polled for
   a non-zero-width `iframe`, but GSI renders its button as a `div[role="button"]`; its only iframe
   is an auxiliary FedCM frame that is always 0×0. The predicate could never be satisfied, so a

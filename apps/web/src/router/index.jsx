@@ -18,6 +18,7 @@ import { CompanyPreviewPage } from '@/pages/company/CompanyPreviewPage';
 import { CompanyTeamPage } from '@/pages/company/CompanyTeamPage';
 import { CompanyHomePage } from '@/pages/company/CompanyHomePage';
 import { CompanyInterestsPage } from '@/pages/company/CompanyInterestsPage';
+import { CompanyTalentSearchPage } from '@/pages/company/CompanyTalentSearchPage';
 import { MarketingPage } from '@/pages/marketing/MarketingPage';
 import { CompanyDirectoryPage } from '@/pages/public/CompanyDirectoryPage';
 import { CompanyProfilePage } from '@/pages/public/CompanyProfilePage';
@@ -48,6 +49,52 @@ const PLACEHOLDERS = [
   [PATHS.RESEARCH, 'Market Research', 'Education hiring market research.', 'content marketing'],
   [PATHS.ABOUT, 'About Us', 'Why we built Evallo Recruit.', 'company content'],
   [PATHS.CONTACT, 'Contact', 'Get in touch with the team.', 'company content'],
+];
+
+/**
+ * Company-scoped screens that shipped pages already link to, but whose PRD section is not built.
+ *
+ * These sit inside RequireCompany so a non-member still gets the company guard rather than a
+ * teaser. Without them the links are dead: React Router falls through to `*` and a recruiter who
+ * clicks "Open profile" on a real interest lands on a 404 that looks like the app is broken.
+ */
+const COMPANY_PLACEHOLDERS = [
+  [
+    PATHS.COMPANY_CANDIDATE,
+    'Candidate profile',
+    'The full candidate profile, showing exactly what this person has chosen to share with you.',
+    'REC-13',
+  ],
+  [
+    PATHS.COMPANY_HIRING,
+    'Hiring intent',
+    'Mark yourself as hiring and choose role categories — no job description needed.',
+    'REC-16',
+  ],
+  [
+    PATHS.COMPANY_PIPELINE,
+    'Pipeline',
+    'Track candidates through your hiring stages.',
+    'REC-14',
+  ],
+  [
+    PATHS.COMPANY_MESSAGES,
+    'Messages',
+    'Conversations with candidates who are open to being contacted.',
+    'REC-15',
+  ],
+  [
+    PATHS.COMPANY_EDIT,
+    'Company profile editor',
+    'Edit your public company page.',
+    'REC-17',
+  ],
+  [
+    PATHS.COMPANY_SETTINGS,
+    'Company settings',
+    'Company-wide preferences, permissions, and data controls.',
+    'SET-02',
+  ],
 ];
 
 export const router = createBrowserRouter([
@@ -172,6 +219,20 @@ export const router = createBrowserRouter([
                   { path: PATHS.COMPANY_TEAM, element: <CompanyTeamPage /> },
                   // REC-11. The server requires interest:view, which every company role holds.
                   { path: PATHS.COMPANY_INTERESTS, element: <CompanyInterestsPage /> },
+                  // REC-12. The server additionally requires candidate:search, which a hiring
+                  // manager and a viewer do not hold.
+                  { path: PATHS.COMPANY_SEARCH, element: <CompanyTalentSearchPage /> },
+
+                  ...COMPANY_PLACEHOLDERS.map(([path, title, description, replacedBy]) => ({
+                    path,
+                    element: (
+                      <PlaceholderPage
+                        title={title}
+                        description={description}
+                        replacedBy={replacedBy}
+                      />
+                    ),
+                  })),
                 ],
               },
             ],

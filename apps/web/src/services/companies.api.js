@@ -311,3 +311,20 @@ export async function markInterestViewed(companySlug, interestId) {
   );
   return response.data.data;
 }
+
+/* ── REC-12 talent search ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * Search candidates this company may discover. Requires `candidate:search`.
+ *
+ * Pagination meta arrives beside `data` in the envelope, so it is merged in here rather than
+ * being quietly dropped by the usual `data`-only unwrap.
+ */
+export async function searchCandidates(companySlug, params = {}, options = {}) {
+  const response = await apiClient.get(`/companies/${companySlug}/search/candidates`, {
+    params,
+    signal: options.signal,
+  });
+  const { data, meta } = unwrapWithMeta(response);
+  return { ...data, meta };
+}
