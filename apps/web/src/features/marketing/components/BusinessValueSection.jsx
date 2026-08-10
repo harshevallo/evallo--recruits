@@ -22,7 +22,7 @@ const FEATURES = [
 
 export function BusinessValueSection() {
   return (
-    <Section id="businesses" tone="light" className="relative">
+    <Section id="businesses" tone="white" className="relative">
       <Container>
         <SectionHeading
           eyebrow="For Educational Businesses"

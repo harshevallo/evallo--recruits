@@ -5,6 +5,10 @@ import { MarketingFooter } from './partials/MarketingFooter';
 /**
  * Chrome for the public marketing surface.
  *
+ * @param {boolean} [minimalFooter]
+ *   Set for the signed-in workspace. The full footer's link columns repeat what the workspace rail
+ *   already lists, which made navigation appear twice on every page.
+ *
  * @param {boolean} [transparentOnTop]
  *   Set ONLY for pages whose first section is a dark hero (currently just MKT-01). Light-background
  *   pages leave it off so the navbar stays solid and legible.
@@ -12,7 +16,7 @@ import { MarketingFooter } from './partials/MarketingFooter';
  * SSR-safe zone (ADR-004): nothing here or below may read AuthContext, CompanyContext, or
  * browser-only APIs during render.
  */
-export function MarketingLayout({ transparentOnTop = false }) {
+export function MarketingLayout({ transparentOnTop = false, minimalFooter = false }) {
   return (
     <div className="flex min-h-screen flex-col">
       <MarketingNavbar transparentOnTop={transparentOnTop} />
@@ -21,7 +25,7 @@ export function MarketingLayout({ transparentOnTop = false }) {
         <Outlet />
       </main>
 
-      <MarketingFooter />
+      <MarketingFooter minimal={minimalFooter} />
     </div>
   );
 }

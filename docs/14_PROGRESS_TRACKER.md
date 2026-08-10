@@ -1,8 +1,8 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-03 (compliance pass)
-**Current milestone:** M3 — Candidate identity 🔄 **candidate journey complete**
-**Overall:** 17 of 41 screens implemented
+**Last updated:** 2026-08-10 (recruiter workflow pass)
+**Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
+**Overall:** 23 of 41 screens implemented
 
 ---
 
@@ -87,7 +87,9 @@ web `:3001` · api `:8081` · database `evallo-recruit`
 | `home.test.js` | 6 |
 | `candidateHome.test.js` | 11 |
 | `health.test.js` | 2 |
-| **Total** | **299** |
+| `candidateViewer.test.js` | 20 |
+| `recruiterWorkflow.test.js` | 29 |
+| **Total** | **348** |
 
 `npm run lint` — clean across all three workspaces.
 
@@ -164,7 +166,7 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 | REC-02 | Company basics | §7.2 | ✅ |
 | REC-03 | Brand and overview | §7.2 | ⏳ |
 | REC-04 | Education footprint | §7.2 | ⏳ |
-| REC-05 | Hiring intent | §7.2, §7.5 | ⏳ |
+| REC-05 | Hiring intent | §7.2, §7.5 | ✅ |
 | REC-06 | Preview and publish | §7.2 | ✅ |
 | REC-07 | Invite team | §7.2 | ✅ |
 
@@ -174,10 +176,10 @@ Status key: `⏳ Pending` · `🔄 In Progress` · `✅ Done` · `🚫 Blocked` 
 | REC-10 | Company home | §7.6 | ✅ |
 | REC-11 | Interest inbox | §7.6 | ✅ |
 | REC-12 | Talent search | §7.6, §7.7, §10 | ✅ |
-| REC-13 | Candidate profile viewer | §7.6, §8.8 | ⏳ |
-| REC-14 | Pipeline | §7.6, §7.9 | ⏳ |
-| REC-15 | Messages | §7.6, §11.2 | ⏳ |
-| REC-16 | Hiring intents | §7.6 | ⏳ |
+| REC-13 | Candidate profile viewer | §7.6, §8.8 | ✅ |
+| REC-14 | Pipeline | §7.6, §7.9 | ✅ |
+| REC-15 | Messages | §7.6, §11.2 | ✅ |
+| REC-16 | Hiring intents | §7.6 | ✅ |
 | REC-17 | Company profile editor | §7.6 | ⏳ |
 | REC-18 | Team and permissions | §7.6, §4.2 | 🔄 |
 | REC-19 | Recruiter settings | §7.6 | ⏳ |

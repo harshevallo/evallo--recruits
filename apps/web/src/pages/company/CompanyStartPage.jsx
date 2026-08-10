@@ -5,6 +5,7 @@ import { Avatar, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { CreateCompanyForm } from '@/features/account/components/CreateCompanyForm';
+import { CompanyJoinSearch } from '@/features/account/components/CompanyJoinSearch';
 import { useAuth } from '@/context/AuthContext';
 import { fetchMyInvitations, acceptInvitation, declineInvitation } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
@@ -19,8 +20,13 @@ import { PATHS, buildPath } from '@/router/paths';
  * Creation reuses `CreateCompanyForm` — the same component HOME-01 shows in its modal — so the
  * two entry points cannot drift apart.
  *
- * Searching for and claiming an existing company (also listed under REC-01) needs the duplicate
- * detection described in PRD §21.2, which arrives with company verification. Not built here.
+ * Three ways in, in the order a recruiter is most likely to need them: ask to join a company that
+ * is already here, accept an invitation someone sent, or create the company. All three end in an
+ * ACTIVE `CompanyMember` row, which is the only thing that makes a user a recruiter (ADR-001).
+ *
+ * Search covers PUBLISHED companies only — an unpublished company is not discoverable (PRD §9.3),
+ * so the route into one is an invitation from someone already inside. The UI says so rather than
+ * returning an empty result and leaving the reason to guesswork.
  */
 export function CompanyStartPage() {
   const navigate = useNavigate();
@@ -71,12 +77,11 @@ export function CompanyStartPage() {
   return (
     <Container className="py-32">
       <header className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">
-          Create or join a company
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Post a job</h1>
         <p className="mt-2 max-w-xl text-gray-600">
-          A company is a separate context on the same account. Joining one does not change your
-          personal profile, and you can belong to several.
+          Hiring happens through a company. Find the one you work at and ask to join it, or create it
+          if it is not here yet. A company is a separate context on the same account — joining one
+          does not change your personal profile, and you can belong to several.
         </p>
       </header>
 
@@ -92,10 +97,11 @@ export function CompanyStartPage() {
           className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
         >
           <h2 id="create-heading" className="mb-1 text-lg font-bold text-brand-dark">
-            Create a company
+            Create a new company
           </h2>
           <p className="mb-5 text-sm text-gray-600">
-            You become its owner. It starts as a draft — nothing is public until you publish it.
+            Only if it is not on Evallo Recruit yet. You become its owner, and it starts as a draft —
+            nothing is public until you publish it.
           </p>
 
           <CreateCompanyForm
@@ -112,9 +118,19 @@ export function CompanyStartPage() {
           className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
         >
           <h2 id="join-heading" className="mb-1 text-lg font-bold text-brand-dark">
-            Join a company
+            Join the company you work at
           </h2>
           <p className="mb-5 text-sm text-gray-600">
+            Search for it and ask to join. Its owner or an admin approves the request and chooses
+            your role.
+          </p>
+
+          <CompanyJoinSearch onJoined={() => refresh().catch(() => {})} />
+
+          <hr className="my-6 border-gray-100" />
+
+          <h3 className="mb-1 text-sm font-bold text-brand-dark">Invitations</h3>
+          <p className="mb-4 text-sm text-gray-600">
             Invitations sent to your email address appear here.
           </p>
 

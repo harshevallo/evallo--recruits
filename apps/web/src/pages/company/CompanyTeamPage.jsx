@@ -7,6 +7,9 @@ import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import {
+  fetchCompanyJoinRequests,
+  approveJoinRequest,
+  declineJoinRequest,
   fetchCompanyInvitations,
   fetchCompanyMembers,
   inviteTeamMember,
@@ -67,7 +70,12 @@ export function CompanyTeamPage() {
   const { companySlug } = useParams();
   const { user, refresh } = useAuth();
 
-  const [state, setState] = useState({ status: 'loading', invitations: [], members: [] });
+  const [state, setState] = useState({
+    status: 'loading',
+    invitations: [],
+    members: [],
+    joinRequests: [],
+  });
   const [form, setForm] = useState({ email: '', role: COMPANY_ROLES.RECRUITER });
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSending, setIsSending] = useState(false);
@@ -75,6 +83,8 @@ export function CompanyTeamPage() {
   const [feedback, setFeedback] = useState(null);
   /** `{ kind: 'remove' | 'transfer', member }` — both are irreversible enough to confirm. */
   const [confirming, setConfirming] = useState(null);
+  /** Role chosen per join request, keyed by request id. The request itself is never mutated. */
+  const [pickedRoles, setPickedRoles] = useState({});
 
   const load = useCallback(
     async (signal) => {
@@ -83,15 +93,17 @@ export function CompanyTeamPage() {
        * endpoint. Both are behind `member:manage`, so a caller who can see one can see the other
        * — there is no partial state to design around.
        */
-      const [invitationData, memberData] = await Promise.all([
+      const [invitationData, memberData, joinData] = await Promise.all([
         fetchCompanyInvitations(companySlug, { signal }),
         fetchCompanyMembers(companySlug, { signal }),
+        fetchCompanyJoinRequests(companySlug, { signal }),
       ]);
 
       setState({
         status: 'ready',
         invitations: invitationData.invitations,
         members: memberData.members,
+        joinRequests: joinData.requests,
         yourRole: invitationData.yourRole,
       });
     },
@@ -103,7 +115,13 @@ export function CompanyTeamPage() {
 
     load(controller.signal).catch((error) => {
       if (controller.signal.aborted || error.name === 'CanceledError') return;
-      setState({ status: 'error', invitations: [], members: [], message: error.message });
+      setState({
+        status: 'error',
+        invitations: [],
+        members: [],
+        joinRequests: [],
+        message: error.message,
+      });
     });
 
     return () => controller.abort();
@@ -115,6 +133,40 @@ export function CompanyTeamPage() {
    * simply does not offer what would be rejected.
    */
   const membership = { role: state.yourRole, status: 'active' };
+  /**
+   * Approving a join request (REC-01).
+   *
+   * The role comes from THIS screen, never from the request — otherwise someone could ask for
+   * `owner` and be granted it. The server enforces the same rule.
+   */
+  async function decideJoinRequest(request, approve, role) {
+    setBusyId(request.id);
+    setFeedback(null);
+    try {
+      if (approve) {
+        const result = await approveJoinRequest(companySlug, request.id, role);
+        setFeedback({
+          tone: 'success',
+          text: `${request.user?.name || request.user?.email} joined as ${
+            COMPANY_ROLE_LABELS[result.request.grantedRole] ?? result.request.grantedRole
+          }.`,
+        });
+      } else {
+        await declineJoinRequest(companySlug, request.id);
+        setFeedback({ tone: 'success', text: 'Request declined.' });
+      }
+      // Refetch rather than patch: approval creates a member, so two lists change at once.
+      await load();
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        text: error.details?.role ?? error.message ?? 'We could not complete that.',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const roleOptions = Object.entries(COMPANY_ROLE_LABELS)
     .filter(
       ([role]) => role !== COMPANY_ROLES.OWNER || can(membership, PERMISSIONS.COMPANY_TRANSFER),
@@ -281,6 +333,97 @@ export function CompanyTeamPage() {
 
       {state.status === 'ready' && (
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          {/*
+            REC-01 join requests. Above the invite form on purpose: someone is already waiting, and
+            that is more urgent than starting a new invitation.
+          */}
+          {(state.joinRequests ?? []).length > 0 && (
+            <section
+              aria-labelledby="requests-heading"
+              className="mb-8 rounded-2xl border border-brand-blue/30 bg-blue-50/30 p-6"
+            >
+              <h2 id="requests-heading" className="mb-1 text-lg font-bold text-brand-dark">
+                Requests to join
+              </h2>
+              <p className="mb-5 text-sm text-gray-600">
+                These people asked to join. Approving one grants access immediately, with the role you
+                choose.
+              </p>
+
+              <ul className="space-y-3">
+                {state.joinRequests.map((request) => (
+                  <li
+                    key={request.id}
+                    className="rounded-xl border border-gray-200 bg-white p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-brand-dark">
+                          {request.user?.name || request.user?.email}
+                        </p>
+                        {request.user?.name && (
+                          <p className="text-xs text-gray-500">{request.user.email}</p>
+                        )}
+                        {request.message && (
+                          <p className="mt-2 max-w-prose text-sm text-gray-700">
+                            “{request.message}”
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-none flex-wrap items-center gap-2">
+                        <label className="sr-only" htmlFor={`role-${request.id}`}>
+                          Role to grant
+                        </label>
+                        <SelectInput
+                          id={`role-${request.id}`}
+                          name={`role-${request.id}`}
+                          className="!w-auto !py-2 !text-xs"
+                          options={roleOptions}
+                          value={pickedRoles[request.id] ?? request.requestedRole}
+                          disabled={busyId === request.id}
+                          onChange={(event) =>
+                            setPickedRoles((current) => ({
+                              ...current,
+                              [request.id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          radius="lg"
+                          disabled={busyId === request.id}
+                          onClick={() =>
+                            decideJoinRequest(
+                              request,
+                              true,
+                              pickedRoles[request.id] ?? request.requestedRole,
+                            )
+                          }
+                        >
+                          {busyId === request.id ? 'Working…' : 'Approve'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outlineDark"
+                          size="sm"
+                          radius="lg"
+                          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+                          disabled={busyId === request.id}
+                          onClick={() => decideJoinRequest(request, false)}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section
             aria-labelledby="invite-heading"
             className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"

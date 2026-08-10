@@ -5,6 +5,7 @@ export const updateProfileValidation = {
   body: z.object({
     name: z.string().trim().min(1).max(120).optional(),
     headline: z.string().trim().max(200).optional(),
+    phone: z.string().trim().max(40).optional(),
     profilePicture: z.string().trim().url().max(2048).optional(),
     location: z
       .object({

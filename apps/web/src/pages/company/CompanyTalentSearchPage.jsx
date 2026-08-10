@@ -18,11 +18,20 @@ import {
   COUNTRY_LABELS,
   LANGUAGE_LABELS,
 } from '@evallo/shared';
-import { Button, Container, Pagination } from '@/components/ui';
-import { SelectInput, TextInput, Checkbox } from '@/components/form';
+import { PIPELINE_STAGE_LABELS } from '@evallo/shared';
+import { Button, Container, Modal, Pagination } from '@/components/ui';
+import { SelectInput, TextInput, Checkbox, Textarea } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
-import { searchCandidates } from '@/services';
+import {
+  searchCandidates,
+  fetchSavedCandidates,
+  saveCandidate,
+  unsaveCandidate,
+  addToPipeline,
+  fetchPipeline,
+  startCompanyConversation,
+} from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -92,6 +101,20 @@ export function CompanyTalentSearchPage() {
   const [draftQuery, setDraftQuery] = useState(searchParams.get('q') ?? '');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  /*
+   * Card action state.
+   *
+   * `savedIds` and `pipelineStages` are loaded once per company rather than per result, so a
+   * result page of twenty candidates costs two extra requests, not forty. They are kept in sync
+   * optimistically after each mutation AND the server response is what decides — a failed save
+   * rolls the star back rather than leaving the UI claiming something that did not happen.
+   */
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [pipelineStages, setPipelineStages] = useState({});
+  const [actionBusy, setActionBusy] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null);
+  const [composing, setComposing] = useState(null);
+
   /** The request is derived entirely from the URL — the URL is the single source of truth. */
   const query = useMemo(() => {
     const params = { sort: searchParams.get('sort') || 'recent', page: Number(searchParams.get('page') || 1) };
@@ -113,6 +136,109 @@ export function CompanyTalentSearchPage() {
     },
     [companySlug, query],
   );
+
+  /**
+   * Shortlist and pipeline membership, so the cards can show real state.
+   *
+   * Failures are swallowed on purpose: a recruiter without `candidate:view` or `pipeline:view` can
+   * still search, and the cards simply show no saved/pipeline state rather than the page erroring.
+   */
+  const loadCardState = useCallback(async () => {
+    const [saved, pipeline] = await Promise.allSettled([
+      fetchSavedCandidates(companySlug),
+      fetchPipeline(companySlug, { includeClosed: false }),
+    ]);
+
+    if (saved.status === 'fulfilled') {
+      setSavedIds(new Set((saved.value.saved ?? []).map((row) => row.candidate.id)));
+    }
+
+    if (pipeline.status === 'fulfilled') {
+      const stages = {};
+      for (const stage of pipeline.value.stages ?? []) {
+        for (const entry of stage.entries) stages[entry.candidate.id] = entry.stage;
+      }
+      setPipelineStages(stages);
+    }
+  }, [companySlug]);
+
+  useEffect(() => {
+    loadCardState();
+  }, [loadCardState]);
+
+  /** Saving and unsaving. Optimistic, reverted if the server refuses. */
+  async function toggleSaved(card) {
+    const wasSaved = savedIds.has(card.id);
+    setActionBusy(card.id);
+    setSavedIds((current) => {
+      const next = new Set(current);
+      if (wasSaved) next.delete(card.id);
+      else next.add(card.id);
+      return next;
+    });
+
+    try {
+      if (wasSaved) await unsaveCandidate(companySlug, card.id);
+      else await saveCandidate(companySlug, card.id);
+      setActionFeedback({
+        tone: 'success',
+        text: wasSaved ? 'Removed from your shortlist.' : 'Saved to your shortlist.',
+      });
+    } catch (error) {
+      setSavedIds((current) => {
+        const next = new Set(current);
+        if (wasSaved) next.add(card.id);
+        else next.delete(card.id);
+        return next;
+      });
+      setActionFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function addCandidate(card) {
+    setActionBusy(card.id);
+    try {
+      const { entry } = await addToPipeline(companySlug, { candidateId: card.id, source: 'search' });
+      setPipelineStages((current) => ({ ...current, [card.id]: entry.stage }));
+      setActionFeedback({
+        tone: 'success',
+        text: `Added to ${PIPELINE_STAGE_LABELS[entry.stage] ?? 'the pipeline'}.`,
+      });
+    } catch (error) {
+      setActionFeedback({
+        tone: 'error',
+        text: error.details?.stage ?? error.message ?? 'We could not add them.',
+      });
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  /**
+   * Opening a conversation.
+   *
+   * PRD §11.2 requires a first message to a merely-discoverable candidate to identify the company
+   * and the role context, so the composer is pre-filled with that framing rather than an empty box
+   * — a recruiter can edit it, but the default is the compliant one.
+   */
+  async function sendFirstMessage() {
+    if (!composing?.body.trim()) return;
+    setActionBusy(composing.card.id);
+    try {
+      await startCompanyConversation(companySlug, {
+        candidateId: composing.card.id,
+        body: composing.body.trim(),
+      });
+      setComposing(null);
+      setActionFeedback({ tone: 'success', text: 'Message sent. It is now in your Messages.' });
+    } catch (error) {
+      setActionFeedback({ tone: 'error', text: error.message ?? 'We could not send that.' });
+    } finally {
+      setActionBusy(null);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,6 +300,13 @@ export function CompanyTalentSearchPage() {
           shared — not by any ranking of who is better.
         </p>
       </header>
+
+      {/* Outcome of the last card action. Announced, so it is not a silent success or failure. */}
+      {actionFeedback && (
+        <StatusRegion tone={actionFeedback.tone} className="mb-6">
+          {actionFeedback.text}
+        </StatusRegion>
+      )}
 
       {/* Keyword. Submitted rather than typed-through, so each keystroke is not a server query. */}
       <form
@@ -404,16 +537,65 @@ export function CompanyTalentSearchPage() {
                           )}
                         </div>
 
-                        <Button
-                          to={buildPath(PATHS.COMPANY_CANDIDATE, {
-                            companySlug,
-                            candidateId: card.id,
-                          })}
-                          variant="primary"
-                          size="sm"
-                        >
-                          Open profile
-                        </Button>
+                        {/*
+                          Card actions. Every one persists: saving writes a shortlist row, adding
+                          writes a pipeline entry, messaging opens a real thread. Saving is silent
+                          to the candidate (PRD §21.4) — nothing here notifies them.
+                        */}
+                        <div className="flex flex-none flex-col gap-2 sm:w-40">
+                          <Button
+                            /* `source` is recorded in the access log (PRD §21.4). */
+                            to={`${buildPath(PATHS.COMPANY_CANDIDATE, {
+                              companySlug,
+                              candidateId: card.id,
+                            })}?source=search`}
+                            variant="primary"
+                            size="sm"
+                          >
+                            Open profile
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outlineDark"
+                            size="sm"
+                            radius="lg"
+                            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+                            disabled={actionBusy === card.id}
+                            onClick={() => toggleSaved(card)}
+                          >
+                            {savedIds.has(card.id) ? 'Saved ✓' : 'Save'}
+                          </Button>
+
+                          {pipelineStages[card.id] ? (
+                            <span className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-gray-600">
+                              In {PIPELINE_STAGE_LABELS[pipelineStages[card.id]] ?? 'pipeline'}
+                            </span>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outlineDark"
+                              size="sm"
+                              radius="lg"
+                              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+                              disabled={actionBusy === card.id}
+                              onClick={() => addCandidate(card)}
+                            >
+                              Add to pipeline
+                            </Button>
+                          )}
+
+                          <Button
+                            type="button"
+                            variant="outlineDark"
+                            size="sm"
+                            radius="lg"
+                            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+                            onClick={() => setComposing({ card, body: '' })}
+                          >
+                            Message
+                          </Button>
+                        </div>
                       </div>
                     </li>
                   ))}
@@ -437,6 +619,56 @@ export function CompanyTalentSearchPage() {
           )}
         </section>
       </div>
+
+      {/*
+        First contact. PRD §11.2: a first message to a merely-discoverable candidate must clearly
+        identify the company and the role context, so the composer opens with that framing already
+        written rather than leaving compliance to whoever is typing.
+      */}
+      <Modal
+        open={Boolean(composing)}
+        onClose={() => setComposing(null)}
+        title={`Message ${composing?.card.name ?? 'this candidate'}`}
+        description="They will see your company name with this message. Keep it about the role."
+      >
+        <label htmlFor="first-message" className="mb-1.5 block text-sm font-semibold text-gray-700">
+          Your message
+        </label>
+        <Textarea
+          id="first-message"
+          name="first-message"
+          rows={5}
+          placeholder="Introduce your company and the role you have in mind…"
+          value={composing?.body ?? ''}
+          disabled={actionBusy === composing?.card.id}
+          onChange={(event) =>
+            setComposing((current) => ({ ...current, body: event.target.value }))
+          }
+        />
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5">
+          <Button
+            type="button"
+            variant="outlineDark"
+            size="sm"
+            radius="lg"
+            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+            onClick={() => setComposing(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            radius="lg"
+            disabled={!composing?.body?.trim() || actionBusy === composing?.card.id}
+            onClick={sendFirstMessage}
+          >
+            {actionBusy === composing?.card.id ? 'Sending…' : 'Send message'}
+          </Button>
+        </div>
+      </Modal>
     </Container>
   );
 }

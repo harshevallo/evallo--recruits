@@ -26,13 +26,13 @@ const CARDS = [
 
 export function PlatformFeaturesSection() {
   return (
-    <Section id="features" tone="dark">
+    <Section id="features" tone="white">
       <Container>
         <div className="mb-16 text-center">
           <h2 className="mb-4 text-3xl font-bold md:text-4xl">
             A recruitment cycle optimized for education
           </h2>
-          <p className="mx-auto max-w-2xl text-gray-400">
+          <p className="mx-auto max-w-2xl text-gray-600">
             Everything you need to evaluate instructional talent natively built into one secure
             platform.
           </p>
@@ -40,7 +40,7 @@ export function PlatformFeaturesSection() {
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
           {CARDS.map((card) => (
-            <FeatureCard key={card.title} icon={card.icon} title={card.title} tone="dark">
+            <FeatureCard key={card.title} icon={card.icon} title={card.title} tone="white">
               {card.body}
             </FeatureCard>
           ))}

@@ -11,3 +11,4 @@ export { apiClient, unwrap, unwrapWithMeta } from './apiClient.js';
 export * from './public.api.js';
 export * from './users.api.js';
 export * from './companies.api.js';
+export * from './settings.api.js';

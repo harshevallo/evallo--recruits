@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Container, Icon } from '@/components/ui';
+import { BackLink, Badge, Button, Container } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ProfileCompletenessCard } from '@/features/candidate/components/ProfileCompletenessCard';
@@ -71,6 +71,17 @@ export function CandidateHomePage() {
 
   return (
     <Container className="py-32">
+      {/*
+        Back to the account home, at the top — the same affordance SET-01 uses.
+
+        The three pills that used to sit at the FOOT of this page (Companies, My interests, Messages)
+        were verbatim copies of candidate rail items. Repeating the rail under the page made the app
+        look like it had two navigations, and it pushed the only non-rail destination — the account
+        home — to the very bottom where nothing else lives. The rail owns navigation; this owns the
+        one step up out of the candidate context.
+      */}
+      <BackLink to={PATHS.APP_HOME} label="Home" className="mb-6" />
+
       <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex items-center gap-3">
@@ -113,45 +124,6 @@ export function CandidateHomePage() {
           </div>
         </div>
       </div>
-
-      {/* PRD §5.2 candidate-mode navigation. Only screens that exist are linked. */}
-      <nav aria-label="Personal" className="mt-10 flex flex-wrap gap-3">
-        <Button
-          to={PATHS.CANDIDATE_COMPANIES}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="compass" />
-          Companies
-        </Button>
-        <Button
-          to={PATHS.CANDIDATE_INTERESTS}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          My interests
-        </Button>
-        <Button
-          to={PATHS.CANDIDATE_MESSAGES}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="comments" />
-          Messages
-        </Button>
-        <Button
-          to={PATHS.APP_HOME}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="arrow-right" className="rotate-180 text-xs" />
-          Back to home
-        </Button>
-      </nav>
     </Container>
   );
 }

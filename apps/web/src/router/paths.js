@@ -52,9 +52,14 @@ export const PATHS = Object.freeze({
   CANDIDATE_COMPANIES: '/me/companies',
   CANDIDATE_COMPANY_PROFILE: '/me/companies/:slug',
   CANDIDATE_INTERESTS: '/me/interests',
-  CANDIDATE_SAVED: '/me/saved',
   CANDIDATE_MESSAGES: '/me/messages',
   ACCOUNT_SETTINGS: '/settings',
+  /* SET-01 is a dashboard with sub-pages, not one long form (TRD §4.1 `/settings/*`). */
+  SETTINGS_ACCOUNT: '/settings/account',
+  SETTINGS_SECURITY: '/settings/security',
+  SETTINGS_NOTIFICATIONS: '/settings/notifications',
+  SETTINGS_PRIVACY: '/settings/privacy',
+  SETTINGS_DATA: '/settings/data',
 
   // Company workspace
   // REC-01 — create or join. Reached from HOME-01 and AUTH-05; not company-scoped, because the

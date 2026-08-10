@@ -57,10 +57,18 @@
   }
 
   /* Hero backdrop: near-black with two soft brand-blue radial glows. */
+  /*
+   * One base colour across the whole landing page.
+   *
+   * The hero used to be `brand.dark` while the sections below were white, so scrolling crossed a
+   * hard light/dark seam. The base is now the same white as everything else and brand blue appears
+   * only as a soft wash — which is also what makes the coming dark theme a token swap rather than a
+   * redesign of this one section.
+   */
   .hero-pattern {
-    background-color: theme('colors.brand.dark');
+    background-color: theme('colors.white');
     background-image:
-      radial-gradient(circle at top right, rgb(6 113 224 / 0.15), transparent 40%),
-      radial-gradient(circle at bottom left, rgb(6 113 224 / 0.1), transparent 40%);
+      radial-gradient(circle at top right, rgb(6 113 224 / 0.08), transparent 45%),
+      radial-gradient(circle at bottom left, rgb(6 113 224 / 0.06), transparent 45%);
   }
 }

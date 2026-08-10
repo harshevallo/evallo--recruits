@@ -22,7 +22,13 @@ import { QuestionBank } from './questionBank.model.js';
 import { QUESTION_BANK, QUESTION_BANK_VERSION } from './questionBank.definition.js';
 
 const OPTION_SETS = Object.freeze({
-  candidateRoles: CANDIDATE_ROLE_OPTIONS.map(({ value, label }) => ({ value, label })),
+  // `description` reaches the client because the card presentation draws it; `family` and
+  // `priority` stay server-side, since they steer question visibility rather than the UI.
+  candidateRoles: CANDIDATE_ROLE_OPTIONS.map(({ value, label, description }) => ({
+    value,
+    label,
+    description,
+  })),
   subjects: SUBJECT_OPTIONS,
   learnerSegments: LEARNER_SEGMENT_OPTIONS,
   availability: AVAILABILITY_OPTIONS,

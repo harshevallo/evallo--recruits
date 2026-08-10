@@ -37,20 +37,20 @@ export const ROLE_FAMILY_LABELS = Object.freeze({
  * role-specific dynamic questions in MVP.
  */
 export const CANDIDATE_ROLE_OPTIONS = Object.freeze([
-  { value: 'private_tutor', label: 'Private tutor', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION, priority: true },
-  { value: 'test_prep_tutor', label: 'Test-prep tutor', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION, priority: true },
-  { value: 'academic_coach', label: 'Academic coach', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION },
-  { value: 'school_teacher', label: 'School teacher', family: ROLE_FAMILIES.SCHOOL_TEACHING, priority: true },
-  { value: 'teaching_assistant', label: 'Teaching assistant', family: ROLE_FAMILIES.SCHOOL_TEACHING, priority: true },
-  { value: 'special_education_teacher', label: 'Special-education teacher', family: ROLE_FAMILIES.SCHOOL_TEACHING },
-  { value: 'professor_lecturer', label: 'Professor / lecturer / adjunct', family: ROLE_FAMILIES.HIGHER_EDUCATION, priority: true },
-  { value: 'admissions_counselor', label: 'Admissions / academic counselor', family: ROLE_FAMILIES.COUNSELING, priority: true },
-  { value: 'school_counselor', label: 'School counselor', family: ROLE_FAMILIES.COUNSELING },
-  { value: 'curriculum_designer', label: 'Curriculum or content specialist', family: ROLE_FAMILIES.CURRICULUM, priority: true },
-  { value: 'instructional_designer', label: 'Instructional designer', family: ROLE_FAMILIES.CURRICULUM },
-  { value: 'academic_coordinator', label: 'Academic coordinator', family: ROLE_FAMILIES.LEADERSHIP },
-  { value: 'language_instructor', label: 'Language / ESL instructor', family: ROLE_FAMILIES.LANGUAGE_SPECIALIST },
-  { value: 'teacher_trainer', label: 'Teacher trainer', family: ROLE_FAMILIES.TRAINING_CONSULTING },
+  { value: 'private_tutor', label: 'Private tutor', description: 'One-to-one coaching and academic support.', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION, priority: true },
+  { value: 'test_prep_tutor', label: 'Test-prep tutor', description: 'Standardised tests, score growth, timed practice.', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION, priority: true },
+  { value: 'academic_coach', label: 'Academic coach', description: 'Study skills, executive function, accountability.', family: ROLE_FAMILIES.PRIVATE_INSTRUCTION },
+  { value: 'school_teacher', label: 'School teacher', description: 'Classroom instruction, K-12, curriculum delivery.', family: ROLE_FAMILIES.SCHOOL_TEACHING, priority: true },
+  { value: 'teaching_assistant', label: 'Teaching assistant', description: 'Classroom support alongside a lead teacher.', family: ROLE_FAMILIES.SCHOOL_TEACHING, priority: true },
+  { value: 'special_education_teacher', label: 'Special-education teacher', description: 'Individual education plans and accommodations.', family: ROLE_FAMILIES.SCHOOL_TEACHING },
+  { value: 'professor_lecturer', label: 'Professor / lecturer / adjunct', description: 'Higher education teaching and assessment.', family: ROLE_FAMILIES.HIGHER_EDUCATION, priority: true },
+  { value: 'admissions_counselor', label: 'Admissions / academic counselor', description: 'College advising, applications, student mentoring.', family: ROLE_FAMILIES.COUNSELING, priority: true },
+  { value: 'school_counselor', label: 'School counselor', description: 'Pastoral support and guidance inside a school.', family: ROLE_FAMILIES.COUNSELING },
+  { value: 'curriculum_designer', label: 'Curriculum or content specialist', description: 'Instructional design, content, assessments.', family: ROLE_FAMILIES.CURRICULUM, priority: true },
+  { value: 'instructional_designer', label: 'Instructional designer', description: 'Learning experiences and course architecture.', family: ROLE_FAMILIES.CURRICULUM },
+  { value: 'academic_coordinator', label: 'Academic coordinator', description: 'Programme planning and teacher coordination.', family: ROLE_FAMILIES.LEADERSHIP },
+  { value: 'language_instructor', label: 'Language / ESL instructor', description: 'Language acquisition and fluency teaching.', family: ROLE_FAMILIES.LANGUAGE_SPECIALIST },
+  { value: 'teacher_trainer', label: 'Teacher trainer', description: 'Training and developing other educators.', family: ROLE_FAMILIES.TRAINING_CONSULTING },
 ]);
 
 export const CANDIDATE_ROLE_VALUES = Object.freeze(

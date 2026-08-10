@@ -62,6 +62,32 @@ const userSchema = new mongoose.Schema(
 
     // Personal profile layer (PRD §4.1).
     headline: String,
+
+    /**
+     * Account-level contact number. SET-01 "account identity", not professional profile content.
+     *
+     * Never returned on any recruiter-facing surface: the candidate's own contact rules
+     * (`contactVisibility`) decide what a company sees, and this field is not part of that path.
+     */
+    phone: String,
+
+    /**
+     * Notification preferences — PRD §15 / §9 "digest frequencies immediate / daily / weekly / off"
+     * and per-channel control.
+     *
+     * A map keyed by event, each with an email and an in-app switch. Absent keys fall back to the
+     * defaults in the settings service, so adding an event type never needs a migration.
+     *
+     * §15 also states security notices cannot be fully disabled — enforced in the service, which
+     * refuses to write a preference for them rather than storing one that would be ignored.
+     */
+    notificationPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
+
+    /** Set when the person asks for deletion; the account is retained until it is processed. */
+    deletionRequestedAt: Date,
     location: { country: String, region: String, city: String, timezone: String },
     languages: [String],
 

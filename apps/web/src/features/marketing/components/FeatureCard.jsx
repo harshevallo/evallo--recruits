@@ -9,13 +9,13 @@ import { Icon } from '@/components/ui';
 export function FeatureCard({ icon, title, children, tone = 'light' }) {
   if (tone === 'dark') {
     return (
-      <article className="group rounded-2xl border border-gray-800 bg-gray-900 p-6 transition-colors hover:border-brand-blue">
+      <article className="group rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-colors hover:border-brand-blue">
         <Icon
           name={icon}
           className="mb-4 text-3xl text-brand-blue transition-transform group-hover:scale-110"
         />
         <h3 className="mb-2 text-xl font-bold">{title}</h3>
-        <p className="text-sm text-gray-400">{children}</p>
+        <p className="text-sm text-gray-600">{children}</p>
       </article>
     );
   }

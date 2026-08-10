@@ -358,11 +358,13 @@ describe('CAN-02 role-gated questions (PRD §20.2)', () => {
 
     const res = await authPatch('/api/me/candidate-profile/sections/professional_identity', accessToken, {
       values: {
+        fullName: 'Asha Menon',
         headline: 'IB Physics teacher',
         summary: 'Ten years teaching IB and A-level physics.',
         pronouns: 'she/her',
         country: 'IN',
         region: 'Bengaluru',
+        timezone: 'Asia/Kolkata',
         languages: ['en'],
       },
     });

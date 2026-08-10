@@ -5,6 +5,7 @@ export { SectionHeading } from './SectionHeading';
 export { Badge } from './Badge';
 export { Avatar } from './Avatar';
 export { Icon } from './Icon';
+export { BackLink } from './BackLink';
 export { Logo } from './Logo';
 export { Pagination } from './Pagination';
 export { Modal } from './Modal';

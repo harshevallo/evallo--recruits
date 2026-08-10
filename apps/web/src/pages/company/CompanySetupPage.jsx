@@ -128,14 +128,28 @@ export function CompanySetupPage() {
   const index = steps.findIndex((s) => s.key === activeStep.key);
   const nextStep = steps[index + 1] ?? null;
   const isSaving = saveState === 'saving';
+  /*
+   * One screen, two jobs (REC-02 and REC-17).
+   *
+   * The fields, the endpoints and the publish checklist are identical whether a company is being
+   * set up for the first time or edited afterwards, so this is the same editor rather than a second
+   * copy of it. Only the framing changes: telling the owner of a LIVE page that "nothing is public"
+   * would be false.
+   */
+  const isPublished = company.status === 'published';
 
   return (
     <Container className="py-32">
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Company setup</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">
+            {isPublished ? 'Company page' : 'Company setup'}
+          </h1>
           <p className="mt-2 max-w-xl text-gray-600">
-            {company.name} · everything saves as a draft. Nothing is public until you publish.
+            {company.name} ·{' '}
+            {isPublished
+              ? 'edits save immediately and update your public page.'
+              : 'everything saves as a draft. Nothing is public until you publish.'}
           </p>
         </div>
         <Button
@@ -145,7 +159,7 @@ export function CompanySetupPage() {
           radius="lg"
           className="shrink-0 !border-gray-300 !text-brand-dark hover:!bg-gray-50"
         >
-          Preview and publish
+          {isPublished ? 'Preview' : 'Preview and publish'}
         </Button>
       </header>
 

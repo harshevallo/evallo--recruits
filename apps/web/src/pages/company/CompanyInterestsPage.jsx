@@ -339,10 +339,11 @@ export function CompanyInterestsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     {row.candidate.viewable && (
                       <Button
-                        to={buildPath(PATHS.COMPANY_CANDIDATE, {
+                        /* `source` is recorded in the access log (PRD §21.4). */
+                        to={`${buildPath(PATHS.COMPANY_CANDIDATE, {
                           companySlug,
                           candidateId: row.candidate.profileId,
-                        })}
+                        })}?source=interest`}
                         variant="primary"
                         size="sm"
                         onClick={() => openCandidate(row)}

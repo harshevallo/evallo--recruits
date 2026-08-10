@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { PATHS } from '@/router/paths';
+import { PATHS, buildPath } from '@/router/paths';
 import { cn } from '@/utils/cn';
 
 function initialsFor(user) {
@@ -22,7 +22,9 @@ function initialsFor(user) {
  * Signed in: avatar menu with the workspace link and sign out.
  */
 export function UserMenu({ linkColor }) {
-  const { isAuthenticated, isLoading, user, signOut } = useAuth();
+  const { isAuthenticated, isLoading, user, signOut, capabilities } = useAuth();
+  /* Same source the route guards read, so a menu item can never point somewhere they would refuse. */
+  const companies = capabilities?.companies ?? [];
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -55,8 +57,13 @@ export function UserMenu({ linkColor }) {
         <Link to={PATHS.SIGN_IN} className={cn('text-sm font-medium transition-colors', linkColor)}>
           Log in
         </Link>
+        {/*
+          Candidate-first: the navbar's single prominent CTA belongs to the educator, not the
+          recruiter. Hiring is reachable from the hero's secondary action and from HOME-01 after
+          sign-in, so nothing is lost by not putting it here.
+        */}
         <Button to={PATHS.SIGN_UP} variant="primary" size="sm">
-          Post a Job
+          Apply for roles
         </Button>
       </div>
     );
@@ -87,6 +94,12 @@ export function UserMenu({ linkColor }) {
             <p className="truncate text-xs text-gray-500">{user?.email}</p>
           </div>
 
+          {/*
+            Every destination this account can actually reach.
+            Items appear only when the capability behind them exists (ADR-001): a person with no
+            candidate profile has no profile to open, and someone in no company has no workspace — a
+            link to either would be a guaranteed bounce off a route guard.
+          */}
           <Link
             to={PATHS.APP_HOME}
             role="menuitem"
@@ -95,6 +108,57 @@ export function UserMenu({ linkColor }) {
           >
             Home
           </Link>
+
+          {capabilities?.hasCandidateProfile && (
+            <>
+              <Link
+                to={PATHS.CANDIDATE_HOME}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Your candidate profile
+              </Link>
+              <Link
+                to={PATHS.CANDIDATE_MESSAGES}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Messages
+              </Link>
+            </>
+          )}
+
+          {companies.length > 0 && (
+            <div className="mt-1 border-t border-gray-100 pt-1">
+              <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Your companies
+              </p>
+              {companies.slice(0, 4).map((company) => (
+                <Link
+                  key={company.slug}
+                  to={buildPath(PATHS.COMPANY_HOME, { companySlug: company.slug })}
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  className="block truncate px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {company.name}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-1 border-t border-gray-100 pt-1">
+            <Link
+              to={PATHS.ACCOUNT_SETTINGS}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Account settings
+            </Link>
+          </div>
 
           <button
             type="button"

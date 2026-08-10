@@ -12,6 +12,7 @@
  */
 
 import { ApiError } from '../../lib/ApiError.js';
+import { listAllEntries } from './profileEntry.service.js';
 import {
   getActiveBank,
   optionsFor,
@@ -147,6 +148,10 @@ export async function getBuilderState(profile, user) {
           type: question.type,
           requiredForPublish: question.requiredForPublish,
           options: question.optionSet ? optionsFor(question.optionSet) : null,
+          /** How to draw the control (ADR-007 bank configuration, not a page decision). */
+          presentation: question.presentation ?? 'default',
+          /** Which panel the question belongs to, when the section draws more than one. */
+          group: question.group ?? null,
           maxLength: question.maxLength ?? null,
           min: question.min ?? null,
           max: question.max ?? null,
@@ -173,9 +178,103 @@ export async function getBuilderState(profile, user) {
       };
     });
 
+  /*
+   * Evidence sections (PRD §8.3 sections 4–5) sit alongside the bank's question sections rather
+   * than inside it. They are repeatable records in their own collections (ADR-008), not answers,
+   * so they cannot be expressed as questions — but a candidate experiences them as two more
+   * steps of the same builder, and the sidebar has to show them as such.
+   *
+   * `kind: 'entries'` is what tells the UI to render the repeatable pattern instead of a form.
+   * The bank still owns every question; this owns none.
+   */
+  const entries = await listAllEntries(profile);
+
+  const entrySections = [
+    {
+      key: 'experience',
+      title: 'Work experience',
+      description: 'Roles you have held. Recruiters read this before anything else you write.',
+      /*
+       * PRD §8.5 requires at least one experience entry OR an explicit new-educator declaration.
+       * The declaration does not exist yet, so this is reported as optional rather than blocking
+       * publication — gating on it today would lock out every new educator, which is the exact
+       * outcome §8.5 is written to avoid.
+       */
+      optional: true,
+      order: 90,
+      kind: 'entries',
+      entryKind: 'experience',
+      entries: entries.experience,
+    },
+    {
+      key: 'education',
+      title: 'Education',
+      description: 'Degrees and qualifications.',
+      optional: true,
+      order: 91,
+      kind: 'entries',
+      entryKind: 'education',
+      entries: entries.education,
+    },
+    {
+      key: 'media',
+      title: 'Portfolio and media',
+      description: 'Teaching videos. Recruiters watch these before they read anything else.',
+      optional: true,
+      order: 92,
+      kind: 'entries',
+      entryKind: 'media',
+      entries: entries.media,
+    },
+    {
+      key: 'credential',
+      title: 'Credentials and scores',
+      description: 'Licences, certifications and standardised scores.',
+      optional: true,
+      order: 93,
+      kind: 'entries',
+      entryKind: 'credential',
+      entries: entries.credential,
+    },
+  ].map((section) => ({
+    ...section,
+    questions: [],
+    answered: section.entries.length,
+    total: section.entries.length,
+    complete: section.entries.length > 0,
+    missingForPublish: [],
+  }));
+
+  /*
+   * Publish and visibility closes the builder (PRD §8.5, §4.3).
+   *
+   * It owns no questions and no entries — it is a view onto the CAN-04 settings the candidate
+   * already has, placed here because deciding who can see the profile is the last step of
+   * building it. The section carries no data of its own, so the client reads the existing
+   * visibility endpoints rather than this payload.
+   */
+  const visibilitySection = {
+    key: 'visibility',
+    title: 'Publish and visibility',
+    description: 'Choose who can find you, and how companies may reach you.',
+    optional: true,
+    order: 99,
+    kind: 'visibility',
+    questions: [],
+    entries: [],
+    answered: 0,
+    total: 0,
+    complete: false,
+    missingForPublish: [],
+  };
+
   return {
     bankVersion: bank.version,
-    sections,
+    sections: [
+      ...sections.map((s) => ({ ...s, kind: 'questions' })),
+      ...entrySections,
+      visibilitySection,
+    ],
     /** PRD §8.5 — what still blocks publication, named rather than scored. */
     publishBlockers: sections.flatMap((s) => s.missingForPublish),
   };

@@ -14,7 +14,7 @@
 
 import { QUESTION_TYPES, ANSWER_TARGETS } from './questionBank.model.js';
 
-export const QUESTION_BANK_VERSION = 2;
+export const QUESTION_BANK_VERSION = 6;
 
 export const QUESTION_BANK = Object.freeze([
   {
@@ -24,6 +24,20 @@ export const QUESTION_BANK = Object.freeze([
     order: 1,
     optional: false,
     questions: [
+      {
+        /*
+         * The personal layer owns the name (05_DATABASE_SCHEMA §2), so this writes `users.name`
+         * rather than copying it onto the candidate profile. One field, not first/last: the model
+         * stores one name, and splitting it in the form would invent a structure nothing reads.
+         */
+        key: 'fullName',
+        label: 'Full name',
+        placeholder: 'e.g. Sarah Jenkins',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.USER,
+        field: 'name',
+        maxLength: 120,
+      },
       {
         key: 'headline',
         label: 'Professional headline',
@@ -74,7 +88,23 @@ export const QUESTION_BANK = Object.freeze([
         maxLength: 120,
       },
       {
+        /*
+         * Time zone sits beside location because that is the question it answers — "when can we
+         * reach you", not "what job do you want". PRD §8.5 counts it under work preference; which
+         * SCREEN it appears on is a bank ordering decision, and the answer is stored identically
+         * either way.
+         */
+        key: 'timezone',
+        label: 'Primary time zone',
+        type: QUESTION_TYPES.SINGLE_SELECT,
+        target: ANSWER_TARGETS.USER,
+        field: 'location.timezone',
+        optionSet: 'timezones',
+        requiredForPublish: true,
+      },
+      {
         key: 'languages',
+        presentation: 'chips',
         label: 'Languages you teach in',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.USER,
@@ -92,8 +122,9 @@ export const QUESTION_BANK = Object.freeze([
     questions: [
       {
         key: 'targetRoles',
-        label: 'Which roles are you open to?',
-        help: 'Pick every role you would genuinely consider.',
+        presentation: 'cards',
+        label: 'Target education roles',
+        help: 'Select all roles you are seeking. Your selections tailor specific prompts across the builder.',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.PROFILE,
         field: 'targetRoles',
@@ -102,7 +133,8 @@ export const QUESTION_BANK = Object.freeze([
       },
       {
         key: 'employmentTypes',
-        label: 'Engagement types',
+        presentation: 'pills',
+        label: 'Engagement type',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.PROFILE,
         field: 'employmentTypes',
@@ -111,7 +143,8 @@ export const QUESTION_BANK = Object.freeze([
       },
       {
         key: 'deliveryModes',
-        label: 'How do you want to work?',
+        presentation: 'pills',
+        label: 'Delivery mode',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.PROFILE,
         field: 'deliveryModes',
@@ -125,16 +158,6 @@ export const QUESTION_BANK = Object.freeze([
         target: ANSWER_TARGETS.PROFILE,
         field: 'availability',
         optionSet: 'availability',
-        requiredForPublish: true,
-      },
-      {
-        // PRD §8.5 lists location/time-zone preference under work preference.
-        key: 'timezone',
-        label: 'Which time zone do you work in?',
-        type: QUESTION_TYPES.SINGLE_SELECT,
-        target: ANSWER_TARGETS.USER,
-        field: 'location.timezone',
-        optionSet: 'timezones',
         requiredForPublish: true,
       },
       {
@@ -161,6 +184,27 @@ export const QUESTION_BANK = Object.freeze([
         min: 0,
         max: 60,
       },
+      {
+        /*
+         * Compensation and work authorisation are answers, not profile columns: they are free
+         * text that nothing filters or indexes today, so they live in `candidateAnswers` where a
+         * bank revision can change or retire them without a migration.
+         */
+        key: 'compensation',
+        label: 'Expected rate / compensation',
+        placeholder: 'e.g. ₹1,500–2,000 / hr, or 12–15 LPA',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.ANSWER,
+        maxLength: 120,
+      },
+      {
+        key: 'workAuthorization',
+        label: 'Work authorization',
+        placeholder: 'e.g. Indian citizen, H-1B, Right to work in the UK',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.ANSWER,
+        maxLength: 160,
+      },
     ],
   },
   {
@@ -172,7 +216,8 @@ export const QUESTION_BANK = Object.freeze([
     questions: [
       {
         key: 'subjects',
-        label: 'Subjects and programmes',
+        presentation: 'chips',
+        label: 'Subjects and standardised tests',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.PROFILE,
         field: 'subjects',
@@ -181,7 +226,8 @@ export const QUESTION_BANK = Object.freeze([
       },
       {
         key: 'learnerSegments',
-        label: 'Learner segments',
+        presentation: 'tiles',
+        label: 'Learner levels',
         help: 'The age groups or levels you teach.',
         type: QUESTION_TYPES.MULTI_SELECT,
         target: ANSWER_TARGETS.PROFILE,
@@ -201,7 +247,7 @@ export const QUESTION_BANK = Object.freeze([
       },
       {
         key: 'curriculaTaught',
-        label: 'Which curricula have you taught?',
+        label: 'Curricula and special populations',
         help: 'For example: IB, CBSE, A-levels, AP.',
         type: QUESTION_TYPES.SHORT_TEXT,
         target: ANSWER_TARGETS.ANSWER,
@@ -231,6 +277,31 @@ export const QUESTION_BANK = Object.freeze([
         type: QUESTION_TYPES.LONG_TEXT,
         target: ANSWER_TARGETS.ANSWER,
         maxLength: 2000,
+      },
+      {
+        /*
+         * PRD §20.2 role-specific depth. `onlyForRoles` is what makes the tutoring block appear
+         * and disappear with the candidate's role selection — the conditional behaviour is bank
+         * configuration, evaluated by isQuestionVisible, not a switch in the page.
+         */
+        key: 'diagnosticProcess',
+        label: 'Describe your diagnostic process for building individual study plans.',
+        placeholder: 'When a student first comes to me, I begin by…',
+        type: QUESTION_TYPES.LONG_TEXT,
+        target: ANSWER_TARGETS.ANSWER,
+        maxLength: 2000,
+        group: 'test_prep',
+        onlyForRoles: ['test_prep_tutor', 'private_tutor'],
+      },
+      {
+        key: 'scoreGains',
+        label: 'Representative score gains achieved',
+        placeholder: 'e.g. Average +150 points on the SAT over 3 months from a 1200 base',
+        type: QUESTION_TYPES.SHORT_TEXT,
+        target: ANSWER_TARGETS.ANSWER,
+        maxLength: 200,
+        group: 'test_prep',
+        onlyForRoles: ['test_prep_tutor', 'private_tutor'],
       },
     ],
   },

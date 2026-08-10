@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Badge, Button, Container, Icon } from '@/components/ui';
+import { BackLink, Badge, Button, Container, Icon } from '@/components/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -120,13 +120,7 @@ export function CandidateCompanyPage() {
 
   return (
     <Container className="py-32">
-      <Link
-        to={PATHS.CANDIDATE_COMPANIES}
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-brand-blue"
-      >
-        <Icon name="arrow-right" className="rotate-180" />
-        All companies
-      </Link>
+      <BackLink to={PATHS.CANDIDATE_COMPANIES} label="All companies" className="mb-6" />
 
       <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">

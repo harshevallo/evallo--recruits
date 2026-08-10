@@ -60,6 +60,27 @@ const questionSchema = new mongoose.Schema(
     /** Option list key resolved from the shared taxonomy, for select types. */
     optionSet: String,
 
+    /**
+     * How a select is DRAWN — cards, chips, pills, or the default control.
+     *
+     * Presentation belongs to the bank rather than the page for the same reason the questions do
+     * (ADR-007): changing "roles are picked from cards, subjects from chips" must be a new bank
+     * version, not a frontend release. It never changes what is stored or which options are
+     * valid — the taxonomy still governs that, so a chip UI cannot introduce free-text subjects.
+     */
+    presentation: {
+      type: String,
+      enum: ['default', 'cards', 'chips', 'pills', 'tiles'],
+      default: 'default',
+    },
+
+    /**
+     * Optional grouping key. Questions sharing one are drawn together in their own panel, which
+     * is how the builder shows a role-specific block as a distinct module rather than as more
+     * fields in the same list. Presentation only — grouping never affects storage or validation.
+     */
+    group: String,
+
     minLength: Number,
     maxLength: Number,
     min: Number,

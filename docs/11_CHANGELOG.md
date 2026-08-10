@@ -9,6 +9,53 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Added
+- **2026-08-10 — REC-05 / REC-16 hiring intents (M5).** PRD §7.5's lightweight hiring declaration.
+  `modules/hiring-intents` gains a service, controller, validation and routes over the model that
+  already existed. **No job description is required** and none is enforced: activation checks only
+  role categories, employment types and delivery modes. Status transitions are guarded
+  (`archived` is terminal) and audited; only `active` intents accept interest (§21.5); closing
+  preserves pipeline entries (§11.4). "Currently hiring" is *derived* from active intents rather
+  than stored as a second flag, so the public page and the candidate CTA cannot disagree with it.
+  Interest questions are capped at three at both the edge and the model (§7.5, §8.7).
+- **2026-08-10 — REC-14 pipeline and shortlist (M5).** New `modules/pipeline`:
+  `pipelineEntries` with the fixed PRD §7.9 stages, `stageHistory`, `ownerId` (basic assignment),
+  `source`, `roleIntentIds`, interview facts and outcome. One ACTIVE entry per candidate per
+  company is enforced by a **partial unique index**, not a check-then-write, so two recruiters
+  adding the same person race safely; the partial filter is what lets a rejected candidate be
+  re-added (§21.4). Rejection requires a reason code and a hire requires the role — enforced in the
+  service, so no caller can skip them. `savedCandidates` is a separate collection from the pipeline
+  because saving is silent to the candidate (§21.4) while entering a workflow is not.
+- **2026-08-10 — Internal notes.** New `modules/notes`. A separate collection from `messages`, so
+  "notes never reach candidates" (§11.2, §21.4) is structural rather than a filter every future
+  query must remember. Only the author may delete; deletions are audited.
+- **2026-08-10 — REC-15 company-side messaging (M5).** `companyMessaging.service.js` mirrors the
+  candidate-side service over the same `conversations`/`messages` rows. Unread counts and read
+  receipts stay per side. Threads belong to the COMPANY, so a departing recruiter's replacement
+  inherits them (§21.6). Opening a thread is upsert-shaped, so a second "message" continues the
+  conversation rather than forking it.
+- **2026-08-10 — Recruiter action surface wired.** Talent-search cards and the candidate viewer gain
+  Save, Add to pipeline and Message, all persisting through real endpoints; the viewer gains the
+  internal-notes panel. Shortlist and pipeline state are loaded from the server and survive reload.
+  Every one of these paths first passes `resolveCandidateAccess`, so a recruiter cannot shortlist,
+  file, note or message a candidate they may not see — absent and forbidden stay indistinguishable
+  (§16.1).
+- **2026-08-10 — `recruiterWorkflow.test.js`** — 29 integration cases pinning the §21.4/§11.4 rules
+  above, including that an internal note never appears on any candidate-facing surface.
+
+### Fixed
+- **2026-08-10** — Pipeline assignment dropdown read `member.userId` / `member.name`, which the
+  member wire shape does not have (it is `{ id, role, user: { id, name, email } }`). Every option
+  therefore had an `undefined` value and key — a React duplicate-key warning, and an assignment
+  control that could never have assigned anyone. Now reads `member.user.id` and drops retained rows
+  with no user attached.
+
+### Changed
+- **2026-08-10** — Three `PlaceholderPage` routes replaced with real screens: `COMPANY_HIRING`,
+  `COMPANY_PIPELINE`, `COMPANY_MESSAGES`.
+- **2026-08-10** — `AUDIT_ACTIONS` / `AUDIT_TARGET_TYPES` extended for hiring-intent, pipeline,
+  shortlist and note events, as the model's own header anticipated.
+
 ### Docs
 - **2026-07-31** — Documentation baseline created (`docs/01`–`14`).
   - `01_BRD.md` — vision, personas, journeys, goals, metrics, constraints, roadmap.

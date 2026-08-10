@@ -42,15 +42,50 @@ const SOCIAL_LINKS = [
   { icon: 'facebook', label: 'Evallo Recruit on Facebook', url: null },
 ];
 
-export function MarketingFooter() {
+/*
+ * White footer — one base colour with the rest of the surface.
+ *
+ * Every token below is a light-theme value, so the dark theme becomes a `dark:` pass over these same
+ * tokens rather than a second footer to keep in sync.
+ */
+export function MarketingFooter({ minimal = false }) {
+  /*
+   * Inside a workspace the link columns are noise: the rail already lists every destination, and
+   * repeating them under the page is what made navigation appear twice. The minimal variant keeps
+   * only what is genuinely footer material — identity, legal, copyright.
+   */
+  if (minimal) {
+    return (
+      <footer className="border-t border-gray-200 bg-white py-8">
+        <Container>
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <Logo size="sm" tone="dark" />
+            <p className="text-sm text-gray-500">&copy; 2026 Evallo. All rights reserved.</p>
+            <div className="flex items-center gap-4 text-sm">
+              <a href={PATHS.PRIVACY} className="text-gray-500 hover:text-brand-dark">
+                Privacy
+              </a>
+              <a href={PATHS.TERMS} className="text-gray-500 hover:text-brand-dark">
+                Terms
+              </a>
+              <a href={PATHS.HELP} className="text-gray-500 hover:text-brand-dark">
+                Help
+              </a>
+            </div>
+          </div>
+        </Container>
+      </footer>
+    );
+  }
+
   return (
-    <footer className="border-t border-gray-800 bg-brand-dark pb-8 pt-16">
+    <footer className="border-t border-gray-200 bg-white pb-8 pt-16">
       <Container>
         <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-4">
           <div className="col-span-1 md:col-span-1">
-            <Logo size="sm" tone="light" className="mb-4" />
+            <Logo size="sm" tone="dark" className="mb-4" />
 
-            <p className="mb-6 text-sm leading-relaxed text-gray-400">
+            <p className="mb-6 text-sm leading-relaxed text-gray-600">
               Bridging the gap between premium educational organizations and vetted, high-quality
               teaching talent.
             </p>
@@ -63,14 +98,14 @@ export function MarketingFooter() {
                       href={social.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-400 transition-colors hover:text-white"
+                      className="text-gray-500 transition-colors hover:text-brand-dark"
                     >
                       <Icon name={social.icon} label={social.label} />
                     </a>
                   </li>
                 ) : (
                   // Rendered non-interactive rather than as a dead link.
-                  <li key={social.icon} className="text-gray-600" title="Coming soon">
+                  <li key={social.icon} className="text-gray-400" title="Coming soon">
                     <Icon name={social.icon} label={`${social.label} — coming soon`} />
                   </li>
                 ),
@@ -80,8 +115,8 @@ export function MarketingFooter() {
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.heading}>
-              <h2 className="mb-4 font-semibold text-white">{column.heading}</h2>
-              <ul className="space-y-2 text-sm text-gray-400">
+              <h2 className="mb-4 font-semibold text-brand-dark">{column.heading}</h2>
+              <ul className="space-y-2 text-sm text-gray-600">
                 {column.links.map((link) => (
                   <li key={link.label}>
                     <Link to={link.to} className="transition-colors hover:text-brand-blue">
@@ -94,7 +129,7 @@ export function MarketingFooter() {
           ))}
         </div>
 
-        <div className="flex flex-col items-center justify-between border-t border-gray-800 pt-8 md:flex-row">
+        <div className="flex flex-col items-center justify-between border-t border-gray-200 pt-8 md:flex-row">
           <p className="text-sm text-gray-500">&copy; 2026 Evallo. All rights reserved.</p>
 
           <div className="mt-4 md:mt-0">

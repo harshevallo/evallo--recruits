@@ -9,6 +9,7 @@
 
 import { ApiError } from '../../lib/ApiError.js';
 import { Company, companyInitials } from '../companies/company.model.js';
+import { User } from '../users/user.model.js';
 import { Conversation, CANDIDATE_CONVERSATION_STATES } from './conversation.model.js';
 import { Message, MESSAGE_SENDERS } from './message.model.js';
 
@@ -28,8 +29,34 @@ export async function listConversations(profile) {
 
   const companyById = new Map(companies.map((c) => [String(c._id), c]));
 
+  /*
+   * Who wrote last, by name.
+   *
+   * A candidate is talking to a PERSON at a company, not to the company itself — and several
+   * recruiters may share one thread, so "Company XYZ" alone leaves them unable to tell who they are
+   * replying to. Name only: the recruiter's email is never exposed here, and the company context is
+   * kept alongside rather than replaced.
+   */
+  const senderIds = [
+    ...new Set(
+      conversations
+        .filter((c) => c.lastMessageSenderType === MESSAGE_SENDERS.COMPANY && c.lastMessageSenderId)
+        .map((c) => String(c.lastMessageSenderId)),
+    ),
+  ];
+
+  const senders = senderIds.length
+    ? await User.find({ _id: { $in: senderIds } }).select('name').lean()
+    : [];
+  const senderById = new Map(senders.map((user) => [String(user._id), user]));
+
   return conversations.map((conversation) => {
     const company = companyById.get(String(conversation.companyId));
+    const lastSender =
+      conversation.lastMessageSenderType === MESSAGE_SENDERS.COMPANY
+        ? senderById.get(String(conversation.lastMessageSenderId))
+        : null;
+
     return {
       id: String(conversation.id ?? conversation._id),
       company: company
@@ -40,6 +67,8 @@ export async function listConversations(profile) {
             initials: companyInitials(company.name),
           }
         : null,
+      /** The individual recruiter who wrote last, when that was the company side. */
+      lastMessageFrom: lastSender?.name ?? null,
       lastMessageAt: conversation.lastMessageAt ?? null,
       lastMessagePreview: conversation.lastMessagePreview ?? null,
       unread: conversation.candidateUnread ?? 0,
@@ -87,6 +116,27 @@ export async function getConversation(profile, conversationId) {
     ]);
   }
 
+  /*
+   * The recruiters who wrote in this thread, by name.
+   *
+   * A candidate is corresponding with people, and several recruiters at one company can share a
+   * thread, so each company message carries the name of whoever sent it. NAME ONLY — no id and no
+   * email: the candidate needs to know who they are talking to, not how to reach them outside the
+   * platform, which stays governed by their own contact rules.
+   */
+  const companySenderIds = [
+    ...new Set(
+      messages
+        .filter((message) => message.senderType === MESSAGE_SENDERS.COMPANY && message.senderUserId)
+        .map((message) => String(message.senderUserId)),
+    ),
+  ];
+
+  const senders = companySenderIds.length
+    ? await User.find({ _id: { $in: companySenderIds } }).select('name').lean()
+    : [];
+  const senderById = new Map(senders.map((user) => [String(user._id), user]));
+
   return {
     id: String(conversation._id),
     company: company
@@ -100,14 +150,20 @@ export async function getConversation(profile, conversationId) {
     state: conversation.candidateState ?? CANDIDATE_CONVERSATION_STATES.PENDING,
     muted: Boolean(conversation.mutedAt),
     reported: Boolean(conversation.reportedAt),
-    messages: messages.map((message) => ({
-      id: String(message._id),
-      /** `mine` rather than a raw sender id — the client never needs to know who replied. */
-      mine: message.senderType === MESSAGE_SENDERS.CANDIDATE,
-      body: message.body,
-      attachments: message.attachments ?? [],
-      sentAt: message.createdAt,
-    })),
+    messages: messages.map((message) => {
+      const fromCompany = message.senderType === MESSAGE_SENDERS.COMPANY;
+      return {
+        id: String(message._id),
+        mine: message.senderType === MESSAGE_SENDERS.CANDIDATE,
+        /** The individual who wrote it, when it came from the company side. */
+        senderName: fromCompany
+          ? (senderById.get(String(message.senderUserId))?.name ?? null)
+          : null,
+        body: message.body,
+        attachments: message.attachments ?? [],
+        sentAt: message.createdAt,
+      };
+    }),
   };
 }
 
@@ -181,6 +237,8 @@ export async function replyToConversation(profile, user, conversationId, body) {
       $set: {
         lastMessageAt: message.createdAt,
         lastMessagePreview: body.slice(0, 200),
+        lastMessageSenderId: user._id,
+        lastMessageSenderType: MESSAGE_SENDERS.CANDIDATE,
       },
       $inc: { companyUnread: 1 },
     },

@@ -5,9 +5,10 @@ export function Textarea({ hasError, rows = 4, className, ...props }) {
     <textarea
       rows={rows}
       className={cn(
-        'w-full rounded-lg border px-4 py-3',
-        'focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue',
-        hasError ? 'border-red-500' : 'border-gray-300',
+        'w-full rounded-xl border bg-white px-4 py-3 text-sm font-medium text-brand-dark shadow-sm',
+        'transition-colors placeholder:font-normal placeholder:text-gray-400',
+        'focus:outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15',
+        hasError ? 'border-red-500' : 'border-slate-200',
         className,
       )}
       {...props}

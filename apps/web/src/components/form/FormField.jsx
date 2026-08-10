@@ -14,7 +14,16 @@ import { cn } from '@/utils/cn';
  *     {(props) => <TextInput {...props} value={…} onChange={…} />}
  *   </FormField>
  */
-export function FormField({ label, name, error, hint, required = false, className, children }) {
+export function FormField({
+  label,
+  name,
+  error,
+  hint,
+  required = false,
+  hideLabel = false,
+  className,
+  children,
+}) {
   const generatedId = useId();
   const fieldId = name ? `field-${name}` : generatedId;
   const errorId = `${fieldId}-error`;
@@ -29,7 +38,17 @@ export function FormField({ label, name, error, hint, required = false, classNam
 
   return (
     <div className={className}>
-      <label htmlFor={fieldId} className="mb-2 block text-sm font-medium text-gray-700">
+      {/*
+        `hideLabel` hides the label VISUALLY only, for layouts that draw their own heading above
+        the control. Dropping the element instead would leave the input unnamed for a screen
+        reader, which is the exact failure this component exists to prevent.
+      */}
+      <label
+        htmlFor={fieldId}
+        className={
+          hideLabel ? 'sr-only' : 'mb-1.5 block text-sm font-semibold text-gray-700'
+        }
+      >
         {label}
         {required && (
           <span className="text-red-600" aria-hidden="true">

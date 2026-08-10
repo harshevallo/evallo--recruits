@@ -257,7 +257,13 @@ export function MessagesPage() {
                       <span className="block truncate text-sm font-medium text-brand-dark">
                         {item.company?.name ?? 'Company'}
                       </span>
+                      {/* Who wrote last, then what they said — a candidate deals with people. */}
                       <span className="block truncate text-xs text-gray-500">
+                        {item.lastMessageFrom && (
+                          <span className="font-medium text-gray-600">
+                            {item.lastMessageFrom}:{' '}
+                          </span>
+                        )}
                         {item.lastMessagePreview ?? 'No messages yet'}
                       </span>
                     </span>
@@ -359,13 +365,27 @@ export function MessagesPage() {
                             : 'bg-gray-50 text-brand-dark'
                         }`}
                       >
+                        {/*
+                          The individual recruiter, named. Several people at one company can share a
+                          thread, so "Company XYZ" alone would leave the candidate unsure who they
+                          are replying to.
+                        */}
+                        {!message.mine && message.senderName && (
+                          <p className="mb-1 text-xs font-semibold text-brand-dark">
+                            {message.senderName}
+                          </p>
+                        )}
                         <p className="whitespace-pre-wrap">{message.body}</p>
                         <p
                           className={`mt-1 text-xs ${
                             message.mine ? 'text-blue-100' : 'text-gray-400'
                           }`}
                         >
-                          <span className="sr-only">{message.mine ? 'You, ' : 'Company, '}</span>
+                          <span className="sr-only">
+                            {message.mine
+                              ? 'You, '
+                              : `${message.senderName ?? 'The company'}, `}
+                          </span>
                           {formatTime(message.sentAt)}
                         </p>
                       </div>

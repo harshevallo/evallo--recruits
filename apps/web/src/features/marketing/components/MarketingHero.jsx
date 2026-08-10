@@ -14,35 +14,55 @@ export function MarketingHero() {
           Now accepting pilot partners
         </p>
 
-        <h1 className="mx-auto mb-6 max-w-4xl text-4xl font-extrabold leading-tight tracking-tight text-white md:text-6xl lg:text-7xl">
+        <h1 className="mx-auto mb-6 max-w-4xl text-4xl font-extrabold leading-tight tracking-tight text-brand-dark md:text-6xl lg:text-7xl">
           The specialized hiring network for{' '}
           <span className="gradient-text">Top Educators</span>
         </h1>
 
-        <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-400 md:text-xl">
+        <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-600 md:text-xl">
           Stop sifting through generic job boards. Connect verified, high-performing tutors with
           premium educational organizations in one specialized platform.
         </p>
 
+        {/*
+          Candidate-first. The educator is the primary acquisition flow, so "Apply for roles" is the
+          primary action and hiring is deliberately the secondary one — a marketplace with no
+          supply of educators has nothing for a recruiter to buy.
+
+          "Apply for roles" points at sign-up rather than the directory: applying requires an
+          account, and the interest flow (CAN-07) needs a candidate profile to share. Sending an
+          anonymous visitor to a browse page would defer the decision we are asking them to make.
+        */}
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <Button
-            href="#get-started"
-            variant="primary"
-            size="lg"
-            className="w-full sm:w-auto"
-          >
-            Hire Top Tutors <Icon name="arrow-right" className="text-sm" />
+          <Button to={PATHS.SIGN_UP} variant="primary" size="lg" className="w-full sm:w-auto">
+            Apply for roles <Icon name="arrow-right" className="text-sm" />
           </Button>
 
+          {/*
+            `outlineDark` is white-on-transparent, built for the old dark hero — on the light hero it
+            rendered white text on white. This is the light-ground outline instead.
+          */}
           <Button
-            to={PATHS.COMPANY_DIRECTORY}
+            to={PATHS.COMPANY_START}
             variant="outlineDark"
             size="lg"
-            className="w-full sm:w-auto"
+            className="w-full !border-gray-300 !bg-white !text-brand-dark hover:!bg-gray-50 sm:w-auto"
           >
-            Find Teaching Roles
+            Post a job
           </Button>
         </div>
+
+        {/* Browsing without committing stays available, just not as a primary action. */}
+        <p className="mt-5 text-sm text-gray-600">
+          Or{' '}
+          <a
+            href={PATHS.COMPANY_DIRECTORY}
+            className="font-semibold text-brand-blue underline decoration-brand-blue/30 underline-offset-4 transition-colors hover:decoration-brand-blue"
+          >
+            browse education companies
+          </a>{' '}
+          first.
+        </p>
 
         <HeroAppMockup />
       </Container>

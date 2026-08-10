@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { COMPANY_ROLE_LABELS, COMPANY_STATUS } from '@evallo/shared';
-import { Badge, Button, Container, Icon } from '@/components/ui';
+import { BackLink, Badge, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchCompanyDashboard } from '@/services';
@@ -98,6 +98,16 @@ export function CompanyHomePage() {
 
   return (
     <Container className="py-32">
+      {/*
+        One step up out of the company context, at the top — the affordance SET-01 established.
+
+        The four pills that used to sit at the FOOT of this page (Interest inbox, Find candidates,
+        Edit company page, Team) were all rail destinations; "Edit company page" pointed at
+        COMPANY_SETUP, which renders the same screen the rail's "Company page" already opens. Nothing
+        became unreachable by deleting them — the rail carries every one.
+      */}
+      <BackLink to={PATHS.APP_HOME} label="Your companies" className="mb-6" />
+
       <header className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -304,54 +314,6 @@ export function CompanyHomePage() {
           </ul>
         </section>
       )}
-
-      {/* Quick actions — persistent navigation, unlike the pending list which empties. */}
-      <nav aria-label="Company actions" className="mt-10 flex flex-wrap gap-3">
-        {permissions.canViewInterest && (
-          <Button
-            to={path(PATHS.COMPANY_INTERESTS)}
-            variant="outlineDark"
-            size="md"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-          >
-            <Icon name="comments" />
-            Interest inbox
-          </Button>
-        )}
-        {permissions.canSearch && (
-          <Button
-            to={path(PATHS.COMPANY_SEARCH)}
-            variant="outlineDark"
-            size="md"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-          >
-            <Icon name="compass" />
-            Find candidates
-          </Button>
-        )}
-        {permissions.canEdit && (
-          <Button
-            to={path(PATHS.COMPANY_SETUP)}
-            variant="outlineDark"
-            size="md"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-          >
-            <Icon name="gear" />
-            Edit company page
-          </Button>
-        )}
-        {permissions.canManageMembers && (
-          <Button
-            to={path(PATHS.COMPANY_TEAM)}
-            variant="outlineDark"
-            size="md"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-          >
-            <Icon name="user" />
-            Team
-          </Button>
-        )}
-      </nav>
     </Container>
   );
 }

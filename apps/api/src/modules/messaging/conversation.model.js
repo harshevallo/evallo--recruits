@@ -38,6 +38,19 @@ const conversationSchema = new mongoose.Schema(
     lastMessageAt: Date,
     lastMessagePreview: { type: String, maxlength: 200 },
 
+    /**
+     * Who wrote the last message, denormalised alongside the preview it belongs to.
+     *
+     * The candidate is talking to a PERSON at a company (PRD §11.2), and several recruiters can
+     * share one thread, so the thread list has to be able to name them. Denormalised for the same
+     * reason `lastMessagePreview` is: rendering a list of threads must not cost one query per row.
+     *
+     * Null on threads written before this existed, and on candidate-authored last messages — the
+     * candidate does not need their own name read back to them.
+     */
+    lastMessageSenderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    lastMessageSenderType: { type: String, default: null },
+
     /** Unread counts are per side, so one party's read state never affects the other's. */
     candidateUnread: { type: Number, default: 0 },
     companyUnread: { type: Number, default: 0 },

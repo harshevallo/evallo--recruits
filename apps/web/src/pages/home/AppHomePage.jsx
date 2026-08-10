@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Badge, Button, Container, Icon, Modal } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { CreateCompanyForm } from '@/features/account/components/CreateCompanyForm';
@@ -24,6 +24,7 @@ import { PATHS } from '@/router/paths';
  */
 export function AppHomePage() {
   const { user, capabilities, error, refresh } = useAuth();
+  const navigate = useNavigate();
 
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [candidateStatus, setCandidateStatus] = useState(null);
@@ -49,17 +50,24 @@ export function AppHomePage() {
     }
   }, [intent]);
 
-  /** Explicit, user-initiated. HOME-01 never creates a profile on its own. */
+  /**
+   * Explicit, user-initiated. HOME-01 never creates a profile on its own.
+   *
+   * On success it goes STRAIGHT INTO the builder. Stopping at a success message left the person on
+   * this page with nothing to click: the whole candidate surface is behind `RequireCandidate`, so
+   * before the profile existed there was no link to it, and afterwards there was still nothing
+   * telling them where it had gone. Creating a profile and then filling it in is one intention.
+   */
   async function startCandidateProfile() {
     setIsCreatingProfile(true);
     setCandidateStatus(null);
     try {
       await createCandidateProfile({});
+      // The capability is derived per request, so refresh before routing past RequireCandidate.
       await refresh();
-      setCandidateStatus({ tone: 'success', text: 'Candidate profile created.' });
+      navigate(PATHS.CANDIDATE_PROFILE_BUILDER);
     } catch (apiError) {
       setCandidateStatus({ tone: 'error', text: apiError.message ?? 'Could not create profile.' });
-    } finally {
       setIsCreatingProfile(false);
     }
   }
@@ -88,10 +96,40 @@ export function AppHomePage() {
       )}
 
       {/*
+        PRD §5.2 signed-in navigation: Explore companies and Account settings stay available whatever
+        the account's state — unlike the setup actions below, which disappear once done. Settings
+        appears exactly once ("Do not duplicate account settings").
+
+        At the TOP, not the foot. This page has no rail — it is the one screen above both workspaces —
+        so these two are not rail duplicates, but navigation still belongs where the eye starts.
+      */}
+      <nav aria-label="Account" className="mb-10 flex flex-wrap gap-3">
+        <Button
+          to={PATHS.COMPANY_DIRECTORY}
+          variant="outlineDark"
+          size="md"
+          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+        >
+          <Icon name="compass" />
+          Explore companies
+        </Button>
+
+        <Button
+          to={PATHS.ACCOUNT_SETTINGS}
+          variant="outlineDark"
+          size="md"
+          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+        >
+          <Icon name="gear" />
+          Account settings
+        </Button>
+      </nav>
+
+      {/*
         PRD §5.2 — "Home emphasizes next setup actions." Setup actions only, and only the ones
         still outstanding; once both capabilities exist there is nothing to set up and the whole
-        section goes away. Persistent navigation (Explore, Settings) lives at the foot of the page
-        so it does not disappear with this block.
+        section goes away. Persistent navigation (Explore, Settings) sits above this block
+        so it does not disappear with it.
       */}
       {(!hasCandidateProfile || !hasCompany) && (
         <section aria-labelledby="next-actions" className="mb-10">
@@ -210,33 +248,6 @@ export function AppHomePage() {
           )}
         </section>
       </div>
-
-      {/*
-        PRD §5.2 signed-in navigation: Explore companies and Account settings stay available
-        whatever the account's state — unlike the setup actions above, which disappear once done.
-        Settings appears exactly once ("Do not duplicate account settings").
-      */}
-      <nav aria-label="Account" className="mt-10 flex flex-wrap gap-3">
-        <Button
-          to={PATHS.COMPANY_DIRECTORY}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="compass" />
-          Explore companies
-        </Button>
-
-        <Button
-          to={PATHS.ACCOUNT_SETTINGS}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="gear" />
-          Account settings
-        </Button>
-      </nav>
 
       <Modal
         open={companyModalOpen}

@@ -99,8 +99,9 @@ export function MarketingNavbar({ transparentOnTop = false }) {
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         links={MOBILE_LINKS}
+        /* Candidate-first: the single prominent CTA is the educator's, not the recruiter's. */
         ctaTo={PATHS.SIGN_UP}
-        ctaLabel="Post a Job"
+        ctaLabel="Apply for roles"
       />
     </header>
   );

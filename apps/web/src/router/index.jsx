@@ -1,6 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
 import { MarketingLayout } from '@/layouts/MarketingLayout';
+import { CompanyWorkspaceLayout } from '@/layouts/CompanyWorkspaceLayout';
+import { CandidateWorkspaceLayout } from '@/layouts/CandidateWorkspaceLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { RequireAuth } from '@/router/guards/RequireAuth';
 import { RequireCompany } from '@/router/guards/RequireCompany';
@@ -19,6 +21,11 @@ import { CompanyTeamPage } from '@/pages/company/CompanyTeamPage';
 import { CompanyHomePage } from '@/pages/company/CompanyHomePage';
 import { CompanyInterestsPage } from '@/pages/company/CompanyInterestsPage';
 import { CompanyTalentSearchPage } from '@/pages/company/CompanyTalentSearchPage';
+import { CompanyCandidatePage } from '@/pages/company/CompanyCandidatePage';
+import { CompanyHiringPage } from '@/pages/company/CompanyHiringPage';
+import { CompanyPipelinePage } from '@/pages/company/CompanyPipelinePage';
+import { CompanyMessagesPage } from '@/pages/company/CompanyMessagesPage';
+import { CompanySettingsPage } from '@/pages/company/CompanySettingsPage';
 import { MarketingPage } from '@/pages/marketing/MarketingPage';
 import { CompanyDirectoryPage } from '@/pages/public/CompanyDirectoryPage';
 import { CompanyProfilePage } from '@/pages/public/CompanyProfilePage';
@@ -33,6 +40,13 @@ import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 import { BasicSetupPage } from '@/pages/auth/BasicSetupPage';
 import { FirstActionPage } from '@/pages/auth/FirstActionPage';
 import { AppHomePage } from '@/pages/home/AppHomePage';
+import { SettingsLayout } from '@/pages/settings/SettingsLayout';
+import { SettingsHomePage } from '@/pages/settings/SettingsHomePage';
+import { SettingsAccountPage } from '@/pages/settings/SettingsAccountPage';
+import { SettingsSecurityPage } from '@/pages/settings/SettingsSecurityPage';
+import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotificationsPage';
+import { SettingsPrivacyPage } from '@/pages/settings/SettingsPrivacyPage';
+import { SettingsDataPage } from '@/pages/settings/SettingsDataPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
 import { PATHS } from './paths';
@@ -58,55 +72,24 @@ const PLACEHOLDERS = [
  * teaser. Without them the links are dead: React Router falls through to `*` and a recruiter who
  * clicks "Open profile" on a real interest lands on a 404 that looks like the app is broken.
  */
-const COMPANY_PLACEHOLDERS = [
-  [
-    PATHS.COMPANY_CANDIDATE,
-    'Candidate profile',
-    'The full candidate profile, showing exactly what this person has chosen to share with you.',
-    'REC-13',
-  ],
-  [
-    PATHS.COMPANY_HIRING,
-    'Hiring intent',
-    'Mark yourself as hiring and choose role categories — no job description needed.',
-    'REC-16',
-  ],
-  [
-    PATHS.COMPANY_PIPELINE,
-    'Pipeline',
-    'Track candidates through your hiring stages.',
-    'REC-14',
-  ],
-  [
-    PATHS.COMPANY_MESSAGES,
-    'Messages',
-    'Conversations with candidates who are open to being contacted.',
-    'REC-15',
-  ],
-  [
-    PATHS.COMPANY_EDIT,
-    'Company profile editor',
-    'Edit your public company page.',
-    'REC-17',
-  ],
-  [
-    PATHS.COMPANY_SETTINGS,
-    'Company settings',
-    'Company-wide preferences, permissions, and data controls.',
-    'SET-02',
-  ],
-];
+/*
+ * No company screen is a placeholder any more: REC-17 reuses the setup editor and SET-02 is built.
+ * The list stays (empty) because the router maps over it, and a future unbuilt company screen
+ * should land here rather than as a dead link.
+ */
+const COMPANY_PLACEHOLDERS = [];
 
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
       /*
-       * Transparent navbar is opt-in and ONLY for routes that render a dark hero in EVERY
-       * state — otherwise white text lands on a white background.
+       * The landing page now uses the same light base as the rest of the site, so the navbar stays
+       * SOLID here too — the transparent variant only ever worked over the old dark hero, and white
+       * text on a white hero is invisible.
        */
       {
-        element: <MarketingLayout transparentOnTop />,
+        element: <MarketingLayout />,
         children: [{ path: PATHS.HOME, element: <MarketingPage /> }],
       },
 
@@ -157,21 +140,27 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            element: <MarketingLayout />,
+            /* Signed-in surface: minimal footer, because the rail already carries navigation. */
+            element: <MarketingLayout minimalFooter />,
             children: [
               { path: PATHS.APP_HOME, element: <AppHomePage /> },
 
-              // Destinations HOME-01 routes to. The screens themselves belong to later PRD
-              // sections; placeholders keep every link on a shipped page functional.
+              /*
+               * SET-01 — a dashboard with sub-pages, not one giant form. Five unrelated concerns
+               * with different save semantics and different risk: a single form would submit a
+               * password change and a notification toggle in the same request.
+               */
               {
                 path: PATHS.ACCOUNT_SETTINGS,
-                element: (
-                  <PlaceholderPage
-                    title="Account settings"
-                    description="Password, security, sign-in methods, and notification preferences."
-                    replacedBy="SET-01"
-                  />
-                ),
+                element: <SettingsLayout />,
+                children: [
+                  { index: true, element: <SettingsHomePage /> },
+                  { path: PATHS.SETTINGS_ACCOUNT, element: <SettingsAccountPage /> },
+                  { path: PATHS.SETTINGS_SECURITY, element: <SettingsSecurityPage /> },
+                  { path: PATHS.SETTINGS_NOTIFICATIONS, element: <SettingsNotificationsPage /> },
+                  { path: PATHS.SETTINGS_PRIVACY, element: <SettingsPrivacyPage /> },
+                  { path: PATHS.SETTINGS_DATA, element: <SettingsDataPage /> },
+                ],
               },
 
               // REC-01 — create or join. Authenticated only: RequireCompany cannot apply,
@@ -183,7 +172,16 @@ export const router = createBrowserRouter([
               {
                 element: <RequireCandidate />,
                 children: [
+                  /*
+                   * Every candidate screen carries the same nav, including the builder. It used to
+                   * run in its own full-height shell, which read as a second sidebar beside this one
+                   * and swapped the entire chrome on navigation.
+                   */
+                  {
+                    element: <CandidateWorkspaceLayout />,
+                    children: [
                   { path: PATHS.CANDIDATE_HOME, element: <CandidateHomePage /> },
+                  /* CAN-02 shares the candidate shell — one navbar, one rail, one scroll. */
                   { path: PATHS.CANDIDATE_PROFILE_BUILDER, element: <ProfileBuilderPage /> },
                   { path: PATHS.CANDIDATE_PROFILE_PREVIEW, element: <ProfilePreviewPage /> },
                   { path: PATHS.CANDIDATE_VISIBILITY, element: <VisibilitySettingsPage /> },
@@ -202,6 +200,8 @@ export const router = createBrowserRouter([
 
                   { path: PATHS.CANDIDATE_INTERESTS, element: <MyInterestsPage /> },
                   { path: PATHS.CANDIDATE_MESSAGES, element: <MessagesPage /> },
+                    ],
+                  },
                 ],
               },
 
@@ -209,10 +209,23 @@ export const router = createBrowserRouter([
               {
                 element: <RequireCompany />,
                 children: [
+                  {
+                    /*
+                     * The company workspace nav. Inside RequireCompany, so it can read the active
+                     * membership's permissions and show only what this role may actually open.
+                     */
+                    element: <CompanyWorkspaceLayout />,
+                    children: [
                   // REC-10. Open to any active member; the server decides which sections load.
                   { path: PATHS.COMPANY_HOME, element: <CompanyHomePage /> },
                   // REC-02 and REC-06. The server additionally requires company:edit.
                   { path: PATHS.COMPANY_SETUP, element: <CompanySetupPage /> },
+                  /*
+                   * REC-17 is the same editor as REC-02, not a second one. The fields, the API and
+                   * the publish checklist are identical once a company exists; only the framing
+                   * differs, which the page derives from its own status.
+                   */
+                  { path: PATHS.COMPANY_EDIT, element: <CompanySetupPage /> },
                   { path: PATHS.COMPANY_PREVIEW, element: <CompanyPreviewPage /> },
                   // REC-07. The server additionally requires member:manage, so a recruiter or
                   // viewer who reaches this URL gets an error rather than a team roster.
@@ -222,6 +235,20 @@ export const router = createBrowserRouter([
                   // REC-12. The server additionally requires candidate:search, which a hiring
                   // manager and a viewer do not hold.
                   { path: PATHS.COMPANY_SEARCH, element: <CompanyTalentSearchPage /> },
+                  // REC-13. The server additionally requires candidate:view, and the candidate's
+                  // own settings decide what comes back regardless of that permission.
+                  { path: PATHS.COMPANY_CANDIDATE, element: <CompanyCandidatePage /> },
+
+                  /*
+                   * REC-16 / REC-14 / REC-15. Each screen is readable by any active member and
+                   * gates its own write actions on the permission the server enforces —
+                   * `hiring:manage`, `pipeline:edit`, `message:send` respectively. The route guard
+                   * is membership; the button-level guard is the permission.
+                   */
+                  { path: PATHS.COMPANY_HIRING, element: <CompanyHiringPage /> },
+                  { path: PATHS.COMPANY_PIPELINE, element: <CompanyPipelinePage /> },
+                  { path: PATHS.COMPANY_MESSAGES, element: <CompanyMessagesPage /> },
+                  { path: PATHS.COMPANY_SETTINGS, element: <CompanySettingsPage /> },
 
                   ...COMPANY_PLACEHOLDERS.map(([path, title, description, replacedBy]) => ({
                     path,
@@ -233,6 +260,8 @@ export const router = createBrowserRouter([
                       />
                     ),
                   })),
+                    ],
+                  },
                 ],
               },
             ],
