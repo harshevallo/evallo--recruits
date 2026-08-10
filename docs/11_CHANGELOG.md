@@ -10,6 +10,69 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 ## [Unreleased]
 
 ### Added
+- **2026-08-10 — REC-13 candidate viewer + audit logging (M5).** New
+  `candidates/candidateViewer.{service,controller,validation}.js` behind
+  `GET /api/companies/:companyId/candidates/:candidateId` (`candidate:view`, held by every role
+  including viewer). The rendered profile is `toRecruiterView()` — **byte-identical to the
+  candidate's own CAN-03 preview**, pinned by a test so "this is exactly what a recruiter sees"
+  cannot drift. Access is decided solely by `resolveCandidateAccess`; a block overrides even a live
+  grant, and every refusal is a **404 rather than 403** so absent and forbidden stay
+  indistinguishable (§16.1). `contactRevealed` follows the *candidate's* rule, not the viewer's role.
+  Interest history is scoped to the asking company. `source` is a constrained enum
+  (`search|interest|direct`) because it is written to the audit record.
+- **2026-08-10 — `modules/audit` (M5).** `auditEvents` collection, `recordAuditEvent()`,
+  `auditContext(req)` and `listCompanyAuditEvents()`, plus
+  `GET /api/companies/:companyId/audit` (`company:settings`) and `companyAudit.controller.js`.
+  Satisfies PRD §21.4's requirement that profile access be logged with company, user, timestamp and
+  source: a view writes `candidate_profile.viewed`, a contact reveal writes
+  `candidate_contact.revealed` as its own event, and a refused view writes nothing. The log is
+  append-only, so repeat views accumulate. **Closes I-07.** Writes are currently fire-and-forget —
+  see `12_KNOWN_ISSUES.md` I-08.
+- **2026-08-10 — CAN-02 evidence entries: experience, education, credentials, media (M3).** New
+  `candidates/profileEntry.{model,service,controller,validation}.js`. Four real collections —
+  `experiences`, `educationEntries`, `credentials`, `evidenceItems` — served by one route family,
+  `/api/me/candidate-profile/entries/:kind`, with full CRUD. Each row carries its **own**
+  `visibility` and `verificationStatus`, which is exactly why ADR-008 gives them separate
+  collections rather than embedded arrays. `verificationStatus` is **not client-writable**: it is
+  absent from every Zod schema and from `ENTRY_KINDS[kind].writable`, and `pickWritable()` strips
+  unknown keys before create and update, so a crafted body cannot forge verification. `media.url` is
+  restricted to an allow-list of embed providers (YouTube, Vimeo) because accepting any URL would let
+  a profile embed third-party content into a recruiter's browser (§16.3). No file upload exists;
+  `credentials.documentUrl` takes a link the candidate already hosts, and the UI says so rather than
+  implying an upload happened. **Takes CAN-02 from 4 of PRD §8.3's sections to 8 display steps.**
+- **2026-08-10 — REC-01 company join requests.** New `modules/memberships/joinRequest.{model,service,controller}.js`
+  and `companyJoinRequests`. `GET /api/companies/search` finds **published** companies only, with an
+  anchored escaped regex and a two-character minimum so a short query cannot scan the collection, and
+  reports the caller's own relationship. `POST .../join-requests` is authenticated but deliberately
+  **not** company-scoped — the requester is not a member, so `resolveCompanyContext` could never
+  authorise them. **A request grants nothing:** membership is created only on approval, with the role
+  the *approver* chose from `GRANTABLE_ROLES`, which excludes `owner`, so ownership cannot be
+  obtained by asking. Asking twice is idempotent via a partial unique index on pending rows.
+- **2026-08-10 — SET-01 / SET-02 account settings.** New `modules/settings/{service,controller}.js`
+  and nine `/api/me/settings/*` endpoints: notification matrix, password change (requires the current
+  password, then revokes every session), active sessions, sign-out-others, connected sign-in methods,
+  data export, and deletion request. Deletion sets `deletion_pending` and is **blocked while the
+  caller still owns a company**. Export returns the caller's own data only — never other people's
+  profiles, never colleagues' internal notes. Frontend is a **card dashboard with sub-pages**, not
+  one giant form, with a separated Danger Zone. Candidate profile visibility is **not** duplicated
+  here: settings owns the preference and `candidateAccess.service.js` stays the authority.
+  `users` gains `phone`, `notificationPreferences` and `deletionRequestedAt`.
+- **2026-08-10 — Workspace shell.** `WorkspaceSidebar` + `CandidateWorkspaceLayout` +
+  `CompanyWorkspaceLayout`: one collapsible rail implementation, sticky beside scrolling content,
+  with a mobile off-canvas drawer. The company rail filters its items by permission through
+  `can()`, so it never offers a destination the route guard would refuse. Collapse state persists
+  across navigation and reload. Replaces `WorkspaceNav`.
+- **2026-08-10 — `BackLink` primitive.** The single back-to-parent affordance, extracted from
+  `SettingsLayout`'s inline version. A real `Link` to a known parent rather than `history.back()`,
+  so it still works on a page opened from a link or a new tab.
+- **2026-08-10 — Question bank v6.** `QUESTION_BANK_VERSION = 6`; the definition gains the
+  role-conditional and grouped-layout metadata the four question sections render from.
+- **2026-08-10 — Tests: `candidateViewer.test.js` (17 cases)** covering preview parity, section
+  completeness, per-company interest scoping, blocks overriding grants, private/paused reachability,
+  grant withdrawal, contact rules, viewer-role access, 404-not-403, malformed ids, and all four
+  audit behaviours. **`joinRequests.test.js` (17 cases)** covering search relationships, idempotency,
+  unpublished/member/suspended refusals, approval role authority, ownership refusal, withdrawal
+  scoping, and that the candidate sees the individual recruiter's name but never their email.
 - **2026-08-10 — REC-05 / REC-16 hiring intents (M5).** PRD §7.5's lightweight hiring declaration.
   `modules/hiring-intents` gains a service, controller, validation and routes over the model that
   already existed. **No job description is required** and none is enforced: activation checks only
@@ -44,6 +107,23 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
   above, including that an internal note never appears on any candidate-facing surface.
 
 ### Fixed
+- **2026-08-10 — The collapsed sidebar's expand button was unclickable on the Messages page.** The
+  rail clears the fixed navbar via `sticky top-20`, and a sticky box can only take its offset while
+  its containing block has room. Messages sizes itself to the viewport, so the flex row was not tall
+  enough to absorb the 80 px push-down; CSS clamped the rail to `y: 0` and the `z-50` navbar covered
+  its toggle. A user who collapsed the rail and navigated to Messages could not expand it again.
+  Fixed with `min-h-screen` on the workspace flex row in both layouts.
+- **2026-08-10 — Sidebar overlapped the footer.** The rail was `fixed bottom-0`; it is now a sticky
+  column inside a flex row that the footer renders after, so overlap is structurally impossible.
+- **2026-08-10 — Candidate profile creation left the user stranded.** HOME-01's "Start your candidate
+  profile" set a success message but never navigated, and `RequireCandidate` then bounced them. It now
+  refreshes capabilities and routes to the builder. (The action still calls
+  `POST /api/me/candidate-profile` directly — see `12_KNOWN_ISSUES.md` I-04.)
+- **2026-08-10 — `FeatureCard` stayed dark on the now-white landing page.** The light-mode pass
+  matched `bg-brand-dark` and missed this card's `bg-gray-900`, leaving darkened text on a dark
+  ground.
+- **2026-08-10 — Removed a dead route constant.** `PATHS.CANDIDATE_SAVED` (`/me/saved`) was defined
+  but never routed and never linked, so the path fell through to the 404 page.
 - **2026-08-10** — Pipeline assignment dropdown read `member.userId` / `member.name`, which the
   member wire shape does not have (it is `{ id, role, user: { id, name, email } }`). Every option
   therefore had an `undefined` value and key — a React duplicate-key warning, and an assignment
@@ -51,6 +131,34 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
   with no user attached.
 
 ### Changed
+- **2026-08-10 — Builder unified into the candidate shell.** `BuilderLayout` **deleted** and the
+  builder moved into `CandidateWorkspaceLayout`. It previously owned the whole viewport — its own top
+  bar, its own fixed rail, its own scrolling pane — which read as two sidebars fighting each other
+  beside the candidate rail, and swapped the entire chrome when moving to any other candidate screen.
+  The eight sections became a horizontal tab strip instead of a second column.
+- **2026-08-10 — Page-level navigation no longer duplicates the rail.** The pill rows at the foot of
+  the candidate overview (Companies / My interests / Messages) and the company overview (Interest
+  inbox / Find candidates / Edit company page / Team) were verbatim copies of rail destinations and
+  were removed; "Edit company page" pointed at `COMPANY_SETUP`, which renders the same screen the
+  rail's "Company page" already opens, so nothing became unreachable. Each overview gained a **top**
+  `BackLink` pointing *out* of its context instead. `/home`, which has no rail, keeps its two
+  buttons but moved them above the content.
+- **2026-08-10 — `MarketingFooter` gained a `minimal` variant** (identity, legal, copyright only),
+  wired to every signed-in surface via `MarketingLayout minimalFooter`. The full link columns under a
+  page that already has a rail were a third copy of the same destinations.
+- **2026-08-10 — Landing page unified to a single ground colour.** `.hero-pattern` now resolves to
+  white with low-alpha blue radials; `BusinessValueSection`, `EducatorSection`,
+  `PlatformFeaturesSection`, `EarlyAccessSection`, `FeatureCard`, `EmployerBrandPanel`,
+  `HeroAppMockup`, `MockCandidateCard` and `MockCompanyCard` all moved to light tokens; HOME uses the
+  solid navbar. All tokens are light-theme values so the planned dark theme is a `dark:` pass rather
+  than a second component set.
+- **2026-08-10 — Candidate-first CTA.** The navbar's single prominent action is "Apply for roles";
+  hiring is reached from the hero's secondary action and from HOME-01 after sign-in. `UserMenu` items
+  are filtered by capability, so no item can point somewhere a route guard would bounce.
+- **2026-08-10 — Shared form primitives.** `FormField` derives `aria-describedby` from whichever of
+  `error`/`hint` is actually rendered, so the attribute never points at an absent element.
+  `TextInput`, `Textarea` and `SelectInput` moved to the builder's input treatment (`rounded-xl`,
+  `bg-white`, `shadow-sm`, `border-slate-200`, `focus:ring-4`).
 - **2026-08-10** — Three `PlaceholderPage` routes replaced with real screens: `COMPANY_HIRING`,
   `COMPANY_PIPELINE`, `COMPANY_MESSAGES`.
 - **2026-08-10** — `AUDIT_ACTIONS` / `AUDIT_TARGET_TYPES` extended for hiring-intent, pipeline,

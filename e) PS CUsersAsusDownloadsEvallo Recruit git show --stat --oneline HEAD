@@ -1,0 +1,21 @@
+[33mfcd969f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feat: implement REC-12 talent search and update project documentation
+ apps/api/src/modules/companies/company.routes.js   |  18 [32m+[m
+ apps/api/src/modules/search/search.controller.js   |  20 [32m+[m
+ apps/api/src/modules/search/search.service.js      | 297 [32m+++++++++++[m
+ apps/api/src/modules/search/search.validation.js   |  14 [32m+[m
+ apps/api/tests/integration/talentSearch.test.js    | 575 [32m+++++++++++++++++++++[m
+ apps/web/src/layouts/partials/MarketingNavbar.jsx  |  15 [32m+[m[31m-[m
+ apps/web/src/pages/PlaceholderPage.jsx             |  49 [32m+[m[31m-[m
+ .../src/pages/company/CompanyTalentSearchPage.jsx  | 442 [32m++++++++++++++++[m
+ apps/web/src/router/ScrollToHash.jsx               |  39 [32m+[m[31m-[m
+ apps/web/src/router/index.jsx                      |  61 [32m+++[m
+ apps/web/src/services/companies.api.js             |  17 [32m+[m
+ docs/04_API_DOCUMENTATION.md                       | 113 [32m+++[m[31m-[m
+ docs/05_DATABASE_SCHEMA.md                         |  10 [32m+[m[31m-[m
+ docs/06_COMPONENT_GUIDE.md                         |  22 [32m+[m[31m-[m
+ docs/11_CHANGELOG.md                               |  42 [32m++[m
+ docs/12_KNOWN_ISSUES.md                            |  21 [32m+[m
+ docs/14_PROGRESS_TRACKER.md                        |  28 [32m+[m[31m-[m
+ packages/shared/src/schemas/index.js               |   1 [32m+[m
+ packages/shared/src/schemas/search.schema.js       |  82 [32m+++[m
+ 19 files changed, 1829 insertions(+), 37 deletions(-)

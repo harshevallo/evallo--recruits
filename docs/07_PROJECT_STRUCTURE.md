@@ -539,10 +539,17 @@ Under ADR-002 tests substitute for the compiler, so they are mandatory rather th
 Three areas carry required coverage:
 
 1. **Every API route** — an integration test is the only verification of the contract (T-02).
-2. **`search/query/visibilityFilter.js`** — candidate data exposure lives here (T-03).
-3. **`refreshCandidateFacets()`** — silent search corruption lives here (TD-04).
+   **Not currently met:** the four profile-entry endpoints and the nine SET-01 settings endpoints
+   have no test (`12_KNOWN_ISSUES.md` I-13).
+2. **Candidate data exposure** — concentrated in `candidates/candidateAccess.service.js`
+   (`resolveCandidateAccess`), which every recruiter-facing path calls. There is no
+   `search/query/visibilityFilter.js`; the visibility filter is
+   `searchableCandidateFilter()` inside `modules/search/search.service.js`.
+3. ~~**`refreshCandidateFacets()`**~~ — **does not exist.** The denormalized facets design was never
+   implemented, so there is no facet-refresh path to cover (TD-04 void; see `12_KNOWN_ISSUES.md` L-04).
 
 Frontend tests are colocated as `*.test.jsx` beside their component, added from M1.
+**Not currently met:** `apps/web` contains no test files, and `apps/api/tests/unit/` is empty (I-14).
 
 ---
 
@@ -554,15 +561,19 @@ Created only when their milestone arrives.
 |---|---|---|
 | `api/src/modules/candidates/` | **built** | Profile, builder, visibility, and interest services (CAN-01…08) |
 | `api/src/modules/question-bank/` | **built** | Versioned bank model, definition, and resolution service (ADR-007) |
-| `api/src/modules/messaging/` | **candidate side built** | `conversations` + `messages` and the candidate service (CAN-09); the company side arrives with REC-15 |
-| `api/src/modules/evidence/` `question-bank/` | **M3** | Depends on the profile-builder HTML, not yet supplied |
+| `api/src/modules/messaging/` | **built, both sides** | `conversations` + `messages`, the candidate service (CAN-09) and `companyMessaging.service.js` (REC-15) over the same rows |
+| ~~`api/src/modules/evidence/`~~ | **built inside `modules/candidates/`** | The evidence layer shipped as `profileEntry.{model,service,controller,validation}.js` rather than its own module: one route family serves all four collections (`experiences`, `educationEntries`, `credentials`, `evidenceItems`), so a separate module would have added a boundary with nothing on the other side of it. `references` is still unbuilt (PRD §20.3, Phase 2) |
 | `api/src/modules/interests/` | **built** | `expressionsOfInterest` + `accessGrants` (CAN-07/08); the recruiter inbox is REC-11 |
-| `api/src/modules/search/` `pipeline/` | **M5** | Search needs populated facets to be testable |
-| `api/src/modules/notifications/` `moderation/` `analytics/` | **M6** | Cross-cutting; premature before the events exist |
+| `api/src/modules/search/` `pipeline/` | **built** | REC-12 search (ADR-010: all query construction confined here) and REC-14 pipeline + `savedCandidates`. Search queries the profile's flat fields — the `facets` subdocument this document once anticipated was never built |
+| `api/src/modules/notifications/` `moderation/` `analytics/` | **M6 — still empty** | Cross-cutting; premature before the events exist. SET-01 stores notification *preferences* on `users`, but nothing generates or delivers a notification, and reports are recorded on the conversation rather than in a queue |
 | `api/src/modules/assessments/` | **Unscheduled** | TRD §15 D-01 — awaiting a scope decision |
+| `api/src/modules/audit/` | **built** | `auditEvents`, `recordAuditEvent()`, `auditContext(req)`, `listCompanyAuditEvents()` — shipped with REC-13 |
+| `api/src/modules/notes/` | **built** | Internal recruiter notes, a separate collection from `messages` by design (§11.2) |
+| `api/src/modules/settings/` | **built** | SET-01 account settings service and controller |
+| `api/src/modules/memberships/` | **built** | Company join requests (`joinRequest.*`); membership rows themselves live in `modules/companies` |
 | `api/src/jobs/` | **Post-MVP** | No scheduled work in MVP. Digests (PRD §15.1) are the first real need |
 | ~~`api/src/lib/mailer/`~~ | **built as `api/src/lib/email/`** | `EmailService` + `templates/` + `transports/{console,smtp}`. Q3 resolved: nodemailer, SendGrid over SMTP in production |
-| `api/src/lib/storage/providers/` | **M3** | Provider undecided (§14 Q2) |
+| `api/src/lib/storage/providers/` | **still empty** | Provider undecided (§14 Q2). Consequence: no upload endpoint anywhere — credential documents and portfolio media are links, and `messages.attachments` is reserved and always empty (`12_KNOWN_ISSUES.md` I-15) |
 | `web/src/components/data/` | **M5** | Tables, filters, and pagination have no consumer before talent search |
 | `web/src/features/{search,pipeline,messaging,notifications}/` | **M5–M6** | Mirror their backend modules |
 | `web/src/pages/candidate/` | **built** | CAN-01…09 |

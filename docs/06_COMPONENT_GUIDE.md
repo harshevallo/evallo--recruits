@@ -1,8 +1,12 @@
 # 06 — Component Guide
 
-> **Status: MKT-01, PUB-01/02, AUTH-01…05, HOME-01, and CAN-01…09 implemented.** This document defines the
-> component conventions and the entry template, and is updated **in the same commit** as the
-> components it documents.
+> **Status: MKT-01, PUB-01/02, AUTH-01…05, HOME-01, CAN-01…09, REC-01…16 and SET-01/02 implemented.**
+> This document defines the component conventions and the entry template, and is updated **in the
+> same commit** as the components it documents.
+>
+> §§0–4 cover the marketing and early application surface. **§§5–7 cover the workspace shell,
+> the profile builder, and the settings/recruiter components** added with CAN-02, REC-10…16 and
+> SET-01.
 
 ## 0. Built to date
 
@@ -17,7 +21,17 @@
 | `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` `MessagesPage` |
 | `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` `CompanyTeamPage` `CompanyHomePage` `CompanyInterestsPage` `CompanyTalentSearchPage` |
 | `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
-| `features/account/components/` | `CreateCompanyForm` |
+| `features/account/components/` | `CreateCompanyForm` `CompanyJoinSearch` |
+| `components/ui/` (added) | `BackLink` |
+| `layouts/` (added) | `CandidateWorkspaceLayout` `CompanyWorkspaceLayout` |
+| `layouts/partials/` (added) | `WorkspaceSidebar` `SidebarTrigger` |
+| `features/candidate/components/` (added) | `EntrySection` `VisibilitySection` |
+| `features/candidate/sections/` | `SectionCard` `questionLayout` `IdentitySection` `PreferencesSection` `ExpertiseSection` `PracticeSection` `PortfolioSection` `CredentialsSection` |
+| `pages/company/` (added) | `CompanyCandidatePage` `CompanyHiringPage` `CompanyPipelinePage` `CompanyMessagesPage` `CompanySettingsPage` |
+| `pages/settings/` | `SettingsLayout` `SettingsHomePage` `SettingsAccountPage` `SettingsSecurityPage` `SettingsNotificationsPage` `SettingsPrivacyPage` `SettingsDataPage` |
+
+**Removed:** `WorkspaceNav` (superseded by `WorkspaceSidebar`) and `BuilderLayout` (the builder now
+lives in `CandidateWorkspaceLayout`; keeping its own shell produced two competing sidebars).
 | `features/marketing/components/` | 13 components composing MKT-01 |
 | `layouts/` | `RootLayout` `MarketingLayout` `AuthLayout` `partials/UserMenu` and nav partials |
 
@@ -273,3 +287,114 @@ for about 20 glyphs. `Icon` should wrap tree-shaken inline SVGs so only used gly
 | `AnimatedGradientText` | One-off CSS on the hero headline; a utility class, not a component |
 | `BlurDecoration` | Purely presentational divs; belongs to the section that owns them |
 | Separate light/dark card components | One `FeatureCard` with a `tone` prop; two components would duplicate structure |
+
+---
+
+## 5. Workspace shell — layouts and navigation
+
+The signed-in surface is a **fixed navbar + collapsible rail + scrolling content** shell. Three
+layouts share one rail component, so there is one navigation implementation rather than one per
+context.
+
+| Component | Path | Responsibility | Used by |
+|---|---|---|---|
+| `WorkspaceSidebar` | `layouts/partials/WorkspaceSidebar.jsx` | The rail itself: desktop sticky column, collapse/expand toggle, mobile off-canvas drawer with scrim. Takes `label`, `items[]`, `expanded`, `onToggle`, `mobileOpen`, `onMobileClose` — it owns no routes and decides no permissions | Both workspace layouts |
+| `SidebarTrigger` | same file | The mobile "open navigation" button, shown below `md` only | Both workspace layouts |
+| `CandidateWorkspaceLayout` | `layouts/CandidateWorkspaceLayout.jsx` | Candidate context. Supplies the 7 rail items (Overview, Profile builder, Preview, Visibility, Companies, My interests, Messages) and owns collapse state | CAN-01 … CAN-09 + the builder |
+| `CompanyWorkspaceLayout` | `layouts/CompanyWorkspaceLayout.jsx` | Company context. Supplies 9 rail items and **filters them by permission** via `can()` from `CompanyContext`, so the rail never offers a destination its route guard would refuse | REC-10 … REC-16 |
+| `SettingsLayout` | `pages/settings/SettingsLayout.jsx` | SET-01 shell. A card dashboard at the root and sub-pages beneath it, with a top `BackLink` on every sub-page | SET-01 / SET-02 |
+| `BackLink` | `components/ui/BackLink.jsx` | The single "back to the parent screen" affordance. A real `Link` to a **known parent**, never `history.back()` — a page opened from a link or a new tab has no history to return to, and a dead control is worse than none | Settings sub-pages, candidate/company overviews, company/candidate detail pages |
+
+### Two load-bearing layout invariants
+
+Both are easy to "clean up" and break, so they are recorded here and not only in code comments:
+
+1. **`min-h-screen` on the workspace flex row is functional, not cosmetic.** The rail clears the
+   fixed navbar with `sticky top-20`, and a sticky box can only take its offset while its containing
+   block has room for it. On a short page — Messages sizes itself to the viewport — the row was not
+   tall enough to absorb the 80 px offset, so the rail clamped back to `y: 0`, the `z-50` navbar
+   covered its collapse toggle, and the control became genuinely unclickable. One viewport of height
+   guarantees `80 px + rail height` always fits.
+2. **The rail is a sticky column inside a flex row, never `fixed bottom-0`.** The footer renders
+   after the whole row, so a sticky rail cannot overlap it. A fixed rail did, and the overlap was
+   only visible at the end of a long page.
+
+### Navigation is not duplicated
+
+The rail is the navigation for screens inside a context. Two rules follow:
+
+- **No page-level `<nav>` may link to a rail destination.** Page-foot pill rows on the candidate and
+  company overviews previously repeated rail items verbatim (Companies / My interests / Messages,
+  and Interest inbox / Find candidates / Edit company page / Team). They read as a second navigation
+  and were removed. In-page navigation that is *not* app chrome — breadcrumbs, builder section tabs,
+  conversation lists, pagination — is unaffected.
+- **A `BackLink` must point *out* of the rail's context, never at another rail item.** A back link to
+  a screen the rail already lists is a duplicated rail item wearing an arrow. So the candidate
+  overview links up to `/home` and the company overview to "Your companies", while rail siblings —
+  the builder and the preview — carry no back link at all.
+
+`MarketingFooter` takes a `minimal` variant (identity, legal, copyright only), used on every
+signed-in surface via `MarketingLayout minimalFooter`, for the same reason: full link columns under
+a page that already has a rail are a third copy of the same destinations.
+
+---
+
+## 6. Candidate profile builder (CAN-02)
+
+The builder renders **eight display steps** from server-owned sections. Three kinds of step exist,
+and the kind — not the screen — decides the shape.
+
+| Step | Section key | Kind | Component |
+|---|---|---|---|
+| 1 Professional identity | `professional_identity` | `questions` | `IdentitySection` |
+| 2 Roles & work preferences | `role_preferences` | `questions` | `PreferencesSection` |
+| 3 Teaching expertise | `teaching_expertise` | `questions` | `ExpertiseSection` |
+| 4 Experience & Education | `experience` + `education` | `entries` | `EntrySection` ×2 |
+| 5 Teaching practice | `teaching_practice` | `questions` | `PracticeSection` |
+| 6 Portfolio & Media | `media` | `entries` | `PortfolioSection` |
+| 7 Credentials & Scores | `credential` | `entries` | `CredentialsSection` |
+| 8 Publish & Visibility | `visibility` | `visibility` | `VisibilitySection` |
+
+Steps 4–7 are the four evidence collections (ADR-008). Experience and education are **two** server
+sections merged into **one** display step — merging is display-time only, and each list still talks
+to its own collection, so nothing about the API or the data changes shape.
+
+| Component | Path | Responsibility |
+|---|---|---|
+| `questionLayout` | `features/candidate/sections/questionLayout.jsx` | The bridge between a bank section and a hand-laid-out screen. `render(key)` places one question and returns `null` for a key this bank version does not carry; `rest()` renders every question the layout did **not** place. That pair is what keeps "the bank is data" true — a retired question cannot break a screen, and a newly added one cannot vanish |
+| `SectionCard` | `.../sections/SectionCard.jsx` | The builder's panel surface. Sections are built from several of these because the design groups questions into named modules ("Employment Parameters", "Core Methodology"). `tone="accent"` marks a role-conditional block |
+| `IdentitySection` · `PreferencesSection` · `ExpertiseSection` · `PracticeSection` | `.../sections/` | The four question-driven screens, each a specific layout rather than a generic question list |
+| `EntrySection` | `features/candidate/components/EntrySection.jsx` | The repeatable list-add-edit-remove pattern for `experience` and `education`. Its `FIELDS` map mirrors the server's `writable` list per kind. Each entry carries its own visibility, because ADR-008 gives it its own row — one role can be hidden without hiding the rest |
+| `PortfolioSection` | `.../sections/PortfolioSection.jsx` | `media` entries as thumbnail cards (YouTube/Vimeo only). A separate screen from `EntrySection` because a video is presented as a card, not a list row |
+| `CredentialsSection` | `.../sections/CredentialsSection.jsx` | `credential` entries as trust rows. States plainly that document **upload** is unavailable and that `documentUrl` takes a link the candidate already hosts — a "PDF uploaded" badge would be a lie |
+| `VisibilitySection` | `features/candidate/components/VisibilitySection.jsx` | Publish + visibility inside the builder. **Reuses the CAN-04 endpoints exactly** (`fetchVisibility` / `updateVisibility`) — a second surface onto one implementation, not a second copy. Two screens showing different values would mean one is lying about who can see the candidate |
+| `BuilderQuestion` | `features/candidate/components/BuilderQuestion.jsx` | Renders one bank question by type — including the role-card, chip and conditional variants the reference uses instead of dropdowns |
+
+**Profile strength** is derived from the same `publishBlockers` the publish gate uses, so the meter
+cannot disagree with whether the profile can actually be published. `unanswered` is reported
+separately so an optional-answer nudge is never conflated with the publish gate.
+
+---
+
+## 7. Settings, account, and recruiter components
+
+| Component | Path | Responsibility |
+|---|---|---|
+| `SettingsHomePage` | `pages/settings/SettingsHomePage.jsx` | The SET-01 dashboard: five cards (Account, Security, Notifications, Privacy, Your data). Deliberately **not** one giant form — five unrelated concerns with different save semantics and different risk |
+| `SettingsAccountPage` | `pages/settings/` | Photo, name, email, phone, location, account type. Account identity only, kept separate from the candidate profile builder |
+| `SettingsSecurityPage` | `pages/settings/` | Change password (current + new + confirm with a `strengthOf` meter), active sessions via `describeDevice`, sign out others, connected sign-in methods |
+| `SettingsNotificationsPage` | `pages/settings/` | A real `<table>` per-event × per-channel matrix. `security` is rendered locked, matching the service's refusal to store a preference for it |
+| `SettingsPrivacyPage` | `pages/settings/` | Reports and blocked companies. **Links to CAN-04** rather than re-implementing visibility — settings owns the preference, `candidateAccess.service.js` remains the authority |
+| `SettingsDataPage` | `pages/settings/` | Export, data-processing explanation, and the Danger Zone (separated by a divider) with a password-confirming delete modal. The modal states that some records are retained, because §16.1 mandates an audit trail an immediate purge would destroy |
+| `CompanyJoinSearch` | `features/account/components/CompanyJoinSearch.jsx` | REC-01 find-and-ask-to-join. Search is **server-side and debounced, never filtered in the browser** — the result set is bounded by the server, and which companies may be seen at all is a privacy decision only the server can make. Joining is a **request**; the component cannot produce a membership on its own, which is what keeps ADR-001 intact |
+
+### Shared form primitives — updated
+
+`FormField` now derives `aria-describedby` from whichever of `error` / `hint` is actually rendered,
+so the attribute never points at an absent element, and passes `hasError` down to the control.
+`TextInput`, `Textarea` and `SelectInput` moved to the builder's input treatment — `rounded-xl`,
+`bg-white`, `shadow-sm`, `border-slate-200`, and a `focus:ring-4 ring-brand-blue/15` focus ring
+replacing the previous 2 px ring. All three consume `hasError`; their APIs are otherwise unchanged.
+
+Every token used is a **light-theme value**, so the planned dark theme becomes a `dark:` pass over
+these same tokens rather than a second set of components to keep in sync.

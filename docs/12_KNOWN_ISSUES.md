@@ -1,6 +1,6 @@
 # 12 — Known Issues & Limitations
 
-**Last updated:** 2026-08-03
+**Last updated:** 2026-08-10 (documentation audit against the working tree)
 
 > Open issues first, then **known limitations accepted by decision** — each traceable to an ADR or
 > a PRD constraint. Recording the latter prevents a future engineer from mistaking a deliberate
@@ -10,16 +10,21 @@
 
 ## 1. Current issues
 
-### I-01 — Integration suites cannot run concurrently
-**Severity:** Medium · **Workaround:** run one file at a time
+### I-01 — ~~Integration suites cannot run concurrently~~ RESOLVED 2026-08-10
+**Severity:** — · **Resolution:** fixtures namespaced per suite
 
-Every suite points at the same remote `evallo-recruit` database and clears collections in
-`beforeEach`. Node's test runner parallelises across files by default, so two suites clobber each
-other's fixtures and fail non-deterministically. Each file passes in isolation.
+The prescribed fix was taken: each suite now cleans up only its **own** fixture addresses rather than
+issuing an unscoped `deleteMany({})`. Two earlier variants are called out in the suites' own comments
+as things not to repeat — the unscoped delete (which signed out every real user in the shared
+development database) and a `/@example\.com$/` filter (which still matched every other suite's
+fixtures and orphaned their candidate profiles mid-run).
 
-**Fix:** run with `--test-concurrency=1`, or namespace fixtures per suite so they cannot collide.
-Related: the suites call `Session.deleteMany({})` unscoped, which signs out every real user in the
-shared development database.
+**Verified 2026-08-10:** a single `npm test` runs all 20 files together — **365 tests, 81 suites,
+365 pass, 0 fail** — with no per-file invocation and no `--test-concurrency=1`.
+
+One caveat remains: the suites still share one `evallo-recruit` database with development data, so
+fixture addresses must stay unique per suite. A new suite that reuses another's email will resurrect
+this class of failure.
 
 ### I-02 — ~~Google sign-in does not work on localhost~~ RESOLVED 2026-08-04
 **Severity:** — · **Resolution:** fixed in `GoogleButton.jsx`
@@ -50,15 +55,32 @@ be found in production.
 
 The fix is an enum on the model, which is a schema change and was left out of REC-12's scope.
 
-### I-07 — Candidate profile access is not logged
-**Severity:** Medium · **Blocks:** PRD §21.4 acceptance
+### I-07 — ~~Candidate profile access is not logged~~ RESOLVED 2026-08-10
+**Severity:** — · **Resolution:** `modules/audit` shipped with REC-13
 
-§21.4 requires profile access to be logged with company, user, timestamp and source, and §16.1
-lists profile views among the events that must be auditable. Nothing records them. REC-11 moves an
-interest to `viewed` but writes no audit event, and REC-12 records nothing at all.
+`auditEvents` now records `candidate_profile.viewed` with company, user, timestamp and source, and
+`candidate_contact.revealed` as its own event carrying the rule that permitted the reveal. A refused
+view writes nothing; the log is append-only, so repeat views accumulate. Read back at
+`GET /api/companies/:companyId/audit` behind `company:settings`. Four `candidateViewer.test.js` cases
+pin the behaviour.
 
-Search is discovery rather than profile access, so REC-12 does not trigger the requirement — but
-REC-13 opens profiles directly and cannot ship without it.
+**Superseded by I-08** — the writes happen, but they are not guaranteed.
+
+### I-08 — Audit writes are fire-and-forget
+**Severity:** Medium · **Blocks:** treating the audit log as a compliance artefact
+
+`recordAuditEvent()` calls `AuditEvent.create(event).catch(...)` **without `await`**. A failed write
+is logged to the app logger and swallowed; the request succeeds regardless, and the caller never
+learns the event was lost. The service header states the intent that this becomes an `await` at the
+call site without changing shape.
+
+This is acceptable for diagnostics and wrong for compliance: PRD §16.1 treats profile-view and
+contact-reveal records as auditable obligations, and an obligation that can silently fail is not
+being met. It also makes the four passing audit assertions timing-dependent in principle, since a
+read could in theory outrun the un-awaited write.
+
+**Fix:** `await` the write on the paths §16.1 names, and decide explicitly whether a failed audit
+write should fail the request.
 
 ### I-03 — MongoDB is standalone, so there are no transactions
 **Severity:** Medium
@@ -74,35 +96,162 @@ ESLint resolves imports per file, so a symbol imported from a barrel that does n
 clean and then fails at runtime with a blank page. `vite build` catches it. Add the build to any
 verification that touches `services/index.js` or another barrel.
 
-### I-04a — CAN-02 covers four of the PRD's twelve profile sections
-**Severity:** Medium
+### I-04a — CAN-02 covers eight of the PRD's twelve profile sections
+**Severity:** Low (was Medium) · **Updated:** 2026-08-10
 
-PRD §8.3 lists twelve sections. The seeded bank covers 1–3 plus teaching practice. Sections 4–11
-are the **evidence layer**: ADR-008 gives each its own collection with per-item visibility and
-verification state, which no single form captures, and PRD §20.3 already defers reference
-collection and issuer verification to Phase 2.
+PRD §8.3 lists twelve sections. The builder now presents **eight display steps**: four question-bank
+sections (identity, role preferences, teaching expertise, teaching practice), four evidence-entry
+steps (experience, education, credentials, portfolio media — see `05_DATABASE_SCHEMA.md` §8), and
+publish/visibility.
 
-Because the bank is database configuration, adding them is a new bank version rather than a code
-change. **The completeness indicator must be extended in the same change**, or a profile with no
-experience or credentials will read "100% complete" — which is misleading rather than merely
-incomplete.
+**Still outstanding from §8.3:** references (PRD §20.3 defers collection to Phase 2), assessments
+(§20.3 Phase 2, TRD §15 D-01, unscheduled), and issuer **verification** of credentials — the
+`verificationStatus` field exists on every entry but nothing writes any value other than
+`unverified`, so no credential is actually verified today.
 
-### I-04b — Interest statuses never advance past "Submitted"
-**Severity:** Low, by design
+The completeness concern in the original entry was addressed: profile strength is derived from the
+same `publishBlockers` the publish gate uses, and unanswered optional questions are reported
+separately, so an evidence-free profile cannot read "100% complete" as a publish claim.
 
-CAN-08 shows every interest at `submitted`, because the later statuses are set by the recruiter's
-interest inbox (REC-11), which is not built. The screen says so explicitly rather than implying
-the company has ignored the candidate. Likewise CAN-09's inbox stays empty until REC-15 can open a
-thread.
+### I-04b — ~~Interest statuses never advance past "Submitted"~~ RESOLVED 2026-08-10
+**Severity:** — · **Resolution:** REC-11 and REC-15 are both built
+
+`PATCH /api/companies/:companyId/interests/:interestId` advances interest status
+(`interestInbox.test.js`, 20 cases), and `POST /api/companies/:companyId/conversations` opens a
+thread that appears in the candidate's CAN-09 inbox (`recruiterWorkflow.test.js`). Neither surface
+depends on unbuilt work any more.
 
 ### I-04 — HOME-01 creates the candidate profile inline
-**Severity:** Low
+**Severity:** Low · **Partially addressed** 2026-08-10
 
-"Start your candidate profile" calls `POST /api/me/candidate-profile` directly. Creation belongs
-to CAN-02; when that screen exists, HOME-01's action should route to it instead. Behaviour is
-correct today — nothing is created without an explicit click — but the responsibility sits in the
-wrong screen.
+`AppHomePage.startCandidateProfile()` still calls `POST /api/me/candidate-profile` directly
+(`AppHomePage.jsx`). The responsibility sits in the wrong screen: creation belongs to CAN-02.
 
+The user-visible defect that came with it **is** fixed — the handler previously set a success message
+and never navigated, so `RequireCandidate` bounced the user straight back and the profile appeared not
+to have been created. It now refreshes capabilities and routes to the builder. What remains is
+placement, not behaviour.
+
+### I-09 — Talent search sorts and matches on unindexed fields
+**Severity:** Medium · **Found:** 2026-08-10 documentation audit
+
+`candidateProfiles` carries exactly two indexes — `{ userId: 1 }` unique and
+`{ status: 1, lastActiveAt: -1 }`. REC-12 matches on `status` plus the facet fields and sorts by
+`publishedAt`/`createdAt` (`recent`, `newest`) or `user.name` (`name`), none of which those indexes
+cover, so the sort runs in memory after the `$match`.
+
+Correct at pilot scale and fine at ~10 k profiles, but it degrades non-linearly and MongoDB hard-fails
+an in-memory sort above 32 MB. It also compounds I-10.
+
+**Fix:** compound indexes matching the real match+sort shapes, validated with `explain()` against
+seeded volume rather than guessed.
+
+### I-10 — Per-row access resolution in pipeline and messaging lists (N+1)
+**Severity:** Medium · **Found:** 2026-08-10 documentation audit
+
+`pipeline.service.js` and `messaging/companyMessaging.service.js` `await candidateCard(...)` **inside**
+a `Promise.all` over rows, and each call runs one to three `exists()` queries through
+`resolveCandidateAccess`. A 25-row board issues up to ~75 extra round trips, fired concurrently
+against a connection pool of **10** (`DB.MAX_POOL_SIZE`), so the pool saturates and requests queue
+behind each other.
+
+The pattern to copy already exists in this codebase: `search.service.js` batch-preloads interests and
+passes them as `hints`.
+
+**Fix:** batch-preload grants and interests per page and pass hints in; raise `maxPoolSize`.
+**Do not** introduce a second access check — `resolveCandidateAccess` must remain the only authority.
+
+### I-11 — Rate limiting is in-memory and keyed by IP
+**Severity:** Medium · **Found:** 2026-08-10 documentation audit
+
+`middleware/rateLimit.js` passes neither `store` nor `keyGenerator`, so `express-rate-limit` uses its
+defaults: an **in-process** store keyed by **IP**. Two consequences:
+
+- Schools, districts and mobile carriers behind one NAT share a single 300-request/15-min budget, so a
+  handful of legitimate users can lock out everyone at that address.
+- The store is per-process, so the limit both multiplies by instance count and stops being
+  enforceable the moment a second instance runs — which blocks horizontal scaling.
+
+Limiters are skipped when `NODE_ENV=test`, so no suite exercises this.
+
+**Fix:** key by authenticated user with IP as fallback; move the store to Redis.
+
+### I-12 — Notification preferences are stored but never consulted
+**Severity:** Medium · **Found:** 2026-08-10 documentation audit
+
+SET-01 persists a per-event × per-channel matrix to `users.notificationPreferences`, and the settings
+UI presents it as controlling what the user receives. **Nothing reads it.** No code outside
+`settings.service.js` references the field, there is no `notifications` collection, and the only
+emails the system sends are the two transactional ones in `lib/email` (verification, password reset).
+
+The screen therefore promises control over notifications that are not generated. Not a data defect —
+the preference is stored correctly and will be honoured once delivery exists — but it is a UI claim
+ahead of the implementation.
+
+**Fix:** either build M6 notification delivery, or state on the screen that these preferences apply
+to notifications not yet enabled.
+
+### I-13 — No test coverage for profile entries or account settings
+**Severity:** Medium · **Found:** 2026-08-10 documentation audit
+
+Two shipped endpoint families have **no integration test at all**:
+
+| Untested | Endpoints | Why it matters |
+|---|---|---|
+| Profile entries (CAN-02 evidence) | `GET`/`POST /api/me/candidate-profile/entries/:kind`, `PATCH`/`DELETE .../:entryId` | Four collections, four body schemas, per-item visibility, the media provider allow-list, **and the rule that `verificationStatus` cannot be forged** — all implemented, none pinned |
+| Account settings (SET-01) | all nine `/api/me/settings/*` | Includes password change (session revocation), data export scoping, and deletion blocked while still a company owner — three security-relevant behaviours with no regression guard |
+
+`profileBuilder.test.js` (17 cases) covers the question-bank sections only; no test in the suite
+requests either path. Given ADR-002 makes integration tests the substitute for a compiler (L-01),
+these are the two places where that substitute is currently absent.
+
+### I-14 — No unit tests and no frontend tests
+**Severity:** Low–Medium · **Found:** 2026-08-10 documentation audit
+
+`apps/api/tests/unit/` exists but holds only a `.gitkeep` — **no unit test has ever been written**; all 365 cases are integration tests. `apps/web` has
+**no test files of any kind** — no component, hook or route-guard tests.
+
+Frontend correctness is currently verified by `npm run lint`, `vite build`, and ad-hoc
+browser-automation scripts that live outside the repository. That has caught real defects (see the
+sidebar and navigation fixes in `11_CHANGELOG.md`), but none of it is committed, so none of it will run
+again for the next engineer.
+
+**Fix:** commit the browser checks as a runnable suite, or add component tests for the pieces where a
+regression is silent — the permission-filtered rail, the route guards, and the builder's section
+switching.
+
+### I-15 — File upload and object storage do not exist
+**Severity:** Low, by design · **Found:** 2026-08-10 documentation audit
+
+There is no upload endpoint, no multipart handling and no blob store anywhere in the codebase.
+Consequently:
+
+- `credentials.documentUrl` accepts a **link the candidate already hosts**; the UI says so rather than
+  showing a "PDF uploaded" badge that would be a lie.
+- `evidenceItems.url` is restricted to YouTube and Vimeo hosts (`MEDIA_PROVIDERS`).
+- `messages.attachments` exists on the model and every serializer emits `[]`, but the field is
+  **reserved, not implemented**.
+
+Deliberate — file storage is undecided (TRD §14 Q2, D-02). Recorded so the reserved fields are not
+mistaken for working features. Whenever storage is chosen it must be object storage with pre-signed
+URLs; serving uploads through the API process is the one choice that would undo the scaling profile
+described in I-10 and I-11.
+### I-16 — Ten marketing/legal routes are still placeholders
+**Severity:** Low, except for two · **Verified:** 2026-08-10
+
+`COMPANY_PLACEHOLDERS` is now **empty** — no feature route is a placeholder, and every company-scoped
+screen the app links to is real. What remains in `PLACEHOLDERS` is content, not functionality:
+
+`/terms` · `/privacy` · `/pricing` · `/assessments` · `/help` · `/guides` · `/blog` · `/research` ·
+`/about` · `/contact`
+
+Each renders `PlaceholderPage`, which names what will replace it and offers a **context-aware** way
+back (company home inside a company, app home when signed in, marketing home otherwise) rather than a
+dead end. Nothing is a fake control.
+
+**Two are not low severity.** `/terms` and `/privacy` are placeholders while the sign-up and
+early-access forms already claim the user consents to both — tracked as D-09 and still owned by the
+founder. That is a compliance exposure, not a content backlog item.
 ---
 
 ## 2. Accepted limitations
@@ -152,21 +301,24 @@ non-engineer wanting to reword a question must ask an engineer.
 
 ---
 
-### L-04 — `CandidateProfile.facets` can drift from its source collections
-**Source:** ADR-008 · **Severity:** **High** — the most dangerous known limitation
+### L-04 — ~~`CandidateProfile.facets` can drift from its source collections~~ CORRECTED 2026-08-10
+**Source:** ADR-008 · **Severity:** — · **Status:** describes something that was never built
 
-`facets` is denormalized from `experiences`, `credentials`, `candidateAnswers`, and others, and
-is the **only** shape talent search queries. Any code path that writes candidate data without
-calling `refreshCandidateFacets(candidateId)` silently corrupts search results — the candidate
-becomes invisible, or visible under wrong criteria, with **no error anywhere**.
+This entry described a denormalized `facets` subdocument, recomputed by
+`refreshCandidateFacets(candidateId)`, as "the only shape talent search queries".
 
-**Mitigations, all required before M5:**
-1. Exactly one function performs the refresh; no ad-hoc facet writes anywhere.
-2. Every mutating candidate service path calls it — verified by test, not by convention.
-3. A reconciliation script can rebuild all facets from source; run it after any bulk migration.
+**Neither exists in the codebase.** There is no `facets` field on `candidateProfiles` and no
+`refreshCandidateFacets` function anywhere. REC-12 shipped querying the profile's flat fields
+(`targetRoles`, `subjects`, `learnerSegments`, `employmentTypes`, `deliveryModes`, `availability`,
+`yearsExperience`) directly, joining `users` for country, language and region.
 
-This is the limitation most likely to cause a silent production defect. Treat any facet write
-outside `refreshCandidateFacets` as a bug in review.
+There is therefore **no derived copy and no drift risk** — the highest-severity entry in this
+document was describing a design that was superseded before it was implemented. Verified against
+`candidates/candidateProfile.model.js` and `modules/search/search.service.js`. Corresponding
+correction in `14_PROGRESS_TRACKER.md` (TD-04) and `05_DATABASE_SCHEMA.md` §8.
+
+**Two real gaps replace it:** the fields are unvalidated (I-06) and the query shape is unindexed
+(I-09).
 
 ---
 

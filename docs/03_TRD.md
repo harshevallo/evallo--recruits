@@ -435,7 +435,7 @@ validation with scanning (§16.3).
 | Concern | Approach | PRD |
 |---|---|---|
 | Public page load | SEO Stage 1 metadata injection; compressed images; semantic markup | §17, §19 |
-| Search first page | Compound indexes on `facets`; cursor pagination; facet counts computed asynchronously | §10.1, §19 |
+| Search first page | **As built:** offset pagination with the page and total from one `$facet` pass. The planned `facets` subdocument and compound indexes on it were never implemented — REC-12 matches the profile's flat fields and joins `users` for country/language/region. Only two indexes exist on `candidateProfiles`, neither covering the match+sort shape, so the sort runs in memory (`12_KNOWN_ISSUES.md` I-09) | §10.1, §19 |
 | Long result lists | Pagination, then virtualisation if needed | §19 |
 | Candidate profile assembly | Parallel reads across split collections (ADR-008), not sequential | §19 |
 | Media | Lazy-loaded embeds; never blocking render | §19 |

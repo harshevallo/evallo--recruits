@@ -118,22 +118,29 @@ Sets the refresh cookie.
 
 Endpoints are added below as they are built. This list is the intended shape, not a contract.
 
-| Group | Base path | Milestone |
-|---|---|---|
-| Auth | `/api/auth/*` | M1 |
-| Current user | `/api/me/*` | M1 |
-| Public (unauthenticated) | `/api/public/*` | M2 |
-| Companies | `/api/companies/*` | M2 |
-| Memberships | `/api/companies/:id/members/*` | M2 |
-| Hiring intents | `/api/companies/:id/hiring-intents/*` | M2 |
-| Candidate profile | `/api/me/candidate-profile/*` | M3 |
-| Evidence | `/api/me/candidate-profile/evidence/*` | M3 |
-| Question bank | `/api/question-bank/*` | M3 |
-| Interests | `/api/me/interests/*`, `/api/companies/:id/interests/*` | M4 |
-| Search | `/api/companies/:id/search/candidates` | M5 |
-| Pipeline | `/api/companies/:id/pipeline/*` | M5 |
-| Messaging | `/api/conversations/*` | M5 |
-| Notifications | `/api/me/notifications/*` | M6 |
+| Group | Base path | Milestone | State |
+|---|---|---|---|
+| Auth | `/api/auth/*` | M1 | ✅ built |
+| Current user | `/api/me/*` | M1 | ✅ built |
+| Public (unauthenticated) | `/api/public/*` | M2 | ✅ built |
+| Companies | `/api/companies/*` | M2 | ✅ built |
+| Memberships | `/api/companies/:id/members/*` | M2 | ✅ built |
+| Join requests | `/api/companies/:id/join-requests/*`, `/api/me/join-requests/*` | M2 | ✅ built |
+| Hiring intents | `/api/companies/:id/hiring-intents/*` | M2 | ✅ built |
+| Candidate profile | `/api/me/candidate-profile/*` | M3 | ✅ built |
+| Evidence entries | `/api/me/candidate-profile/entries/:kind` | M3 | ✅ built — **not** the `/evidence/*` path this document originally planned |
+| Question bank | `/api/question-bank/*` | M3 | 🔴 **no such route.** The bank is server-side configuration (ADR-007) delivered inside the builder response; it is never fetched separately |
+| Interests | `/api/me/interests/*`, `/api/companies/:id/interests/*` | M4 | ✅ built |
+| Search | `/api/companies/:id/search/candidates` | M5 | ✅ built |
+| Candidate viewer | `/api/companies/:id/candidates/:candidateId` | M5 | ✅ built |
+| Pipeline | `/api/companies/:id/pipeline/*` | M5 | ✅ built |
+| Shortlist | `/api/companies/:id/saved-candidates/*` | M5 | ✅ built |
+| Notes | `/api/companies/:id/candidates/:id/notes`, `.../notes/:noteId` | M5 | ✅ built |
+| Messaging | `/api/conversations/*` | M5 | ✅ built, but **not at this path** — threads are reached through their owner: `/api/me/conversations/*` for candidates and `/api/companies/:id/conversations/*` for companies. There is no top-level `/api/conversations` |
+| Audit | `/api/companies/:id/audit` | M5 | ✅ built |
+| Account settings | `/api/me/settings/*` | — | ✅ built (SET-01) |
+| Notifications | `/api/me/notifications/*` | M6 | 🔴 not built. SET-01 stores *preferences* at `/api/me/settings/notifications`; no notification is generated, delivered or listed |
+| Saved searches | `/api/companies/:id/saved-searches/*` | M5 | 🔴 not built. REC-12 keeps filter state in the URL instead |
 
 **`/api/public/*` is a hard boundary.** It is served by `modules/public`, which may read only
 published company data and can never reach a candidate collection (PRD §21.2).
@@ -205,6 +212,48 @@ published company data and can never reach a candidate collection (PRD §21.2).
 | `PATCH` | `/api/companies/:companyId/interests/:interestId` | Bearer + `interest:view` | REC-11 |
 | `POST` | `/api/companies/:companyId/interests/:interestId/viewed` | Bearer + `interest:view` | REC-11 |
 | `GET` | `/api/companies/:companyId/search/candidates` | Bearer + `candidate:search` | REC-12 |
+| `GET` | `/api/companies/:companyId/candidates/:candidateId` | Bearer + `candidate:view` | REC-13 |
+| `GET` | `/api/me/candidate-profile/entries/:kind` | Bearer | CAN-02 |
+| `POST` | `/api/me/candidate-profile/entries/:kind` | Bearer | CAN-02 |
+| `PATCH` | `/api/me/candidate-profile/entries/:kind/:entryId` | Bearer | CAN-02 |
+| `DELETE` | `/api/me/candidate-profile/entries/:kind/:entryId` | Bearer | CAN-02 |
+| `GET` | `/api/companies/search` | Bearer | REC-01 join flow |
+| `POST` | `/api/companies/:companyId/join-requests` | Bearer (no membership) | REC-01 join flow |
+| `GET` | `/api/companies/:companyId/join-requests` | Bearer + `member:manage` | REC-01 |
+| `POST` | `/api/companies/:companyId/join-requests/:requestId/approve` | Bearer + `member:manage` | REC-01 |
+| `POST` | `/api/companies/:companyId/join-requests/:requestId/decline` | Bearer + `member:manage` | REC-01 |
+| `GET` | `/api/me/join-requests` | Bearer | REC-01 |
+| `POST` | `/api/me/join-requests/:requestId/withdraw` | Bearer | REC-01 |
+| `GET` | `/api/companies/:companyId/hiring-intents` | Bearer + membership | REC-05 / REC-16 |
+| `POST` | `/api/companies/:companyId/hiring-intents` | Bearer + `hiring:manage` | REC-05 / REC-16 |
+| `GET` | `/api/companies/:companyId/hiring-intents/:intentId` | Bearer + membership | REC-05 / REC-16 |
+| `PATCH` | `/api/companies/:companyId/hiring-intents/:intentId` | Bearer + `hiring:manage` | REC-05 / REC-16 |
+| `PATCH` | `/api/companies/:companyId/hiring-intents/:intentId/status` | Bearer + `hiring:manage` | REC-05 / REC-16 |
+| `GET` | `/api/companies/:companyId/pipeline` | Bearer + `pipeline:view` | REC-14 |
+| `POST` | `/api/companies/:companyId/pipeline` | Bearer + `pipeline:edit` | REC-14 |
+| `GET` | `/api/companies/:companyId/pipeline/:entryId` | Bearer + `pipeline:view` | REC-14 |
+| `PATCH` | `/api/companies/:companyId/pipeline/:entryId` | Bearer + `pipeline:edit` | REC-14 |
+| `PATCH` | `/api/companies/:companyId/pipeline/:entryId/stage` | Bearer + `pipeline:edit` | REC-14 |
+| `PATCH` | `/api/companies/:companyId/pipeline/:entryId/owner` | Bearer + `pipeline:edit` | REC-14 |
+| `GET` | `/api/companies/:companyId/saved-candidates` | Bearer + `candidate:view` | Shortlist |
+| `POST` | `/api/companies/:companyId/saved-candidates` | Bearer + `candidate:view` | Shortlist |
+| `DELETE` | `/api/companies/:companyId/saved-candidates/:candidateId` | Bearer + `candidate:view` | Shortlist |
+| `GET` | `/api/companies/:companyId/candidates/:candidateId/notes` | Bearer + `candidate:view` | REC-14 notes |
+| `POST` | `/api/companies/:companyId/candidates/:candidateId/notes` | Bearer + `note:write` | REC-14 notes |
+| `DELETE` | `/api/companies/:companyId/notes/:noteId` | Bearer + `note:write` | REC-14 notes |
+| `GET` | `/api/companies/:companyId/conversations` | Bearer + `candidate:view` | REC-15 |
+| `GET` | `/api/companies/:companyId/conversations/:conversationId` | Bearer + `candidate:view` | REC-15 |
+| `POST` | `/api/companies/:companyId/conversations` | Bearer + `message:send` | REC-15 |
+| `POST` | `/api/companies/:companyId/conversations/:conversationId/messages` | Bearer + `message:send` | REC-15 |
+| `GET` | `/api/companies/:companyId/audit` | Bearer + `company:settings` | REC-13 audit trail |
+| `GET` | `/api/me/settings/notifications` | Bearer | SET-01 |
+| `PATCH` | `/api/me/settings/notifications` | Bearer | SET-01 |
+| `POST` | `/api/me/settings/password` | Bearer | SET-01 |
+| `GET` | `/api/me/settings/sessions` | Bearer | SET-01 |
+| `POST` | `/api/me/settings/sessions/sign-out-others` | Bearer | SET-01 |
+| `GET` | `/api/me/settings/sign-in-methods` | Bearer | SET-01 |
+| `GET` | `/api/me/settings/export` | Bearer | SET-01 |
+| `POST` | `/api/me/settings/delete` | Bearer | SET-01 |
 | `POST` | `/api/public/early-access` | None | MKT-01 |
 | `GET` | `/api/public/companies` | None | PUB-01 |
 | `GET` | `/api/public/companies/facets` | None | PUB-01 |
@@ -736,6 +785,296 @@ authoritative name. Sorts are `recent`, `newest`, `name`.
 Cards are built from `toRecruiterView()` — the one recruiter representation, shared with CAN-03 —
 then stripped of evidence and contact. This screen is discovery: a card is a reason to open a
 profile, not a substitute for opening one.
+
+**Query contract** (`candidateSearchQuerySchema` in `@evallo/shared`, so the vocabulary the API
+accepts and the vocabulary the UI renders are one list):
+
+| Param | Type | Notes |
+|---|---|---|
+| `q` | string ≤ 120 | Keyword. Special characters are escaped and matched **literally**, not as a pattern |
+| `role` `subject` `learnerSegment` `employmentType` `deliveryMode` `availability` `country` `language` | repeatable enum | Validated against the shared taxonomy; an out-of-vocabulary value is **400 before any query runs** |
+| `region` | string ≤ 120 | Case-insensitive match on `users.location.region` |
+| `minYears` / `maxYears` | int 0–60 | AND-ed range on one field. `minYears > maxYears` is 400 |
+| `sort` | `recent` \| `newest` \| `name` | Default `recent` |
+| `page` | int ≥ 1 | Default 1 |
+| `limit` | int 1–100 | Default 20 |
+
+`skills`, `institutions` and `credentials` appear in PRD Appendix B but are **deliberately absent**
+rather than accepted-and-ignored: a filter that silently does nothing is worse than one not offered.
+
+**Response** — `{ results[], page, limit, total, totalPages, hasMore }`. The page and the total come
+from one `$facet` pass rather than two queries.
+
+**Errors** — `400` invalid facet/sort/range · `401` unauthenticated · `403` authenticated member
+without `candidate:search` · `404` non-member (membership is never disclosed, so it is 404 and not
+403).
+
+**Tests** — `talentSearch.test.js`, 19 cases.
+
+---
+
+### `GET /api/companies/:companyId/candidates/:candidateId`
+
+REC-13 candidate viewer. `candidate:view` — held by **every** company role including viewer
+(TRD §6.1). Read-only: there is no write route on the viewer itself; Save, Add to pipeline, Note
+and Message are separate endpoints documented below.
+
+**Params** — `candidateId` must match `/^[a-f\d]{24}$/i`; a malformed id is rejected **before
+anything is read**.
+**Query** — `source` ∈ `search` \| `interest` \| `direct` (default `direct`). Constrained rather
+than free text because it is written to the audit record (§21.4).
+
+**Access is decided by one authority.** `resolveCandidateAccess` in
+`candidates/candidateAccess.service.js` is the only place candidate visibility is evaluated; the
+viewer, search, pipeline, shortlist, notes and messaging all call it. Refusal reasons
+(`ACCESS_DENIED`):
+
+| Reason | Meaning |
+|---|---|
+| `blocked_by_candidate` | The candidate blocked this company. **Overrides everything, including a live access grant** (§4.3) |
+| `not_published` | Draft profile |
+| `archived` | Archived profile |
+| `private_without_grant` | `private` — reachable only by a company holding an active grant |
+| `paused_without_prior_access` | `paused` — reachable only with prior access |
+
+A refusal is returned as **404, never 403** — absent and forbidden stay indistinguishable (§16.1),
+so a probe cannot confirm that a candidate exists.
+
+**Response** — `{ id, profile, access: { visibility, contactRevealed, contactRule, viaGrant,
+grantedAt }, interests[], lastActiveAt }`.
+
+`profile` is `toRecruiterView()`, **byte-identical to the candidate's own CAN-03 preview** — pinned
+by a test, so the promise "this is exactly what a recruiter sees" cannot silently drift.
+
+`contactRevealed` follows the **candidate's** `contactVisibility` rule, not the viewer's role: a
+company owner sees no more contact detail than a viewer does. Under `after_interest`, contact is
+revealed only while an interest is open.
+
+`interests` is **this** company's interest history with this candidate. Another company's history is
+never included.
+
+**Audit** — a successful view writes `candidate_profile.viewed` with company, user, timestamp and
+source; a contact reveal writes `candidate_contact.revealed` as its own event, carrying the rule
+that permitted it. A **refused** view writes nothing. The log is append-only, so repeat views
+accumulate rather than overwrite.
+
+**Errors** — `400` malformed id or unsupported `source` · `401` unauthenticated · `404` non-member,
+unknown candidate, or any access refusal.
+
+**Tests** — `candidateViewer.test.js`, 17 cases.
+
+---
+
+## 7b. Endpoints — candidate evidence entries (CAN-02)
+
+### `GET` · `POST /api/me/candidate-profile/entries/:kind` · `PATCH` · `DELETE .../:kind/:entryId`
+
+The repeatable profile-entry family (ADR-008, PRD §8.3 sections 4–5). One route family serves
+**four** collections, selected by `:kind`:
+
+| `:kind` | Collection | Builder step |
+|---|---|---|
+| `experience` | `experiences` | Experience & Education |
+| `education` | `educationEntries` | Experience & Education |
+| `credential` | `credentials` | Credentials & Scores |
+| `media` | `evidenceItems` | Portfolio & Media |
+
+**Personal surface only.** The handler resolves the profile from the session, never from a
+parameter, so there is no id to substitute and no cross-candidate write is expressible.
+
+**Validation is two-stage** because the body schema depends on `:kind`: `listEntriesValidation`
+(or `removeEntryValidation`) validates the params, then `validateEntryBody({ partial })` picks the
+schema for the resolved kind. A fixed schema accepting all four shapes would have to accept every
+field for every kind.
+
+Per-kind writable fields are listed in `05_DATABASE_SCHEMA.md` §8. Common to all four:
+`visibility` (`public` \| `private`) and `sortOrder`.
+
+`media.url` must resolve to an allow-listed embed provider (YouTube or Vimeo hosts). Any other host
+is a 400 — accepting arbitrary URLs would let a profile embed third-party content into a recruiter's
+browser (§16.3).
+
+> **`verificationStatus` cannot be forged.** It is absent from every body schema **and** absent from
+> `ENTRY_KINDS[kind].writable`, and `pickWritable()` strips unknown keys before create and before
+> update. A body claiming `verificationStatus: 'verified'` is silently dropped, not honoured and not
+> rejected. Nothing currently writes any value but `unverified` — issuer verification is Phase 2
+> (PRD §20.3).
+
+**`current` handling** — an entry may set `current: true` instead of `endDate`; the two are stored
+independently and the builder renders "Present" from `current`.
+
+**Errors** — `400` unknown `:kind`, invalid body, or a non-allow-listed media URL · `401`
+unauthenticated · `404` no candidate profile, or an `entryId` belonging to another candidate.
+
+> ⚠️ **No integration test covers these four endpoints.** `profileBuilder.test.js` (17 cases) covers
+> the question-bank sections only; no test in the suite requests
+> `/api/me/candidate-profile/entries/*`. The forgery guard above is therefore **implemented but
+> unpinned**. Recorded in `12_KNOWN_ISSUES.md`.
+
+---
+
+## 7c. Endpoints — join requests (REC-01)
+
+### `GET /api/companies/search`
+
+Company search for the join flow. Authenticated, **not company-scoped** — the caller is by
+definition not yet a member, so `resolveCompanyContext` could never authorise them.
+
+Only **published** companies are searchable. The query is an anchored, escaped regex, and a query
+shorter than two characters returns nothing rather than scanning the collection. Each result
+reports the caller's own relationship (`none` \| `member` \| `pending`), so an existing member is
+shown as a member instead of being offered a join.
+
+### `POST /api/companies/:companyId/join-requests`
+
+Ask to join. Authenticated, no membership and **no permission** required — the whole point is that
+the caller has neither.
+
+**A request grants nothing.** It creates a `pending` row and no membership. Asking twice is
+idempotent, enforced by a partial unique index on `{ companyId, userId }` where
+`status: 'pending'`. Refused for an unpublished company, an existing member, and a suspended
+member (who cannot re-enter by asking).
+
+`requestedRole` is a **hint only** — see approve, below.
+
+### `GET /api/companies/:companyId/join-requests` · `POST .../:requestId/approve` · `POST .../:requestId/decline`
+
+Review. `member:manage`.
+
+Approval upserts an **ACTIVE** `CompanyMember` with the role **the approver chose**, drawn from
+`GRANTABLE_ROLES`, which **excludes `owner`** — ownership cannot be obtained by asking for it.
+Declining records the decision and grants nothing. Both record who decided and when.
+
+### `GET /api/me/join-requests` · `POST /api/me/join-requests/:requestId/withdraw`
+
+The requester's own view, on the personal surface for the same reason as above. Every query is
+scoped to `req.authUser.userId`, so one person cannot withdraw another's request.
+
+**Tests** — `joinRequests.test.js`, 17 cases.
+
+---
+
+## 7d. Endpoints — hiring intents (REC-05 / REC-16)
+
+### `GET` · `POST /api/companies/:companyId/hiring-intents` · `GET` · `PATCH .../:intentId` · `PATCH .../:intentId/status`
+
+PRD §7.5's lightweight hiring declaration. Reads require **membership only**; writes require
+`hiring:manage` — a viewer may read intents but not write them.
+
+**No job description is required, and none is enforced.** `assertActivatable` checks only
+`roleCategories`, `employmentTypes` and `deliveryModes`; `description` may be `null` on an active
+intent.
+
+Status transitions are guarded by `STATUS_TRANSITIONS` and `archived` is **terminal**. Only `active`
+intents accept interest (§21.5). Closing an intent **preserves its pipeline entries** (§11.4).
+
+`interestQuestions` is capped at **three** at both the edge (`.max(3)`) and the model (§7.5, §8.7).
+
+"Currently hiring" is **derived** from the presence of active intents, never stored as a second
+flag, so the public company page and the candidate CTA cannot disagree with it.
+
+**Errors** — `400` under-declared activation, a fourth interest question, or an illegal transition ·
+`403` member without `hiring:manage` · `404` non-member or unknown intent.
+
+---
+
+## 7e. Endpoints — pipeline, shortlist, notes (REC-14)
+
+Every endpoint in this section calls `resolveCandidateAccess` **first**. A recruiter cannot
+shortlist, file, note or message a candidate they may not see, and the refusal is a 404.
+
+### `GET` · `POST /api/companies/:companyId/pipeline` · `GET` · `PATCH .../:entryId` · `PATCH .../:entryId/stage` · `PATCH .../:entryId/owner`
+
+Reads need `pipeline:view`; every write needs `pipeline:edit`.
+
+- **One active entry per candidate per company** (§4.1), enforced by a partial unique index rather
+  than check-then-write, so two recruiters adding the same person race safely.
+- A **rejected candidate can be re-added** (§21.4) — a terminal entry leaves the partial filter.
+- Adding records the opening stage in `stageHistory`; every stage change records **who** made it.
+- Moving to `rejected` **requires** `rejectionReasonCode`; moving to `hired` **requires**
+  `hiredRoleTitle`. Enforced in the service, so no caller can skip them.
+- `owner` assignment must be an **ACTIVE member of this company**.
+- Closed entries are hidden from the board unless explicitly requested.
+- `nextAction` and interview details persist on the entry.
+
+Stage, source and rejection vocabularies are in `05_DATABASE_SCHEMA.md` §9.
+
+### `GET` · `POST /api/companies/:companyId/saved-candidates` · `DELETE .../:candidateId`
+
+Shortlist. `candidate:view` for all three — saving is a private bookmark, not a workflow action.
+Saving is **idempotent** (unique index) and **silent to the candidate** (§21.4). An invisible
+candidate cannot be saved, and an outsider cannot save into a company they do not belong to.
+
+### `GET` · `POST /api/companies/:companyId/candidates/:candidateId/notes` · `DELETE /api/companies/:companyId/notes/:noteId`
+
+Internal notes. Reading needs `candidate:view`; writing and deleting need `note:write`.
+
+Notes live in their own collection, so "notes never reach candidates" (§11.2, §21.4) is structural
+rather than a filter every future query must remember — pinned by a test asserting a note appears on
+no candidate-facing surface. An empty note is refused. **Only the author may delete.** Creation and
+deletion are audited.
+
+---
+
+## 7f. Endpoints — company messaging (REC-15)
+
+### `GET /api/companies/:companyId/conversations` · `GET .../:conversationId` · `POST .../conversations` · `POST .../:conversationId/messages`
+
+Reads need `candidate:view`; sending needs `message:send`.
+
+Mirrors the candidate-side service over the **same** `conversations`/`messages` rows, so the two
+sides cannot disagree about a thread. Threads belong to the **company**, so a departing recruiter's
+replacement inherits them (§21.6). Unread counts and read receipts are **per side**.
+
+`POST .../conversations` is **upsert-shaped**: a second "message" to the same candidate continues
+the existing thread rather than forking a new one.
+
+`senderUserId` is retained and resolved, so the candidate sees **which individual recruiter** wrote
+each message, never only the company name.
+
+An invisible candidate cannot be messaged. A viewer cannot send; an outsider cannot read the thread.
+
+`attachments` is present in every message payload and **always empty** — the field is reserved and
+there is no upload path (see `05_DATABASE_SCHEMA.md` §9).
+
+**Tests** — pipeline, shortlist, notes and messaging are covered by `recruiterWorkflow.test.js`,
+29 cases.
+
+---
+
+## 7g. Endpoints — company audit trail
+
+### `GET /api/companies/:companyId/audit`
+
+`company:settings`. Paged (`page`, `pageSize`, default 25) list of this company's `auditEvents`,
+newest first, with actor names resolved. Actions and target types are listed in
+`05_DATABASE_SCHEMA.md` §10.
+
+Audit **writes** are best-effort — see the warning in `05_DATABASE_SCHEMA.md` §10.
+
+---
+
+## 7h. Endpoints — account settings (SET-01)
+
+All on the personal surface; every handler scopes to `req.authUser.userId`, so there is no id to
+substitute and no company context to resolve.
+
+| Endpoint | Behaviour |
+|---|---|
+| `GET` · `PATCH /api/me/settings/notifications` | Per-event `{ email, inApp }` matrix. The service **refuses** to write a preference for `security` events (§15: security notices cannot be disabled). **Preferences are stored but never consulted** — nothing generates a notification |
+| `POST /api/me/settings/password` | Requires the **current** password, then revokes every session (`revokeAllSessions`) |
+| `GET /api/me/settings/sessions` | Active sessions with device/IP metadata |
+| `POST /api/me/settings/sessions/sign-out-others` | Revokes all sessions except the caller's |
+| `GET /api/me/settings/sign-in-methods` | Which providers are connected (Google / password) |
+| `GET /api/me/settings/export` | The caller's own data as JSON: account, notification preferences, candidate profile, memberships. **Not** other people's profiles and **not** colleagues' internal notes |
+| `POST /api/me/settings/delete` | Requires the password. Sets `status: deletion_pending` and `deletionRequestedAt`; **blocked while the caller still owns a company** — a company cannot be left ownerless. Retention over erasure, so the §16.1 audit trail survives |
+
+Candidate professional-profile visibility is **not** duplicated here. Settings owns the preference
+surface; `candidateAccess.service.js` remains the authority, and the privacy page links to CAN-04
+rather than re-implementing it.
+
+> ⚠️ **No integration test covers any `/api/me/settings/*` endpoint.** Recorded in
+> `12_KNOWN_ISSUES.md`.
 
 ---
 

@@ -471,6 +471,23 @@ called from every mutating path — never inline. Profile assembly for the recru
 ### Impact
 All candidate collections; `modules/candidates`; `modules/search`; CAN-02, CAN-03, REC-13.
 
+### Implementation note — added 2026-08-10 (the decision stands; one half of it was not built)
+
+**Built as decided:** the split collections. `experiences`, `educationEntries`, `credentials` and
+`evidenceItems` each exist with their own `visibility` and `verificationStatus`, served by one route
+family (`/api/me/candidate-profile/entries/:kind`). Per-item state is exactly what embedding could not
+give, and REC-13 does assemble the profile with parallel multi-collection reads. `references` remains
+unbuilt (PRD §20.3, Phase 2).
+
+**Not built:** the denormalized search facets. There is no `facets` subdocument on
+`candidateProfiles` and no `refreshCandidateFacets()`. REC-12 shipped querying the profile's own flat
+fields and `$lookup`-ing `users` for country, language and region.
+
+The "Cons" above therefore do not apply — with no derived copy there is nothing to recompute and no
+consistency risk. Two different gaps replace it: the flat fields carry no taxonomy enum (I-06), and no
+index covers the real match+sort shape (I-09). This ADR is left as the record of what was decided;
+`05_DATABASE_SCHEMA.md` §8 documents what exists.
+
 ---
 
 <a id="adr-009"></a>

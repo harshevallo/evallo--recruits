@@ -25,9 +25,11 @@ users ──1:1── candidateProfiles ──1:N── experiences
   │
   ├──1:N── authSessions
   ├──1:N── verificationTokens
+  ├──1:N── companyJoinRequests ──N:1── companies
   └──1:N── companyMembers ──N:1── companies ──1:N── hiringIntents
                                           │       ──1:N── interests
                                           │       ──1:N── pipelineEntries
+                                          │       ──1:N── savedCandidates
                                           │       ──1:N── conversations ──1:N── messages
                                           │       ──1:N── savedSearches
                                           │       ──1:N── notes
@@ -35,6 +37,17 @@ users ──1:1── candidateProfiles ──1:N── experiences
 
 auditEvents · notifications · reports    (cross-cutting, reference many collections)
 ```
+
+### Built vs specified
+
+The map above is the target shape. What exists in the codebase today:
+
+| Built | Specified, not built |
+|---|---|
+| `users` · `authSessions` · `verificationTokens` · `companies` · `companyRevisions` · `companyMembers` · `companyJoinRequests` · `hiringIntents` · `candidateProfiles` · `candidateAnswers` · `questionBanks` · `experiences` · `educationEntries` · `credentials` · `evidenceItems` · `savedCompanies` · `interests` (`expressionsOfInterest`) · `accessGrants` · `pipelineEntries` · `savedCandidates` · `conversations` · `messages` · `notes` · `auditEvents` · `earlyAccessRequests` | `references` · `savedSearches` · `notifications` · `reports` |
+
+**25 collections built, 4 outstanding.** `companyMembers` doubles as the invitation record
+(`status: 'invited'`) — there is no separate `invitations` collection.
 
 ### Naming conventions
 - Collections: plural camelCase — `candidateProfiles`, `companyMembers`
@@ -71,8 +84,10 @@ consequential schema decision in the project.
 | `status` | ✅ | String | ✅ | `active \| suspended \| deletion_pending \| deleted` (PRD §14.2) |
 | `lastLoginAt` | ✅ | Date | | |
 | `deletedAt` | ✅ | Date | | Anonymisation, not removal (PRD §16.1) |
+| `phone` | ✅ | String | | Account-level contact number, added by SET-01. **Account identity, not profile content** — never returned on a recruiter-facing surface; what a company sees is decided by the candidate's own `contactVisibility` rules, and this field is not on that path |
+| `notificationPreferences` | ✅ | Mixed | | SET-01. A map keyed by event, each `{ email, inApp }`. `Mixed` with `default: undefined` so absent keys fall back to the service defaults and a new event type needs no migration. The service **refuses to write** a preference for `security` events (PRD §15: security notices cannot be disabled) rather than storing one that would be ignored. **Stored only — nothing reads these to decide whether to send anything** (see `12_KNOWN_ISSUES.md`) |
+| `deletionRequestedAt` | ✅ | Date | | Set when the person asks for deletion (SET-01 → Your data). The account is retained until processed; `status` moves to `deletion_pending` |
 | `authMethods` | ⏳ | [Object] | | Multi-provider linking. Superseded for now by `provider` + `googleId`/`microsoftId`; needed for AUTH-13 |
-| `notificationPrefs` | ⏳ | Object | | PRD §15, arrives with M6 |
 
 **Indexes** (as built)
 ```js
@@ -331,38 +346,10 @@ Lightweight hiring declaration. PRD §7.5 is explicit that **no job description 
 Split across collections per **ADR-008**. Full field specification lands with M3; the
 structure and the reasons behind it are fixed now.
 
-### `candidateProfiles`
-Core identity, work preferences, visibility state, and the denormalized `facets` subdocument.
+### `candidateProfiles` — **built**
 
-`facets` is the **only** shape talent search queries (ADR-010). It is derived, never
-authored — recomputed exclusively by `refreshCandidateFacets(candidateId)`, called from every
-mutating path. This is tracked as **TD-04 (High)** in `14_PROGRESS_TRACKER.md`: any code path
-that writes candidate data without triggering the refresh silently corrupts search results.
-
-```js
-facets: {
-  roleFamilies: [String], roles: [String], subjects: [String], tests: [String],
-  gradeBands: [String], curricula: [String], learnerPopulations: [String],
-  teachingFormats: [String], languages: [String], countries: [String],
-  timezones: [String], deliveryModes: [String], employmentTypes: [String],
-  yearsExperience: Number, evidenceCounts: { credentials, assessments, videos, references },
-  verificationFlags: [String], lastActiveAt: Date, profileCompleteness: Number
-}
-```
-
-Anticipated indexes (validated against real query shapes at M5):
-```js
-{ status: 1, "facets.roleFamilies": 1, "facets.subjects": 1 }
-{ status: 1, "facets.countries": 1, "facets.deliveryModes": 1 }
-{ status: 1, "facets.lastActiveAt": -1 }
-{ userId: 1 }   // unique — one active profile per user (PRD §4.1, Appendix D)
-```
-
-### `candidateProfiles` — as built
-
-Beyond the identity and visibility fields, the profile now carries the structured answers CAN-02
-writes, because talent search will filter on them and an answer document cannot be indexed
-usefully:
+Core identity, work preferences, and visibility state, plus the structured answers CAN-02 writes.
+Search filters on these fields directly, because an answer document cannot be indexed usefully.
 
 ```js
 targetRoles: [String], subjects: [String], learnerSegments: [String],
@@ -370,12 +357,73 @@ employmentTypes: [String], deliveryModes: [String], availability: String,
 yearsExperience: Number, bankVersion: Number
 ```
 
-`facets` is still to come (M5) — it is derived from these, not a replacement for them.
+Indexes **as built** (`candidates/candidateProfile.model.js`):
+```js
+{ userId: 1 }                       // unique — one profile per user (PRD §4.1, Appendix D)
+{ status: 1, lastActiveAt: -1 }
+```
 
-### `experiences` · `educationEntries` · `credentials` · `evidenceItems` · `references`
-All keyed by `candidateId`, each carrying its own `visibility` and — where applicable — its own
-`verificationStatus` (`unverified → pending → verified/rejected → expired`, PRD §14.2). Per-item
-state is exactly why these are separate collections rather than embedded arrays (ADR-008).
+#### ⚠️ The `facets` subdocument was never built — REC-12 queries these fields directly
+
+Earlier revisions of this document specified a denormalized `facets` subdocument as "the only
+shape talent search queries", recomputed by `refreshCandidateFacets(candidateId)`.
+
+**Neither exists in the codebase.** There is no `facets` field on `candidateProfiles` and no
+`refreshCandidateFacets` function anywhere. `modules/search/search.service.js` matches the flat
+fields above (`targetRoles`, `subjects`, `learnerSegments`, `employmentTypes`, `deliveryModes`,
+`availability`, `yearsExperience`) and `$lookup`s `users` for `country`, `language` and `region`,
+which live on the personal layer (§2).
+
+Consequences, both real:
+
+- **The drift risk that TD-04 and L-04 describe does not apply.** There is no derived copy to fall
+  out of step with its source. Those entries are corrected in `14_PROGRESS_TRACKER.md` and
+  `12_KNOWN_ISSUES.md` rather than left describing a phantom.
+- **The indexes that would serve the real query shape are missing.** Search matches on
+  `status` + facet fields and sorts on `publishedAt`/`createdAt`/`user.name`, none of which the two
+  indexes above cover, so the sort runs in memory. Recorded as a live gap, not a resolved one.
+
+### `experiences` · `educationEntries` · `credentials` · `evidenceItems` — **built (CAN-02)**
+
+Four separate collections, one per entry kind, all keyed by `candidateId`. Defined together in
+`candidates/profileEntry.model.js` and served by one route family (`/candidate-profile/entries/:kind`).
+
+Per-item state is exactly why these are separate collections rather than embedded arrays (ADR-008):
+each row carries its own `visibility` (`public` · `private`, from `CANDIDATE_VISIBILITY`) and its own
+`verificationStatus`, and an embedded array element cannot be indexed or selectively hidden.
+
+| Collection | Model | Kind | Distinct fields |
+|---|---|---|---|
+| `experiences` | `Experience` | `experience` | `role`, `organization`, `location`, `deliveryMode`, `startDate`, `endDate`, `current`, `description`, `outcome` |
+| `educationEntries` | `EducationEntry` | `education` | `institution`, `qualification`, `fieldOfStudy`, `startDate`, `endDate`, `current`, `description` |
+| `credentials` | `Credential` | `credential` | `name`, `credentialType`, `issuer`, `result`, `documentUrl`, `startDate`, `endDate`, `description` |
+| `evidenceItems` | `EvidenceItem` | `media` | `title`, `url`, `prompt`, `description` |
+
+Every row also carries `candidateId`, `visibility`, `verificationStatus`, `sortOrder`, `timestamps`.
+
+Indexes, one per collection:
+```js
+{ candidateId: 1, sortOrder: 1, startDate: -1 }   // experiences, educationEntries, credentials
+{ candidateId: 1, sortOrder: 1 }                  // evidenceItems (undated)
+```
+
+**`verificationStatus` is not client-writable.** It defaults to `unverified` from
+`EVIDENCE_VERIFICATION` and is absent from every Zod body schema; `ENTRY_KINDS[kind].writable`
+lists the permitted fields and `pickWritable()` in `profileEntry.service.js` drops everything else
+before the document is built or assigned. A crafted body claiming `verificationStatus: 'verified'`
+is therefore ignored rather than rejected. Nothing in the codebase writes any value other than
+`unverified` yet — issuer verification is Phase 2 (PRD §20.3) — but the field exists so entries
+created now do not need migrating.
+
+**No file storage.** `credentials.documentUrl` accepts a link the candidate already hosts, and
+`evidenceItems.url` is constrained to an allow-list of embed providers (`MEDIA_PROVIDERS`:
+YouTube and Vimeo hosts only, resolved by `providerFor()`), because accepting any URL would let a
+profile embed arbitrary third-party content into a recruiter's browser (PRD §16.3). There is no
+upload endpoint and no blob store anywhere in the codebase.
+
+### `references` — **not built**
+The fifth ADR-008 evidence collection. PRD §20.3 defers reference collection to Phase 2; no model,
+route or UI exists.
 
 ### `questionBanks` · `candidateAnswers` — **built (CAN-02)**
 
@@ -430,10 +478,129 @@ Created when interest is submitted and **withdrawn when the last active interest
 is withdrawn** — otherwise "withdrawn" would not actually withdraw anything. Pausing visibility
 deliberately does *not* touch it (PRD §4.3: paused hides from *new* searches only).
 
-### `pipelineEntries` (PRD §7.9)
-`{ companyId, candidateId, stage, ownerId, source, roleIntentIds[], stageHistory[], nextAction }`.
-Unique on `{ companyId, candidateId }` among active entries — PRD §4.1: one active entry per
-candidate per company.
+### `pipelineEntries` — **built (REC-14)**
+
+`pipeline/pipelineEntry.model.js`, collection `pipelineEntries`.
+
+```js
+{ companyId, candidateId, stage, ownerId, source, roleIntentIds: [ObjectId],
+  stageHistory: [{ stage, changedBy, changedAt, note }],
+  nextAction, nextActionAt, interviewAt, interviewMode, interviewNotes,
+  rejectionReasonCode, rejectionNote, hiredRoleTitle, hiredAt,
+  active: Boolean, timestamps }
+```
+
+**`stage`** — the fixed PRD §7.9 vocabulary from `@evallo/shared` (`PIPELINE_STAGES`):
+`new_interest` · `sourced` · `reviewing` · `contacted` · `screening` · `interview` · `offer` ·
+`hired` · `rejected`. `PIPELINE_STAGE_ORDER` fixes board order; `TERMINAL_PIPELINE_STAGES` is
+`[hired, rejected]`.
+
+**`source`** — `PIPELINE_SOURCES`: `interest` · `search` · `shortlist`.
+
+**`rejectionReasonCode`** — `REJECTION_REASONS`: `experience_mismatch` · `subject_mismatch` ·
+`location_mismatch` · `availability_mismatch` · `compensation_mismatch` · `credentials_missing` ·
+`role_filled` · `no_response` · `candidate_withdrew` · `other`.
+
+**`active`** is maintained by a `pre('save')` hook — false exactly when `stage` is terminal. It is
+not a caller-supplied flag.
+
+Indexes:
+```js
+{ companyId: 1, candidateId: 1 }  // UNIQUE, partialFilterExpression: { active: true }
+{ companyId: 1, stage: 1, updatedAt: -1 }
+{ companyId: 1, ownerId: 1 }
+```
+
+The partial unique index is what enforces PRD §4.1 (one active entry per candidate per company)
+without a check-then-write race, **and** what permits PRD §21.4's re-add: once an entry goes
+terminal it leaves the partial filter, so a new active row is admissible.
+
+Service-level invariants (`pipeline.service.js`, not the schema): moving to `rejected` requires a
+`rejectionReasonCode`; moving to `hired` requires `hiredRoleTitle`; `ownerId` must be an ACTIVE
+member of the same company; every read and write first passes `resolveCandidateAccess`.
+
+### `savedCandidates` — **built (shortlist, PRD §21.4)**
+
+`pipeline/savedCandidate.model.js`, collection `savedCandidates`.
+`{ companyId, candidateId, savedByUserId, note, timestamps }`, index
+`{ companyId: 1, candidateId: 1 }` **unique** — so saving is idempotent.
+
+A separate collection from `pipelineEntries` because saving is **silent to the candidate** while
+entering a workflow is not (§21.4). Sharing one collection would make that distinction a field
+every future query has to remember.
+
+### `conversations` · `messages` — **built (CAN-09 + REC-15)**
+
+`conversations`: `{ candidateId, companyId, interestId, lastMessageAt, lastMessagePreview,
+candidateUnread, companyUnread, candidateState, candidateRespondedAt, mutedAt, reportedAt,
+reportReason }`, unique on `{ candidateId, companyId }` so a reply continues the thread rather than
+starting another.
+
+`candidateState` is `pending | accepted | declined` — PRD §11.2's candidate-side actions. Declining
+closes the thread to further candidate replies and sets `mutedAt`; it never deletes messages,
+because the content is the record (§16.3).
+
+A conversation is between a **candidate and a company**, never two users: the company side is a
+context, so a recruiter leaving does not orphan the thread and their replacement inherits it
+(PRD §21.6). Unread counts are per side.
+
+Indexes:
+```js
+{ candidateId: 1, companyId: 1 }   // unique
+{ candidateId: 1, lastMessageAt: -1 }
+{ companyId: 1, lastMessageAt: -1 }
+```
+
+`messages`: `{ conversationId, senderType, senderUserId, body, attachments[], readAt }`, indexed
+`{ conversationId: 1, createdAt: 1 }`. A separate collection because a thread grows unboundedly and
+an embedded array would rewrite the whole document on every reply.
+
+**`attachments` is reserved and always empty.** The field exists on the model and both serializers
+emit `attachments: []`, but there is no upload endpoint, no storage backend and no validation for
+it — file storage is undecided (TRD §14 Q2). The shape is forward-compatible; the capability is not
+implemented.
+
+Although a conversation belongs to the company, `senderUserId` is retained and resolved, so the
+candidate sees **which individual recruiter** wrote each message rather than only the company name
+(pinned by `joinRequests.test.js`).
+
+### `notes` — **built (REC-14)**
+
+`notes/note.model.js`, collection `notes`.
+`{ companyId, candidateId, authorUserId, body, timestamps }`, index
+`{ companyId: 1, candidateId: 1, createdAt: -1 }`.
+
+A **separate collection from `messages`**, not a flag on it. PRD §11.2 and §21.4 require internal
+notes to never reach candidates; separate collections make accidental exposure a structural
+impossibility rather than a serialisation bug waiting to happen. Pinned by a test asserting a note
+never appears on any candidate-facing surface. Only the author may delete; deletions are audited.
+
+### `companyJoinRequests` — **built (REC-01 join requests)**
+
+`memberships/joinRequest.model.js`, collection `companyJoinRequests`.
+`{ companyId, userId, message, requestedRole, status, decidedByUserId, decidedAt, decisionNote,
+timestamps }`.
+
+`status` — `JOIN_REQUEST_STATUS`: `pending` · `approved` · `declined` · `withdrawn`.
+
+Indexes:
+```js
+{ companyId: 1, userId: 1 }  // UNIQUE, partialFilterExpression: { status: 'pending' }
+{ companyId: 1, status: 1, createdAt: -1 }
+{ userId: 1, status: 1 }
+```
+
+The partial unique index makes asking twice idempotent while still allowing a fresh request after a
+decline or withdrawal. **A request grants nothing.** Membership is created only on approval, with
+the role the *approver* chose — `requestedRole` is a hint, and `GRANTABLE_ROLES` excludes `owner`,
+so ownership cannot be obtained by asking for it.
+
+### `savedSearches` — **not built**
+Filter JSON, sort, alert preference, last run — company-scoped (PRD §10.1). No model or route
+exists; REC-12 holds filter state in the URL instead (see `04_API_DOCUMENTATION.md`).
+
+### `savedCompanies` — **built (CAN-06)**
+See §8.
 
 ### `conversations` · `messages` — **built (CAN-09)**
 
@@ -467,21 +634,54 @@ Filter JSON, sort, alert preference, last run — company-scoped (PRD §10.1).
 
 ## 10. Cross-cutting collections
 
-### `auditEvents` (PRD §14.3)
+### `auditEvents` — **built (REC-13)** (PRD §14.3)
+
+`audit/auditEvent.model.js`, collection `auditEvents`.
 `{ actorUserId, actorCompanyId, action, targetType, targetId, metadata, ip, userAgent, createdAt }`
 
-Append-only. Never updated, never deleted. Indexed on `{ targetType, targetId, createdAt: -1 }`
-and `{ actorCompanyId, createdAt: -1 }`. Written by services only.
+Append-only. Never updated, never deleted. Indexed on `{ targetType: 1, targetId: 1, createdAt: -1 }`
+and `{ actorCompanyId: 1, createdAt: -1 }`. Written by services only.
 
 PRD §7.10 and §16.1 make this mandatory for candidate profile views, evidence downloads,
 contact reveals, and exports — it is a compliance requirement, not a debugging convenience.
 
-### `notifications` (PRD §15)
+`AUDIT_ACTIONS` as implemented:
+
+| Domain | Actions |
+|---|---|
+| Candidate | `candidate_profile.viewed` · `candidate_contact.revealed` |
+| Hiring intents | `hiring_intent.created` · `hiring_intent.updated` · `hiring_intent.status_changed` |
+| Pipeline | `pipeline_entry.created` · `pipeline_entry.stage_changed` · `pipeline_entry.assigned` |
+| Shortlist | `candidate.saved` · `candidate.unsaved` |
+| Notes | `note.created` · `note.deleted` |
+
+`AUDIT_TARGET_TYPES`: `candidateProfile` · `hiringIntent` · `pipelineEntry` · `note`.
+
+Read back by `listCompanyAuditEvents(companyId, { page, pageSize = 25 })`, exposed at
+`GET /api/companies/:companyId/audit` behind `company:settings`.
+
+> ⚠️ **Writes are best-effort, not guaranteed.** `recordAuditEvent()` calls
+> `AuditEvent.create(event).catch(...)` **without `await`** — a failed write is logged and
+> swallowed, and the request succeeds regardless. The service header states the intent to become an
+> `await` at the call site without changing shape. Until then the log is a strong signal but not a
+> provable record, which matters because §16.1 treats it as a compliance artefact. Tracked in
+> `12_KNOWN_ISSUES.md`.
+
+### `notifications` (PRD §15) — **not built**
 `{ userId, companyId, type, payload, readAt, channels, sentAt }`. Company-scoped notifications
 must carry `companyId` so multi-company recruiters see the correct context (PRD §15.1).
 
-### `reports` (PRD §16.3)
+No collection, model or route exists. SET-01 stores per-event **preferences** on `users`
+(see §2) but nothing reads them, and the only emails the system sends are the two transactional
+ones in `lib/email` (verification, password reset).
+
+### `reports` (PRD §16.3) — **not built as a collection**
 Moderation queue: `{ reporterId, targetType, targetId, reason, status, resolution, appealedAt }`.
+
+No `reports` collection exists. CAN-09's report action
+(`POST /api/me/conversations/:id/report`) records `reportedAt` and `reportReason` **on the
+conversation**, so a report is captured but there is no queue, no status workflow and no appeal
+path. `SettingsPrivacyPage` reads these conversation fields to list reports.
 
 ---
 
