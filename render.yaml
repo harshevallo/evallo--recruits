@@ -64,7 +64,12 @@ services:
     name: evallo-recruits-web
     runtime: static
     # Root `npm run build` → `npm run build --workspace=apps/web` → `vite build`.
-    buildCommand: npm ci && npm run build
+    #
+    # `--include=dev` is required, not defensive. Render sets NODE_ENV=production for Node
+    # services, and npm then skips devDependencies — which is where `vite` lives. Without it the
+    # install succeeds and the build dies on `sh: 1: vite: not found`, because the tool that
+    # produces the bundle was treated as something only developers need.
+    buildCommand: npm ci --include=dev && npm run build
     staticPublishPath: apps/web/dist
     envVars:
       # BUILD-TIME, not runtime: Vite inlines this into the bundle, so changing it needs a rebuild,
