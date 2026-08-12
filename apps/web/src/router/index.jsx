@@ -1,60 +1,185 @@
+import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
 import { MarketingLayout } from '@/layouts/MarketingLayout';
 import { CompanyWorkspaceLayout } from '@/layouts/CompanyWorkspaceLayout';
 import { CandidateWorkspaceLayout } from '@/layouts/CandidateWorkspaceLayout';
+import { BuilderLayout } from '@/layouts/BuilderLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { RequireAuth } from '@/router/guards/RequireAuth';
 import { RequireCompany } from '@/router/guards/RequireCompany';
 import { RequireCandidate } from '@/router/guards/RequireCandidate';
-import { CandidateHomePage } from '@/pages/candidate/CandidateHomePage';
-import { ProfileBuilderPage } from '@/pages/candidate/ProfileBuilderPage';
-import { ProfilePreviewPage } from '@/pages/candidate/ProfilePreviewPage';
-import { VisibilitySettingsPage } from '@/pages/candidate/VisibilitySettingsPage';
-import { CandidateCompanyPage } from '@/pages/candidate/CandidateCompanyPage';
-import { MyInterestsPage } from '@/pages/candidate/MyInterestsPage';
-import { MessagesPage } from '@/pages/candidate/MessagesPage';
-import { CompanyStartPage } from '@/pages/company/CompanyStartPage';
-import { CompanySetupPage } from '@/pages/company/CompanySetupPage';
-import { CompanyPreviewPage } from '@/pages/company/CompanyPreviewPage';
-import { CompanyTeamPage } from '@/pages/company/CompanyTeamPage';
-import { CompanyHomePage } from '@/pages/company/CompanyHomePage';
-import { CompanyInterestsPage } from '@/pages/company/CompanyInterestsPage';
-import { CompanyTalentSearchPage } from '@/pages/company/CompanyTalentSearchPage';
-import { CompanyCandidatePage } from '@/pages/company/CompanyCandidatePage';
-import { CompanyHiringPage } from '@/pages/company/CompanyHiringPage';
-import { CompanyPipelinePage } from '@/pages/company/CompanyPipelinePage';
-import { CompanyMessagesPage } from '@/pages/company/CompanyMessagesPage';
-import { CompanySettingsPage } from '@/pages/company/CompanySettingsPage';
 import { MarketingPage } from '@/pages/marketing/MarketingPage';
-import { CompanyDirectoryPage } from '@/pages/public/CompanyDirectoryPage';
-import { CompanyProfilePage } from '@/pages/public/CompanyProfilePage';
 import { SignInPage } from '@/pages/auth/SignInPage';
 import { SignUpPage } from '@/pages/auth/SignUpPage';
-import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
-import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage';
-import { VerificationSentPage } from '@/pages/auth/VerificationSentPage';
-import { ChangeEmailPage } from '@/pages/auth/ChangeEmailPage';
-import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
-import { BasicSetupPage } from '@/pages/auth/BasicSetupPage';
-import { FirstActionPage } from '@/pages/auth/FirstActionPage';
-import { AppHomePage } from '@/pages/home/AppHomePage';
-import { SettingsLayout } from '@/pages/settings/SettingsLayout';
-import { SettingsHomePage } from '@/pages/settings/SettingsHomePage';
-import { SettingsAccountPage } from '@/pages/settings/SettingsAccountPage';
-import { SettingsSecurityPage } from '@/pages/settings/SettingsSecurityPage';
-import { SettingsNotificationsPage } from '@/pages/settings/SettingsNotificationsPage';
-import { SettingsPrivacyPage } from '@/pages/settings/SettingsPrivacyPage';
-import { SettingsDataPage } from '@/pages/settings/SettingsDataPage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
+import { TERMS_DOCUMENT, PRIVACY_DOCUMENT } from '@/content/legal';
 import { PATHS } from './paths';
 
-/** Routes whose real implementation is not built yet. Keeps every internal link functional. */
+/*
+ * ── Code splitting ────────────────────────────────────────────────────────────────────────────
+ *
+ * Everything below `lazy()` becomes its own chunk, fetched the first time its route is entered.
+ * Each layout wraps its `<Outlet/>` in a Suspense boundary with `RouteFallback`, so the chrome
+ * stays mounted and the page area shows an announced loading state instead of going blank.
+ *
+ * Four things stay EAGER, on purpose:
+ *
+ *   layouts + guards   they render on every navigation, and a guard that arrives late would
+ *                      flash unauthenticated content before redirecting
+ *   MarketingPage      the landing page is the first paint for an anonymous visitor; splitting it
+ *                      buys nothing and costs a round trip on the page that matters most for SEO
+ *   SignInPage/SignUpPage  the two entry points every unauthenticated deep link redirects into
+ *   NotFoundPage       tiny, and needed exactly when routing has already gone wrong
+ *
+ * Nothing in the authentication BOOTSTRAP path is split: AuthContext, the API client and the
+ * token refresh live in the entry chunk, so a page can never render before auth state is known.
+ */
+
+// Public
+const CompanyDirectoryPage = lazy(() =>
+  import('@/pages/public/CompanyDirectoryPage').then((m) => ({ default: m.CompanyDirectoryPage })),
+);
+const CompanyProfilePage = lazy(() =>
+  import('@/pages/public/CompanyProfilePage').then((m) => ({ default: m.CompanyProfilePage })),
+);
+const LegalDocumentPage = lazy(() =>
+  import('@/pages/legal/LegalDocumentPage').then((m) => ({ default: m.LegalDocumentPage })),
+);
+const PlaceholderPage = lazy(() =>
+  import('@/pages/PlaceholderPage').then((m) => ({ default: m.PlaceholderPage })),
+);
+
+// Auth (beyond the two entry screens)
+const ForgotPasswordPage = lazy(() =>
+  import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+);
+const ResetPasswordPage = lazy(() =>
+  import('@/pages/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
+);
+const VerifyEmailPage = lazy(() =>
+  import('@/pages/auth/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })),
+);
+const VerificationSentPage = lazy(() =>
+  import('@/pages/auth/VerificationSentPage').then((m) => ({ default: m.VerificationSentPage })),
+);
+const ChangeEmailPage = lazy(() =>
+  import('@/pages/auth/ChangeEmailPage').then((m) => ({ default: m.ChangeEmailPage })),
+);
+const SetPasswordPage = lazy(() =>
+  import('@/pages/auth/SetPasswordPage').then((m) => ({ default: m.SetPasswordPage })),
+);
+const RestoreAccountPage = lazy(() =>
+  import('@/pages/auth/RestoreAccountPage').then((m) => ({ default: m.RestoreAccountPage })),
+);
+const BasicSetupPage = lazy(() =>
+  import('@/pages/auth/BasicSetupPage').then((m) => ({ default: m.BasicSetupPage })),
+);
+const FirstActionPage = lazy(() =>
+  import('@/pages/auth/FirstActionPage').then((m) => ({ default: m.FirstActionPage })),
+);
+
+// Personal
+const AppHomePage = lazy(() =>
+  import('@/pages/home/AppHomePage').then((m) => ({ default: m.AppHomePage })),
+);
+const SettingsLayout = lazy(() =>
+  import('@/pages/settings/SettingsLayout').then((m) => ({ default: m.SettingsLayout })),
+);
+const SettingsHomePage = lazy(() =>
+  import('@/pages/settings/SettingsHomePage').then((m) => ({ default: m.SettingsHomePage })),
+);
+const SettingsAccountPage = lazy(() =>
+  import('@/pages/settings/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
+);
+const SettingsSecurityPage = lazy(() =>
+  import('@/pages/settings/SettingsSecurityPage').then((m) => ({ default: m.SettingsSecurityPage })),
+);
+const SettingsNotificationsPage = lazy(() =>
+  import('@/pages/settings/SettingsNotificationsPage').then((m) => ({
+    default: m.SettingsNotificationsPage,
+  })),
+);
+const SettingsPrivacyPage = lazy(() =>
+  import('@/pages/settings/SettingsPrivacyPage').then((m) => ({ default: m.SettingsPrivacyPage })),
+);
+const SettingsDataPage = lazy(() =>
+  import('@/pages/settings/SettingsDataPage').then((m) => ({ default: m.SettingsDataPage })),
+);
+
+// Candidate workspace
+const CandidateHomePage = lazy(() =>
+  import('@/pages/candidate/CandidateHomePage').then((m) => ({ default: m.CandidateHomePage })),
+);
+const ProfileBuilderPage = lazy(() =>
+  import('@/pages/candidate/ProfileBuilderPage').then((m) => ({ default: m.ProfileBuilderPage })),
+);
+const ProfilePreviewPage = lazy(() =>
+  import('@/pages/candidate/ProfilePreviewPage').then((m) => ({ default: m.ProfilePreviewPage })),
+);
+const VisibilitySettingsPage = lazy(() =>
+  import('@/pages/candidate/VisibilitySettingsPage').then((m) => ({
+    default: m.VisibilitySettingsPage,
+  })),
+);
+const CandidateCompanyPage = lazy(() =>
+  import('@/pages/candidate/CandidateCompanyPage').then((m) => ({ default: m.CandidateCompanyPage })),
+);
+const MyInterestsPage = lazy(() =>
+  import('@/pages/candidate/MyInterestsPage').then((m) => ({ default: m.MyInterestsPage })),
+);
+const MessagesPage = lazy(() =>
+  import('@/pages/candidate/MessagesPage').then((m) => ({ default: m.MessagesPage })),
+);
+
+// Company workspace
+const CompanyStartPage = lazy(() =>
+  import('@/pages/company/CompanyStartPage').then((m) => ({ default: m.CompanyStartPage })),
+);
+const CompanySetupPage = lazy(() =>
+  import('@/pages/company/CompanySetupPage').then((m) => ({ default: m.CompanySetupPage })),
+);
+const CompanyPreviewPage = lazy(() =>
+  import('@/pages/company/CompanyPreviewPage').then((m) => ({ default: m.CompanyPreviewPage })),
+);
+const CompanyTeamPage = lazy(() =>
+  import('@/pages/company/CompanyTeamPage').then((m) => ({ default: m.CompanyTeamPage })),
+);
+const CompanyHomePage = lazy(() =>
+  import('@/pages/company/CompanyHomePage').then((m) => ({ default: m.CompanyHomePage })),
+);
+const CompanyInterestsPage = lazy(() =>
+  import('@/pages/company/CompanyInterestsPage').then((m) => ({ default: m.CompanyInterestsPage })),
+);
+const CompanyTalentSearchPage = lazy(() =>
+  import('@/pages/company/CompanyTalentSearchPage').then((m) => ({
+    default: m.CompanyTalentSearchPage,
+  })),
+);
+const CompanyCandidatePage = lazy(() =>
+  import('@/pages/company/CompanyCandidatePage').then((m) => ({ default: m.CompanyCandidatePage })),
+);
+const CompanyHiringPage = lazy(() =>
+  import('@/pages/company/CompanyHiringPage').then((m) => ({ default: m.CompanyHiringPage })),
+);
+const CompanyPipelinePage = lazy(() =>
+  import('@/pages/company/CompanyPipelinePage').then((m) => ({ default: m.CompanyPipelinePage })),
+);
+const CompanyMessagesPage = lazy(() =>
+  import('@/pages/company/CompanyMessagesPage').then((m) => ({ default: m.CompanyMessagesPage })),
+);
+const CompanySettingsPage = lazy(() =>
+  import('@/pages/company/CompanySettingsPage').then((m) => ({ default: m.CompanySettingsPage })),
+);
+
+/**
+ * Routes whose real implementation is not built yet. Keeps every internal link functional.
+ *
+ * `/terms` and `/privacy` are NOT here any more — they are real pages backed by `content/legal`
+ * (D-09). Every route left in this list is marketing content, and none of them is referenced by a
+ * consent statement.
+ */
 const PLACEHOLDERS = [
-  [PATHS.TERMS, 'Terms of Service', 'Our terms of service.', 'legal content'],
-  [PATHS.PRIVACY, 'Privacy Policy', 'How we handle your data.', 'legal content'],
   [PATHS.PRICING, 'Pricing', 'Plans and pricing for education businesses.', 'pricing model'],
   [PATHS.ASSESSMENTS, 'Assessment Engine', 'Built-in assessments for evaluating educators.', 'the assessments module'],
   [PATHS.HELP, 'Help Center', 'Guides and support articles.', 'support content'],
@@ -100,6 +225,15 @@ export const router = createBrowserRouter([
           { path: PATHS.COMPANY_DIRECTORY, element: <CompanyDirectoryPage /> },
           { path: PATHS.COMPANY_PROFILE, element: <CompanyProfilePage /> },
 
+          /*
+           * D-09 — Terms and Privacy are referenced by the sign-up consent line, the early-access
+           * form and SET-01, so they are real routes with a real document page. The approved text
+           * is a founder/legal deliverable; until it lands the page says so rather than inventing
+           * policy language (see content/legal).
+           */
+          { path: PATHS.TERMS, element: <LegalDocumentPage document={TERMS_DOCUMENT} /> },
+          { path: PATHS.PRIVACY, element: <LegalDocumentPage document={PRIVACY_DOCUMENT} /> },
+
           ...PLACEHOLDERS.map(([path, title, description, replacedBy]) => ({
             path,
             element: (
@@ -126,6 +260,8 @@ export const router = createBrowserRouter([
           { path: PATHS.CHANGE_EMAIL, element: <ChangeEmailPage /> },
           { path: PATHS.SET_PASSWORD, element: <SetPasswordPage /> },
           { path: PATHS.BASIC_SETUP, element: <BasicSetupPage /> },
+          // Cancels a pending account deletion — reachable only from the emailed link.
+          { path: PATHS.RESTORE_ACCOUNT, element: <RestoreAccountPage /> },
         ],
       },
 
@@ -173,16 +309,13 @@ export const router = createBrowserRouter([
                 element: <RequireCandidate />,
                 children: [
                   /*
-                   * Every candidate screen carries the same nav, including the builder. It used to
-                   * run in its own full-height shell, which read as a second sidebar beside this one
-                   * and swapped the entire chrome on navigation.
+                   * Every candidate screen carries this rail EXCEPT the builder, which runs in its
+                   * own full-height shell — see the BuilderLayout block below.
                    */
                   {
                     element: <CandidateWorkspaceLayout />,
                     children: [
                   { path: PATHS.CANDIDATE_HOME, element: <CandidateHomePage /> },
-                  /* CAN-02 shares the candidate shell — one navbar, one rail, one scroll. */
-                  { path: PATHS.CANDIDATE_PROFILE_BUILDER, element: <ProfileBuilderPage /> },
                   { path: PATHS.CANDIDATE_PROFILE_PREVIEW, element: <ProfilePreviewPage /> },
                   { path: PATHS.CANDIDATE_VISIBILITY, element: <VisibilitySettingsPage /> },
 
@@ -264,6 +397,29 @@ export const router = createBrowserRouter([
                   },
                 ],
               },
+            ],
+          },
+        ],
+      },
+
+      /*
+       * CAN-02 — its own shell, a sibling of MarketingLayout rather than a child of it.
+       *
+       * The builder is the one authenticated screen that owns the viewport: fixed bar, fixed
+       * section rail, and a single scrolling pane. Nesting it under MarketingLayout put a marketing
+       * navbar above its own bar (two bars), and nesting it under CandidateWorkspaceLayout put the
+       * candidate rail beside its section rail (two rails). It is out of both for that reason.
+       *
+       * The guards are unchanged: RequireAuth still wraps this, and RequireCandidate still stands
+       * between it and anyone without a candidate profile. Leaving the layout did not loosen access.
+       */
+      {
+        element: <BuilderLayout />,
+        children: [
+          {
+            element: <RequireCandidate />,
+            children: [
+              { path: PATHS.CANDIDATE_PROFILE_BUILDER, element: <ProfileBuilderPage /> },
             ],
           },
         ],

@@ -10,6 +10,105 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 ## [Unreleased]
 
 ### Added
+- **2026-08-12 — Account deletion is now actually processed (B-09).** `accountDeletion.job.js`
+  gained the purge pass, implementing `16_RETENTION_POLICY.md` §3: the person's own content is
+  deleted; `users` and `candidateProfiles` are **emptied and retained as tombstones** so the
+  §16.1 audit trail and every company record stay referentially valid; the profile becomes
+  `archived`, which `candidateAccess.service` already refuses — so the privacy outcome comes from
+  the existing authority rather than new logic. **Held behind two switches that are both off by
+  default** (`ACCOUNT_DELETION_RETENTION_DAYS` + `ACCOUNT_DELETION_PURGE_ENABLED`), because the
+  policy is a founder/legal decision still awaiting sign-off. Retention windows for marketing leads
+  (TD-06) and for audit IP/user-agent fields land in the same job, each independently gated.
+- **2026-08-12 — Restore-by-email cancels a pending deletion.** A deletion request now issues a
+  single-use `account_restore` token and emails it, and `POST /api/auth/restore-account` reverses
+  the request. This closes a trap: both sign-in paths refuse a `deletion_pending` account, so
+  without it the grace period could not be used, and someone who did *not* request the deletion had
+  no way to discover or undo it. **Restoring issues no session and sets no cookie** — proving
+  control of the mailbox undoes the request; signing in stays a separate, password-checked act. New
+  `RestoreAccountPage` at `/restore-account`.
+- **2026-08-12 — `docs/15_DATA_INVENTORY.md` and `docs/16_RETENTION_POLICY.md`.** The first is the
+  engineering record of every personal-data field, purpose, recipient and retention state — the
+  brief a legal drafter needs. The second is the per-collection retention proposal awaiting
+  sign-off. §11 of the inventory records the hosting determination: DigitalOcean, India (APNIC
+  `DIGITALOCEAN-AP`, `139.59.80.0/20`, country `IN`), reached over a Tailscale tailnet whose
+  `100.84.170.103` address carries no geographic meaning at all.
+
+- **2026-08-12 — CAN-04 blocking is reachable from the product (production-readiness pass).** The
+  backend endpoints existed and were correct, but nothing in the UI could call `POST
+  /api/me/candidate-profile/blocked-companies`, so the blocked list could not be populated and the
+  two screens that display it were permanently empty. The candidate company page
+  (`/me/companies/:slug`) now offers **Block**, confirmed by a new `BlockCompanyModal` that states
+  only consequences the server actually enforces, and flips to **Unblock** on success with no
+  reload. `GET /api/me/companies/:slug/relationship` gained a `blocked` field so that state comes
+  from the server rather than being inferred. **No second blocking mechanism was introduced:**
+  `candidateAccess.service` remains the single authority, and the new integration suite
+  (`candidateBlocking.test.js`, 20 cases) proves a block removes the company from talent search, the
+  candidate viewer, pipeline addition and company messaging.
+- **2026-08-12 — `src/jobs/` background job infrastructure.** A small in-process runner
+  (`jobRunner.js`) — single-flight per job, error-isolated, unref'd timers, disabled under
+  `NODE_ENV=test` — plus `accountDeletion.job.js`, which reports the `deletion_pending` queue every
+  six hours. Started from `server.js` after the database connects, never from `createApp()`, so no
+  integration test acquires background timers. **The job purges nothing** — see `Security` below and
+  `12_KNOWN_ISSUES.md` I-17.
+- **2026-08-12 — Real `/terms` and `/privacy` pages.** `pages/legal/LegalDocumentPage.jsx` renders a
+  document from `content/legal/`: contents list, `<h2>` per section, effective date, responsive and
+  keyboard-accessible. Both documents are `status: 'pending_approval'`, and the page says so instead
+  of paraphrasing a policy that does not exist. Publishing approved text is a content change with no
+  code change and no new route (D-09).
+- **2026-08-12 — `apps/api/scripts/cleanup-e2e-fixtures.mjs`.** Promoted from an ad-hoc script to a
+  maintained one. Dry-run by default; selects only `@evallo-test.local` users and `E2E Academy *`
+  companies, then derives every dependent document from those two id sets, so a real record cannot
+  be selected.
+
+### Fixed
+- **2026-08-12 — The data export was a summary, not a copy.** `GET /api/me/settings/export`
+  returned account fields, notification preferences, a *summary* of the candidate profile and
+  memberships — and none of the person's professional content, so a portability request would have
+  been answered wrongly with nothing failing. It now includes question-bank answers, experience,
+  education, credentials, portfolio media, saved companies, expressions of interest, and
+  conversations with their messages. Recruiter notes and pipeline records stay excluded by design
+  (PRD §11.2), asserted by a test.
+- **2026-08-12 — SET-01 → Privacy: unblock never worked.** The handler passed `company.id`, but the
+  API returns `companyId`, so every unblock sent `.../blocked-companies/undefined` and came back
+  `400`; the same handler then spread the returned *array* over the state object, so the list would
+  not have refreshed even on success. Both were unobservable while nothing could create a block.
+  `key={company.id}` was also undefined for every row. Pinned by a test asserting the payload uses
+  `companyId` and not `id`.
+- **2026-08-12 — Route-level code splitting.** Every workspace, settings, auth-secondary and public
+  route is now `React.lazy`; layouts, guards, the landing page, sign-in/sign-up and the 404 stay
+  eager. Each layout wraps its own `<Outlet/>` in `Suspense` with a new announced `RouteFallback`,
+  so navigation chrome survives a chunk fetch and no route goes blank. Initial JS **751.46 kB →
+  441.36 kB** (gzip **206.70 → 139.39 kB**), a 41% reduction, measured from `vite build` on both
+  trees. The remainder is React, the router, axios, zod and `react-icons` — shared by every route,
+  so splitting them would move bytes rather than remove them. `MarketingPage` stays eager: it is
+  the first paint for an anonymous visitor and the SEO surface (ADR-004).
+
+### Security
+- **2026-08-12 — Google sign-in ignored account status.** `googleAuth()` linked and issued a session
+  without checking `user.status`, so an account in `deletion_pending` (or `suspended`) could sign
+  straight back in with "Continue with Google" — silently undoing the deletion request it had just
+  made, which password sign-in correctly refused. Now gated identically. Token verification was
+  factored into `verifyGoogleIdToken` with an injectable seam (`deps.verifyToken`, never passed by
+  the controller) so the gate can be tested without a live call to Google; the suite asserts both
+  the refusal for a `deletion_pending` account and, as a control, that an ACTIVE account still
+  signs in.
+- **2026-08-12 — The refresh cookie is configured from the deployment topology, not hard-coded.**
+  `SameSite` was fixed at `Lax`, which is correct for `app.evallo.in → api.evallo.in` and silently
+  fatal for a genuinely cross-site deployment: the browser never sends the cookie, and every user is
+  signed out fifteen minutes after signing in. `lib/cookies.js` now resolves `SameSite`/`Secure`
+  from `CLIENT_ORIGIN` vs `API_PUBLIC_URL` (`COOKIE_SAMESITE` overrides), escalating to
+  `None; Secure` **only** when the origins prove the deployment is cross-site. Production refuses to
+  boot if that resolves to `None` without an https API origin. `httpOnly` is unconditional in every
+  mode. `CLIENT_ORIGIN` now accepts a comma-separated list of **exact** origins; the wildcard
+  rejection is unchanged. `GET /api/health` reports the resolved policy so a misconfiguration is
+  visible at deploy time rather than as a mystery sign-out.
+- **2026-08-12 — Account deletion is not fulfilled, and the job says so.** The deletion job reports
+  the queue and deliberately implements **no purge**: the retention period, the anonymise-vs-remove
+  policy, and the treatment of records another party owns are undecided (PRD §16.1, ADR-014, B-09).
+  `ACCOUNT_DELETION_RETENTION_DAYS` is intentionally unset, and tests assert `purged === 0` so a
+  future purge cannot land unnoticed. Founder/legal decision — `12_KNOWN_ISSUES.md` I-17.
+
+### Added
 - **2026-08-10 — REC-13 candidate viewer + audit logging (M5).** New
   `candidates/candidateViewer.{service,controller,validation}.js` behind
   `GET /api/companies/:companyId/candidates/:candidateId` (`candidate:view`, held by every role

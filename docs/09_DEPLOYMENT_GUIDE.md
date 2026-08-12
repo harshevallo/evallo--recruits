@@ -46,9 +46,48 @@ Same variables as `08_SETUP_GUIDE.md` §3, with these differences:
 | `GOOGLE_CLIENT_ID` | Must also list the production origin as an authorised JavaScript origin in the Google Cloud console, or the button cannot render |
 | `VITE_API_BASE_URL` | Baked in at build time — a rebuild is required to change it |
 
-There is **no `COOKIE_DOMAIN` variable**; the refresh cookie is host-scoped. Web and API must
-therefore share a registrable domain (or the API must be reachable on the same site) for the
-cookie to be sent — see `03_TRD.md` §13.
+There is **no `COOKIE_DOMAIN` variable**; the refresh cookie is host-scoped — it is set by the API
+host and sent back to the API host, which is where the refresh request goes.
+
+### The refresh cookie is now configured, not assumed
+
+`SameSite` is no longer hard-coded to `Lax`. It is resolved at boot from the topology you configure
+(`src/lib/cookies.js`), and `GET /api/health` reports the answer:
+
+| Variable | Purpose |
+|---|---|
+| `API_PUBLIC_URL` | The origin the **browser** uses to reach the API, e.g. `https://api.evallo.in`. Optional; without it the cookie keeps `SameSite=Lax` |
+| `COOKIE_SAMESITE` | `auto` (default) \| `lax` \| `none` \| `strict`. An explicit value always wins |
+| `COOKIE_SECURE` | Override; defaults to `true` in production |
+
+Under `auto`:
+
+| CLIENT_ORIGIN vs API_PUBLIC_URL | Resolved | Why |
+|---|---|---|
+| Same registrable domain (`app.evallo.in` → `api.evallo.in`) | `SameSite=Lax; Secure` | Same-site, so Lax is sent — the stronger CSRF posture, and the arrangement constraint 3 recommends |
+| Different sites (`x.vercel.app` → `y.onrender.com`) | `SameSite=None; Secure` | Lax would never be sent cross-site; the session would die 15 minutes after sign-in |
+| `API_PUBLIC_URL` unset | `SameSite=Lax` + a boot warning | The historical default, correct only for a same-site deployment |
+
+**Production refuses to boot** if this resolves to `SameSite=None` without an `https` API origin —
+browsers discard such a cookie, so the alternative is an application that starts happily and cannot
+keep anyone signed in. `httpOnly` is unconditional in every mode; the refresh token is never
+readable by JavaScript and is never placed in `localStorage`.
+
+`CLIENT_ORIGIN` accepts a comma-separated list (apex + `www`, or a preview domain). Every entry is
+matched **exactly** — the wildcard rejection at boot is unchanged.
+
+**After deploying, check `GET /api/health` → `auth.refreshCookie` before anything else.** A
+cross-site deployment reporting `"sameSite": "lax"` is misconfigured, and the symptom (users
+silently signed out a quarter of an hour later) looks nothing like the cause.
+
+### Background jobs
+
+`src/jobs/` runs in the API process (`JOBS_ENABLED`, default on; always off under `NODE_ENV=test`).
+Today it holds one job, `account-deletion-review`, which **reports** the `deletion_pending` queue
+every six hours and deletes nothing — the retention policy is still an open decision (B-09).
+`ACCOUNT_DELETION_RETENTION_DAYS` is intentionally unset. On a multi-instance deployment the job
+would run once per instance; that is harmless while it is read-only, and must be revisited before
+any purge pass is implemented.
 
 Rotating `JWT_REFRESH_SECRET` invalidates every session and signs all users out. Treat it as a
 planned action, not a routine one.
@@ -76,7 +115,11 @@ npm run build --workspace=apps/web
 - [ ] `CLIENT_ORIGIN` exact, no wildcard
 - [ ] `APP_URL` is the production web origin
 - [ ] `MAIL_PROVIDER` is **not** `console`, and a test email actually arrives
-- [ ] Web and API share a registrable domain so the refresh cookie is sent
+- [ ] Web and API share a registrable domain so the refresh cookie is sent — or, if they genuinely
+      do not, `API_PUBLIC_URL` is set so the cookie resolves to `SameSite=None; Secure`
+- [ ] `GET /api/health` → `auth.refreshCookie` matches the deployment you actually built
+- [ ] Sign in, wait for the access token to expire (or force a refresh), and confirm the session
+      survives — this is the check that catches a wrong `SameSite`, and nothing else does
 - [ ] Production origin registered in the Google Cloud console (if Google sign-in is enabled)
 
 **Database**
@@ -107,8 +150,12 @@ npm run build --workspace=apps/web
 - [ ] `/api/health` reports the database connected
 - [ ] Sign-up → verify → password → sign-in works end to end
 - [ ] A session survives a page refresh (refresh cookie works cross-origin)
+- [ ] Logout invalidates the refresh cookie — a subsequent `POST /api/auth/refresh` is `401`
 - [ ] A published company page loads without authentication
 - [ ] A draft company page is **not** publicly accessible
+- [ ] `/terms` and `/privacy` load. **They are structurally real but state that the approved text is
+      pending (D-09).** Sign-up claims consent to both, so shipping to real users with the text
+      still unpublished is a legal decision, not a technical one
 
 ---
 

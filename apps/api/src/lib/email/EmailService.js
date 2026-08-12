@@ -18,12 +18,14 @@ import {
   verificationTemplate,
   passwordResetTemplate,
   companyInvitationTemplate,
+  accountDeletionRequestedTemplate,
 } from './templates/index.js';
 
 const TEMPLATES = {
   verification: verificationTemplate,
   passwordReset: passwordResetTemplate,
   companyInvitation: companyInvitationTemplate,
+  accountDeletionRequested: accountDeletionRequestedTemplate,
 };
 
 class EmailService {
@@ -73,7 +75,7 @@ class EmailService {
    * successfully should not see an error because SMTP hiccuped — they can resend). The outcome
    * is returned so a caller that cares can react.
    *
-   * @param {'verification'|'passwordReset'|'companyInvitation'} template
+   * @param {'verification'|'passwordReset'|'companyInvitation'|'accountDeletionRequested'} template
    * @param {{ to: string, [key: string]: unknown }} data
    * @returns {Promise<{ delivered: boolean, transport?: string, error?: string }>}
    */

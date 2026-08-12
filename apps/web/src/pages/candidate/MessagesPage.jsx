@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Avatar, Button, Container, Icon } from '@/components/ui';
+import { Avatar, BackLink, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -200,6 +200,9 @@ export function MessagesPage() {
 
   return (
     <Container className="py-32">
+      {/* Back to the candidate home, at the top — the same affordance the company pages use. */}
+      <BackLink to={PATHS.CANDIDATE_HOME} label="Candidate home" className="mb-6" />
+
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Messages</h1>
         <p className="mt-2 max-w-xl text-gray-600">
@@ -445,16 +448,6 @@ export function MessagesPage() {
         </div>
       )}
 
-      <div className="mt-8">
-        <Button
-          to={PATHS.CANDIDATE_HOME}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          Back to candidate home
-        </Button>
-      </div>
     </Container>
   );
 }

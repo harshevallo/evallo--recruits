@@ -64,6 +64,16 @@ export async function resetPassword(token, password) {
   );
 }
 
+/**
+ * Cancels a pending account deletion during the grace period.
+ *
+ * `skipAuth` because the caller cannot be signed in — a `deletion_pending` account is refused by
+ * both sign-in paths. The response establishes no session by design.
+ */
+export async function restoreAccount(token) {
+  return unwrap(await apiClient.post('/auth/restore-account', { token }, { skipAuth: true }));
+}
+
 export async function verifyEmail(token) {
   return unwrap(await apiClient.post('/auth/verify-email', { token }, { skipAuth: true }));
 }

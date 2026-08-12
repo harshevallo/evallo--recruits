@@ -284,27 +284,44 @@ export async function login(input, context = {}) {
 }
 
 /**
- * Verify a Google ID token and sign the user in with OUR tokens.
+ * Verifies a Google ID token against Google's public keys and returns its payload.
  *
- * Links to an existing account by googleId, else by verified email, else creates one.
+ * Separated from `googleAuth` for one reason: it is the only part that talks to the network, so
+ * factoring it out lets a test exercise everything AFTER verification — the account-status gate,
+ * the linking rules — without a live call to Google, which would make the suite both slow and
+ * flaky. Production always uses this default.
  */
-export async function googleAuth(credential, context = {}) {
+async function verifyGoogleIdToken(credential) {
   if (!googleClient) {
     throw new ApiError('SERVER_ERROR', 'Google sign-in is not configured on this server.', {
       status: 503,
     });
   }
 
-  let payload;
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: env.GOOGLE_CLIENT_ID,
     });
-    payload = ticket.getPayload();
+    return ticket.getPayload();
   } catch {
     throw ApiError.unauthenticated('Could not verify your Google sign-in.');
   }
+}
+
+/**
+ * Verify a Google ID token and sign the user in with OUR tokens.
+ *
+ * Links to an existing account by googleId, else by verified email, else creates one.
+ *
+ * @param {string} credential
+ * @param {object} [context]
+ * @param {{ verifyToken?: (credential: string) => Promise<object> }} [deps]  Test seam only —
+ *        the controller never passes it, so production always verifies against Google.
+ */
+export async function googleAuth(credential, context = {}, deps = {}) {
+  const verify = deps.verifyToken ?? verifyGoogleIdToken;
+  const payload = await verify(credential);
 
   if (!payload?.email || !payload.email_verified) {
     throw ApiError.unauthenticated('Your Google account has no verified email.');
@@ -315,6 +332,17 @@ export async function googleAuth(credential, context = {}) {
 
   let user =
     (await User.findOne({ googleId })) ?? (await User.findOne({ email }));
+
+  /*
+   * The same status gate as password sign-in.
+   *
+   * Without it, an account that requested deletion (or was suspended) could sign straight back in
+   * through Google — the request revokes sessions, but nothing stopped a new one being minted,
+   * which silently defeats the deletion request the user just made.
+   */
+  if (user && user.status !== USER_STATUS.ACTIVE) {
+    throw ApiError.forbidden('This account is not active.');
+  }
 
   if (user) {
     // Link Google to an existing password account, and trust Google's verified email.

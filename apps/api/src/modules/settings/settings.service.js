@@ -10,11 +10,35 @@
 import { USER_STATUS } from '@evallo/shared';
 import { ApiError } from '../../lib/ApiError.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { generateVerificationToken, hashToken } from '../../lib/tokens.js';
+import { sendAccountDeletionRequestedEmail } from '../../lib/email/index.js';
+import { logger } from '../../lib/logger.js';
+import { env } from '../../config/env.js';
 import { User } from '../users/user.model.js';
 import { Session } from '../auth/session.model.js';
+import { VerificationToken, TOKEN_PURPOSE } from '../auth/verificationToken.model.js';
 import { revokeAllSessions } from '../auth/session.service.js';
 import { CandidateProfile } from '../candidates/candidateProfile.model.js';
+import { CandidateAnswer } from '../candidates/candidateAnswer.model.js';
+import {
+  Experience,
+  EducationEntry,
+  Credential,
+  EvidenceItem,
+} from '../candidates/profileEntry.model.js';
+import { SavedCompany } from '../candidates/savedCompany.model.js';
+import { ExpressionOfInterest } from '../interests/expressionOfInterest.model.js';
+import { Conversation } from '../messaging/conversation.model.js';
+import { Message } from '../messaging/message.model.js';
 import { CompanyMember } from '../memberships/companyMember.model.js';
+
+/**
+ * How long a deletion request can be reversed.
+ *
+ * Falls back to 30 days when no retention period is configured, so the restore link never
+ * outlives — or falls short of — the window in which the data still exists.
+ */
+const restoreWindowDays = () => env.ACCOUNT_DELETION_RETENTION_DAYS ?? 30;
 
 /**
  * The events a person can be notified about, and the default channels.
@@ -276,6 +300,85 @@ export async function exportAccountData(userId) {
       status: member.status,
       joinedAt: member.acceptedAt ?? null,
     })),
+
+    /*
+     * Everything below was missing until 2026-08-12, which made this endpoint a summary rather
+     * than a portable copy: a person exercising a portability right would have received none of
+     * their own professional content. Each block is scoped to the caller's own candidate profile.
+     */
+    ...(profile ? await exportCandidateContent(profile._id) : emptyCandidateContent()),
+  };
+}
+
+/** The shape returned when the person has no candidate profile — keeps the file's keys stable. */
+function emptyCandidateContent() {
+  return {
+    questionAnswers: [],
+    experiences: [],
+    educationEntries: [],
+    credentials: [],
+    portfolioItems: [],
+    savedCompanies: [],
+    expressionsOfInterest: [],
+    conversations: [],
+  };
+}
+
+/**
+ * The candidate's own content, for the data export.
+ *
+ * Deliberately excludes anything written ABOUT them by a company — recruiter notes and pipeline
+ * records are the company's, and PRD §16.1 keeps internal notes structurally separate from
+ * anything candidate-facing. Messages ARE included: the person wrote and received them.
+ */
+async function exportCandidateContent(candidateId) {
+  const [answers, experiences, education, credentials, media, saved, interests, conversations] =
+    await Promise.all([
+      CandidateAnswer.find({ candidateId }).lean(),
+      Experience.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
+      EducationEntry.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
+      Credential.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
+      EvidenceItem.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
+      SavedCompany.find({ candidateId }).populate('companyId', 'name slug').lean(),
+      ExpressionOfInterest.find({ candidateId }).populate('companyId', 'name slug').lean(),
+      Conversation.find({ candidateId }).populate('companyId', 'name slug').lean(),
+    ]);
+
+  const messages = conversations.length
+    ? await Message.find({ conversationId: { $in: conversations.map((c) => c._id) } })
+        .sort({ createdAt: 1 })
+        .lean()
+    : [];
+
+  const strip = ({ _id, candidateId: _c, __v, ...rest }) => rest;
+
+  return {
+    questionAnswers: answers.map((a) => ({ questionKey: a.questionKey, value: a.value })),
+    experiences: experiences.map(strip),
+    educationEntries: education.map(strip),
+    credentials: credentials.map(strip),
+    portfolioItems: media.map(strip),
+    savedCompanies: saved.map((s) => ({
+      company: s.companyId?.name ?? null,
+      slug: s.companyId?.slug ?? null,
+      savedAt: s.createdAt,
+    })),
+    expressionsOfInterest: interests.map((interest) => ({
+      company: interest.companyId?.name ?? null,
+      slug: interest.companyId?.slug ?? null,
+      status: interest.status,
+      message: interest.message ?? null,
+      consentGrantedAt: interest.consent?.grantedAt ?? null,
+      submittedAt: interest.createdAt,
+    })),
+    conversations: conversations.map((conversation) => ({
+      company: conversation.companyId?.name ?? null,
+      slug: conversation.companyId?.slug ?? null,
+      startedAt: conversation.createdAt,
+      messages: messages
+        .filter((m) => String(m.conversationId) === String(conversation._id))
+        .map((m) => ({ from: m.senderType, body: m.body, sentAt: m.createdAt })),
+    })),
   };
 }
 
@@ -334,5 +437,93 @@ export async function requestAccountDeletion(userId, { password } = {}) {
 
   await revokeAllSessions(userId, 'admin');
 
-  return { requested: true, status: user.status };
+  /*
+   * The way back (16_RETENTION_POLICY.md §2).
+   *
+   * Both sign-in paths now refuse a `deletion_pending` account, which is correct but means the
+   * owner cannot log in to change their mind — and cannot discover the request at all if someone
+   * else made it. This token is the only route back, so it lives exactly as long as the grace
+   * period does. Any earlier restore token is invalidated first: one request, one live link.
+   */
+  const graceDays = restoreWindowDays();
+  const expiresAt = new Date(user.deletionRequestedAt.getTime() + graceDays * 24 * 60 * 60 * 1000);
+
+  await VerificationToken.deleteMany({ userId, purpose: TOKEN_PURPOSE.ACCOUNT_RESTORE });
+
+  const { raw, hash } = generateVerificationToken();
+  await VerificationToken.create({
+    tokenHash: hash,
+    purpose: TOKEN_PURPOSE.ACCOUNT_RESTORE,
+    userId: user._id,
+    email: user.email,
+    expiresAt,
+  });
+
+  const result = await sendAccountDeletionRequestedEmail({
+    to: user.email,
+    name: user.name,
+    url: `${env.APP_URL}/restore-account?token=${raw}`,
+    purgeOnDate: expiresAt.toISOString().slice(0, 10),
+    graceDays,
+  });
+
+  if (!result.delivered) {
+    // Never fail the deletion request over a mail hiccup — but this one matters, so say so loudly.
+    logger.error('Account-deletion notice not delivered — the user has no restore link', {
+      userId: String(userId),
+    });
+  }
+
+  return {
+    requested: true,
+    status: user.status,
+    restorableUntil: expiresAt.toISOString(),
+    graceDays,
+  };
+}
+
+/**
+ * Cancels a pending deletion using the emailed token.
+ *
+ * Deliberately issues **no session**: proving control of the mailbox undoes the request, and
+ * signing in afterwards is a separate act with its own credential check. That keeps this endpoint
+ * from becoming a passwordless back door into the account.
+ */
+export async function restoreAccount(rawToken) {
+  const record = await VerificationToken.findOne({
+    tokenHash: hashToken(rawToken),
+    purpose: TOKEN_PURPOSE.ACCOUNT_RESTORE,
+  });
+
+  const invalid = ApiError.validation(
+    'This restore link is not valid. It may have expired or already been used.',
+  );
+
+  if (!record) throw invalid;
+  if (record.expiresAt.getTime() < Date.now()) {
+    await record.deleteOne();
+    throw invalid;
+  }
+
+  const user = await User.findById(record.userId);
+  if (!user) throw invalid;
+
+  /*
+   * Only a pending deletion can be reversed. Once the purge has run the account is `deleted` and
+   * the content is gone — restoring the status would produce an empty shell that looks like a
+   * working account, which is worse than refusing.
+   */
+  if (user.status !== USER_STATUS.DELETION_PENDING) {
+    await record.deleteOne();
+    throw ApiError.validation('This account can no longer be restored.');
+  }
+
+  user.status = USER_STATUS.ACTIVE;
+  user.deletionRequestedAt = undefined;
+  await user.save();
+
+  // Single use.
+  await record.deleteOne();
+
+  return { restored: true, email: user.email };
 }

@@ -7,12 +7,15 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { CompanyOverview } from '@/features/companies/components/CompanyOverview';
 import { OpenRoleCard } from '@/features/companies/components/OpenRoleCard';
 import { CandidateInterestModal } from '@/features/candidate/components/CandidateInterestModal';
+import { BlockCompanyModal } from '@/features/candidate/components/BlockCompanyModal';
 import { useCompanyProfile } from '@/features/companies/hooks/useCompanyProfile';
 import {
   fetchCompanyRelationship,
   saveCompany,
   unsaveCompany,
   submitCandidateInterest,
+  blockCompany,
+  unblockCompany,
 } from '@/services';
 import { PATHS } from '@/router/paths';
 
@@ -23,8 +26,12 @@ import { PATHS } from '@/router/paths';
  * anonymous views can never disagree about the company itself. This page adds only the candidate's
  * own relationship to it: saved or not, interest already expressed or not.
  *
- * Report is deliberately not here — PRD §16.3 routes company reporting through moderation, and the
- * candidate-side control that exists today is blocking, which lives in CAN-04.
+ * Report is deliberately not here — PRD §16.3 routes company reporting through moderation.
+ *
+ * Blocking (CAN-04, PRD §4.3) IS here. The setting is still owned by CAN-04 and Privacy settings,
+ * which list and reverse it; this page is where the decision is actually made, because it is the
+ * only screen where a candidate is looking at a specific company. Before this, the blocked list
+ * could not be populated from anywhere in the product.
  */
 export function CandidateCompanyPage() {
   const { slug } = useParams();
@@ -34,6 +41,7 @@ export function CandidateCompanyPage() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [interestOpen, setInterestOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -57,6 +65,37 @@ export function CandidateCompanyPage() {
       });
     } catch (apiError) {
       setFeedback({ tone: 'error', text: apiError.message ?? 'We could not update that.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * CAN-04 — block, confirmed by BlockCompanyModal.
+   *
+   * The modal awaits this, so a failure surfaces inside the dialog and the dialog stays open. On
+   * success the local relationship is updated from the same request rather than re-fetched, so
+   * the header cannot show a stale state.
+   */
+  async function confirmBlock() {
+    await blockCompany(relationship.companyId);
+    setRelationship((current) => ({ ...current, blocked: true }));
+    setBlockOpen(false);
+    setFeedback({
+      tone: 'success',
+      text: `${company.name} is blocked. They can no longer find or open your profile.`,
+    });
+  }
+
+  async function handleUnblock() {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await unblockCompany(relationship.companyId);
+      setRelationship((current) => ({ ...current, blocked: false }));
+      setFeedback({ tone: 'success', text: `${company.name} is unblocked.` });
+    } catch (apiError) {
+      setFeedback({ tone: 'error', text: apiError.message ?? 'We could not unblock that company.' });
     } finally {
       setBusy(false);
     }
@@ -117,6 +156,9 @@ export function CandidateCompanyPage() {
 
   const openRoles = company.openRoles ?? [];
   const hasInterest = Boolean(relationship?.interest);
+  const isBlocked = Boolean(relationship?.blocked);
+  // Nothing can act until the relationship has loaded — companyId is what every action needs.
+  const relationshipReady = Boolean(relationship?.companyId);
 
   return (
     <Container className="py-32">
@@ -148,11 +190,42 @@ export function CandidateCompanyPage() {
             {relationship?.saved ? 'Saved' : 'Save'}
           </Button>
 
+          {/*
+            CAN-04 — blocking lives here because this is where a candidate actually meets a
+            company. It stays available while blocked, as the reverse action, so the control never
+            disappears and leaves the state unreachable.
+          */}
+          {isBlocked ? (
+            <Button
+              variant="outlineDark"
+              size="md"
+              radius="lg"
+              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+              disabled={busy || !relationshipReady}
+              onClick={handleUnblock}
+            >
+              <Icon name="shield-halved" className="text-xs" />
+              Unblock
+            </Button>
+          ) : (
+            <Button
+              variant="outlineDark"
+              size="md"
+              radius="lg"
+              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+              disabled={busy || !relationshipReady}
+              onClick={() => setBlockOpen(true)}
+            >
+              <Icon name="shield-halved" className="text-xs" />
+              Block
+            </Button>
+          )}
+
           <Button
             variant="primary"
             size="md"
             radius="lg"
-            disabled={hasInterest}
+            disabled={hasInterest || isBlocked}
             onClick={() => setInterestOpen(true)}
           >
             {hasInterest ? 'Interest submitted' : "I'm interested"}
@@ -163,6 +236,17 @@ export function CandidateCompanyPage() {
       {feedback && (
         <StatusRegion tone={feedback.tone} className="mb-6">
           {feedback.text}
+        </StatusRegion>
+      )}
+
+      {isBlocked && (
+        <StatusRegion tone="info" className="mb-6">
+          You have blocked this company. They cannot find or open your profile. Manage blocked
+          companies in{' '}
+          <Link to={PATHS.SETTINGS_PRIVACY} className="font-medium underline">
+            Privacy settings
+          </Link>
+          .
         </StatusRegion>
       )}
 
@@ -212,6 +296,13 @@ export function CandidateCompanyPage() {
         company={company}
         roles={openRoles}
         onSubmitted={handleInterest}
+      />
+
+      <BlockCompanyModal
+        open={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        companyName={company.name}
+        onConfirm={confirmBlock}
       />
     </Container>
   );

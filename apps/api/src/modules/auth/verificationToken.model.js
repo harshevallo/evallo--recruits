@@ -15,6 +15,15 @@ export const TOKEN_PURPOSE = Object.freeze({
    * Short-lived: it is the only thing standing between a verified address and a new credential.
    */
   PASSWORD_SETUP: 'password_setup',
+  /**
+   * Cancels a pending account deletion during the grace period (16_RETENTION_POLICY.md §2).
+   *
+   * A deletion request revokes every session and both sign-in paths refuse the account, so the
+   * owner cannot simply log in and change their mind. This token is the way back, and it
+   * deliberately restores the account WITHOUT issuing a session — proving control of the mailbox
+   * undoes the request; signing in is a separate step.
+   */
+  ACCOUNT_RESTORE: 'account_restore',
 });
 
 const verificationTokenSchema = new mongoose.Schema(

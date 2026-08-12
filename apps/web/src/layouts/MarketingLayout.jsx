@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
+import { RouteFallback } from '@/router/RouteFallback';
 import { MarketingNavbar } from './partials/MarketingNavbar';
 import { MarketingFooter } from './partials/MarketingFooter';
 
@@ -22,7 +24,9 @@ export function MarketingLayout({ transparentOnTop = false, minimalFooter = fals
       <MarketingNavbar transparentOnTop={transparentOnTop} />
 
       <main id="main-content" className="flex-1">
-        <Outlet />
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <MarketingFooter minimal={minimalFooter} />

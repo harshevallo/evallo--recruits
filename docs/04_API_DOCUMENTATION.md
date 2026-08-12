@@ -147,6 +147,34 @@ published company data and can never reach a candidate collection (PRD §21.2).
 
 ---
 
+### `GET /api/health`
+
+Ops diagnostic, not a product surface. Reports the database (including
+`supportsTransactions`), the mail transport, whether Google sign-in is configured, and — since the
+deployment hardening pass — the resolved **auth topology**:
+
+```jsonc
+"auth": {
+  "clientOrigins": ["https://app.evallo.in"],   // the exact CORS allowlist
+  "apiPublicUrl": "https://api.evallo.in",
+  "refreshCookie": {
+    "sameSite": "lax",       // "none" only when the origins prove a cross-site deployment
+    "secure": true,
+    "httpOnly": true,        // always
+    "path": "/api/auth",
+    "crossSite": false,
+    "resolvedBy": "auto (CLIENT_ORIGIN and API_PUBLIC_URL share a registrable domain)"
+  }
+}
+```
+
+No secret is exposed — these are cookie *attributes* and origins already echoed in every CORS
+response. It exists because a cross-site deployment still reporting `sameSite: "lax"` is the one
+misconfiguration that signs every user out fifteen minutes after they sign in, with nothing in the
+logs. Check it first after any deployment.
+
+---
+
 ## 4. Implemented surface at a glance
 
 | Method | Path | Auth | Screen |
@@ -164,6 +192,7 @@ published company data and can never reach a candidate collection (PRD §21.2).
 | `POST` | `/api/auth/logout` | Refresh cookie | session |
 | `POST` | `/api/auth/forgot-password` | None | AUTH-11 |
 | `POST` | `/api/auth/reset-password` | Reset token | AUTH-12 |
+| `POST` | `/api/auth/restore-account` | Restore token | cancels a pending deletion |
 | `GET` | `/api/me` | Bearer | HOME-01 |
 | `PATCH` | `/api/me` | Bearer | AUTH-04 |
 | `POST` | `/api/me/complete-onboarding` | Bearer | AUTH-05 |
@@ -578,15 +607,38 @@ searches only.
 A block overrides every permission the company holds, checked before and independently of the role
 matrix (ADR-006).
 
+`POST` takes `{ companyId }`; both verbs return the refreshed blocked list, each entry
+`{ companyId, name, slug, logoUrl }` — note **`companyId`**, not `id`. Blocking is idempotent (a
+repeat is a no-op, not a duplicate or an error), and unblocking something that was never blocked
+succeeds with the unchanged list. An unknown company is `404`; a malformed id is `400`.
+
+Blocking a company the candidate is also a *member* of is allowed: the two capabilities are
+independent (ADR-001), and hiding your candidate profile from your own employer is a legitimate
+use of the control.
+
+**What a block does** is decided in one place, `candidateAccess.service` — `isBlocked` short-circuits
+`resolveCandidateAccess`, and `searchableCandidateFilter` excludes the company inside the query
+rather than after ranking (PRD §21.4). In practice the blocked company loses talent-search results,
+the candidate viewer, pipeline addition, and company messaging (all `404`, indistinguishable from
+"no such candidate", per PRD §16.1). Callers must not reimplement any of this.
+
+**Where it is reachable from:** the candidate company page (`/me/companies/:slug`) offers Block with
+a confirmation dialog; CAN-04 visibility settings and SET-01 → Privacy list the blocks and offer
+Unblock.
+
 ---
 
 ## 6c. Endpoints — company, interest, messages (CAN-06 … CAN-09)
 
 ### `GET /api/me/companies/:slug/relationship` · `PUT`/`DELETE .../saved`
 
-The candidate's own relationship to a company: `saved`, and any active `interest`. Company
-*content* still comes from `/api/public/companies/:slug`, so the signed-in and anonymous views can
-never disagree. Saving is idempotent by unique index.
+The candidate's own relationship to a company: `companyId`, `saved`, `blocked`, and any active
+`interest`. Company *content* still comes from `/api/public/companies/:slug`, so the signed-in and
+anonymous views can never disagree. Saving is idempotent by unique index.
+
+`blocked` is read from the profile the request already loads, so the company page can render the
+correct Block/Unblock state in one round trip and without the client deriving the rule. The
+authority for what a block *means* stays in `candidateAccess.service`.
 
 ### `GET /api/me/interests/consent-disclosure`
 
@@ -1066,8 +1118,9 @@ substitute and no company context to resolve.
 | `GET /api/me/settings/sessions` | Active sessions with device/IP metadata |
 | `POST /api/me/settings/sessions/sign-out-others` | Revokes all sessions except the caller's |
 | `GET /api/me/settings/sign-in-methods` | Which providers are connected (Google / password) |
-| `GET /api/me/settings/export` | The caller's own data as JSON: account, notification preferences, candidate profile, memberships. **Not** other people's profiles and **not** colleagues' internal notes |
-| `POST /api/me/settings/delete` | Requires the password. Sets `status: deletion_pending` and `deletionRequestedAt`; **blocked while the caller still owns a company** — a company cannot be left ownerless. Retention over erasure, so the §16.1 audit trail survives |
+| `GET /api/me/settings/export` | The person's own data as a downloadable JSON file: account, notification preferences, candidate profile, memberships, **question-bank answers, experience, education, credentials, portfolio media, saved companies, expressions of interest, and conversations with their messages**. Recruiter notes and pipeline records are deliberately excluded — they are the company's records about the person, and §11.2 keeps internal notes structurally separate from anything candidate-facing |
+| `POST /api/me/settings/delete` | Requires the password. Sets `status: deletion_pending` and `deletionRequestedAt`, revokes every session, and emails a single-use **restore link**; **blocked while the caller still owns a company** — a company cannot be left ownerless. Returns `restorableUntil` and `graceDays`. Both sign-in paths then refuse the account: password login **and** Google (the Google path previously skipped the status check, so "Continue with Google" silently undid the request). Processing is performed later by `src/jobs/accountDeletion.job.js`, and only when **both** retention switches are set — see `16_RETENTION_POLICY.md` §5 |
+| `POST /api/auth/restore-account` | **Public**, rate limited. Body `{ token }` — the single-use token from the deletion email. Reverses a `deletion_pending` account back to `active`. **Issues no session and sets no cookie:** proving control of the mailbox undoes the request; signing in stays a separate, password-checked act. Refuses once the account has actually been purged, because restoring a status onto emptied content would produce a convincing but empty account |
 
 Candidate professional-profile visibility is **not** duplicated here. Settings owns the preference
 surface; `candidateAccess.service.js` remains the authority, and the privacy page links to CAN-04

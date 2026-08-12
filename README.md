@@ -62,7 +62,7 @@ evallo-recruit/
 ├─ apps/web         React client
 ├─ apps/api         Express server
 ├─ packages/shared  Zod schemas · taxonomy · permission matrix
-├─ docs/            Documentation (01–14)
+├─ docs/            Documentation (01–16)
 └─ prototypes/      Founder HTML prototypes — reference only, never imported
 ```
 
@@ -120,6 +120,8 @@ are updated in the same commit.
 | [12_KNOWN_ISSUES](docs/12_KNOWN_ISSUES.md) | Bugs and accepted limitations |
 | [13_BACKLOG](docs/13_BACKLOG.md) | Deferred work and ideas |
 | [14_PROGRESS](docs/14_PROGRESS_TRACKER.md) | **Current status and next task** |
+| [15_DATA_INVENTORY](docs/15_DATA_INVENTORY.md) | Every personal-data field, purpose, recipient, and retention state — the brief for the Terms/Privacy drafting |
+| [16_RETENTION_POLICY](docs/16_RETENTION_POLICY.md) | **Proposed** retention and deletion policy — implemented in code, awaiting founder/legal sign-off |
 
 Product source of truth: `Evallo_Recruit_PRD_v1.pdf` (40 pp.). Where the docs and the PDF
 disagree on product intent, the PDF wins and the doc is stale.

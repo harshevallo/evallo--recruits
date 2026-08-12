@@ -205,16 +205,22 @@ Two shipped endpoint families have **no integration test at all**:
 requests either path. Given ADR-002 makes integration tests the substitute for a compiler (L-01),
 these are the two places where that substitute is currently absent.
 
-### I-14 — No unit tests and no frontend tests
-**Severity:** Low–Medium · **Found:** 2026-08-10 documentation audit
+### I-14 — No frontend tests
+**Severity:** Low–Medium · **Found:** 2026-08-10 · **Partially addressed:** 2026-08-12
 
-`apps/api/tests/unit/` exists but holds only a `.gitkeep` — **no unit test has ever been written**; all 365 cases are integration tests. `apps/web` has
-**no test files of any kind** — no component, hook or route-guard tests.
+`apps/api/tests/unit/` now holds one suite — `cookies.test.js`, 17 cases pinning the refresh-cookie
+policy across every deployment topology. It is a unit test because the decision it covers is pure,
+and because the failure it prevents (a wrong `SameSite`) cannot be reproduced by an integration
+test that never leaves one origin. The other 402 cases remain integration tests.
+
+`apps/web` still has **no test files of any kind** — no component, hook or route-guard tests.
 
 Frontend correctness is currently verified by `npm run lint`, `vite build`, and ad-hoc
-browser-automation scripts that live outside the repository. That has caught real defects (see the
-sidebar and navigation fixes in `11_CHANGELOG.md`), but none of it is committed, so none of it will run
-again for the next engineer.
+browser-automation scripts that live outside the repository. That has caught real defects — the
+sidebar and navigation fixes in `11_CHANGELOG.md`, and on 2026-08-12 a CAN-04 unblock that sent
+`company.id` (always `undefined`, so every unblock was a `400`) plus a state update that spread an
+array over the state object. Both were invisible to lint and to the build, and both sat in a shipped
+screen. None of that automation is committed, so none of it will run again for the next engineer.
 
 **Fix:** commit the browser checks as a runnable suite, or add component tests for the pieces where a
 regression is silent — the permission-filtered rail, the route guards, and the builder's section
@@ -236,22 +242,58 @@ Deliberate — file storage is undecided (TRD §14 Q2, D-02). Recorded so the re
 mistaken for working features. Whenever storage is chosen it must be object storage with pre-signed
 URLs; serving uploads through the API process is the one choice that would undo the scaling profile
 described in I-10 and I-11.
-### I-16 — Ten marketing/legal routes are still placeholders
-**Severity:** Low, except for two · **Verified:** 2026-08-10
+### I-17 — Account deletion never purges anything; the retention policy is undecided
+**Severity:** High (compliance) · **Found:** 2026-08-12 production-readiness pass
 
-`COMPANY_PLACEHOLDERS` is now **empty** — no feature route is a placeholder, and every company-scoped
-screen the app links to is real. What remains in `PLACEHOLDERS` is content, not functionality:
+`POST /api/me/settings/delete` marks the account `deletion_pending`, revokes its sessions, and
+stops both sign-in paths. **Nothing then processes that queue**, so a deletion request is honoured
+as a permanent lock-out while the data is retained indefinitely. PRD §16.1 requires deletion to be
+designed in; `05_DATABASE_SCHEMA.md` §11 and ADR-014 both state that a retention policy is required
+before pilot launch, and backlog **B-09** ("Account deletion and anonymisation workflow") is
+unbuilt.
 
-`/terms` · `/privacy` · `/pricing` · `/assessments` · `/help` · `/guides` · `/blog` · `/research` ·
-`/about` · `/contact`
+Three questions have no answer in any product document, and each is a decision, not an
+implementation detail:
+
+1. **How long** is a `deletion_pending` account retained before it is processed?
+2. **Which records are anonymised versus removed?** `users.deletedAt` is documented as
+   "anonymisation, not removal", and §16.1 requires an audit trail that survives — but the
+   field-level policy is unwritten.
+3. **What happens to records another party owns** — a company's interest inbox, a conversation the
+   company also participated in, pipeline entries and recruiter notes about the person?
+
+**What was built instead** (2026-08-12): `src/jobs/` now exists — a small in-process runner plus
+`account-deletion-review`, which every six hours reports the queue (how many accounts are waiting,
+how long the oldest has waited, how many would be eligible under a given period) and **deletes
+nothing**. `ACCOUNT_DELETION_RETENTION_DAYS` is deliberately unset, and setting it still does not
+enable a purge — there is no purge pass to enable. `accountDeletion.test.js` asserts `purged === 0`
+and that an eligible account still exists afterwards, so the day someone implements the purge, the
+test that fails is the one that says "this was a deliberate decision".
+
+**Owner: founder + legal.** Until (1)–(3) are answered, the product accepts deletion requests it
+does not fulfil, which is a GDPR/DPDP exposure rather than a backlog item.
+
+### I-16 — ~~Ten marketing/legal routes are still placeholders~~ PARTIALLY RESOLVED 2026-08-12
+**Severity:** Low, except for the legal dependency · **Verified:** 2026-08-12
+
+`COMPANY_PLACEHOLDERS` is **empty** — no feature route is a placeholder, and every company-scoped
+screen the app links to is real. Eight marketing routes remain content placeholders:
+
+`/pricing` · `/assessments` · `/help` · `/guides` · `/blog` · `/research` · `/about` · `/contact`
 
 Each renders `PlaceholderPage`, which names what will replace it and offers a **context-aware** way
 back (company home inside a company, app home when signed in, marketing home otherwise) rather than a
 dead end. Nothing is a fake control.
 
-**Two are not low severity.** `/terms` and `/privacy` are placeholders while the sign-up and
-early-access forms already claim the user consents to both — tracked as D-09 and still owned by the
-founder. That is a compliance exposure, not a content backlog item.
+**`/terms` and `/privacy` are no longer placeholders.** They are real routes rendering
+`LegalDocumentPage` from `apps/web/src/content/legal/`, with the document structure, headings,
+contents list and effective date already implemented. Publishing the approved text is a change to
+the content module only — no code change, no new route, and every existing link keeps working.
+
+**The compliance exposure is unchanged and still owned by the founder (D-09).** The pages carry a
+`pending_approval` status and say so plainly; no draft or example legal language was invented. The
+sign-up and early-access forms still claim consent to documents that have not been published, and
+that gap closes only when approved text arrives.
 ---
 
 ## 2. Accepted limitations

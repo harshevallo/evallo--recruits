@@ -471,9 +471,17 @@ Deliberately deferred by the CTO. `09_DEPLOYMENT_GUIDE.md` holds the current sta
 Architectural constraints already fixed that the eventual deployment must satisfy:
 1. Node 18+ with ESM support (ADR-012).
 2. `apps/web` and `apps/api` build independently from one repository (ADR-003).
-3. `apps/api` must be reachable at a stable origin for cookie `SameSite=Lax` refresh to work —
-   API and web should share a registrable domain (e.g. `app.` and `api.` on the same domain),
-   otherwise the refresh cookie requires `SameSite=None` and weaker CSRF posture (ADR-005).
+3. `apps/api` must be reachable at a stable origin. API and web **should** share a registrable
+   domain (e.g. `app.` and `api.` on the same domain) so the refresh cookie can stay
+   `SameSite=Lax`; a genuinely cross-site deployment requires `SameSite=None` and a weaker CSRF
+   posture (ADR-005).
+   **Since 2026-08-12 this is configuration, not an assumption.** `lib/cookies.js` resolves
+   `SameSite`/`Secure` at boot from `CLIENT_ORIGIN` versus `API_PUBLIC_URL`, escalating to
+   `None; Secure` only when the origins prove the deployment is cross-site; production refuses to
+   boot if that resolves to `None` without an https API origin, and `GET /api/health` reports what
+   was resolved. `httpOnly` is unconditional. The recommendation above is unchanged — the
+   difference is that ignoring it now fails loudly instead of silently signing every user out
+   fifteen minutes after they sign in.
 4. If MongoDB Atlas is chosen, Atlas Search becomes available and `modules/search` selects its
    Atlas strategy; otherwise it uses aggregation facets (ADR-010). **No other code changes.**
 5. Public routes must be served by Express, not a static host, for SEO Stage 1 metadata
@@ -534,7 +542,8 @@ a collection, a module, an external dependency, or an authorization path — fla
 | D-10 top-aligned labels | ✅ Shipped as-is; decision deferred to AUTH-01 |
 | D-01, D-02, D-03, D-05 | Described on the page; **not built, not scheduled** |
 | D-04 | Positioning only; planned pipeline covers it |
-| D-08, D-09 | Footer links are placeholders. **D-09 (Terms, Privacy) is referenced by the live consent text and needed before the form collects real data** |
+| D-08 | Footer links are placeholders |
+| D-09 | **Routes and page structure shipped 2026-08-12** — `/terms` and `/privacy` render `LegalDocumentPage` from `content/legal/`, and publishing approved text is a content change with no code change. **The approved text itself does not exist**, and the live consent statements still reference it: a founder/legal dependency, not an engineering one |
 
 ### 15.2 Status of the gated deltas
 

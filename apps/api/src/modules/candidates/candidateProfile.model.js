@@ -59,6 +59,17 @@ const candidateProfileSchema = new mongoose.Schema(
 
     publishedAt: Date,
     lastActiveAt: Date,
+
+    /**
+     * Set when account deletion is processed (16_RETENTION_POLICY.md §3).
+     *
+     * The row is emptied and marked `archived` rather than removed, so every interest,
+     * conversation and pipeline entry that references it stays valid — and `archived` is already
+     * refused by `candidateAccess.service`, so the privacy outcome comes from the existing
+     * authority rather than from a second rule. `05_DATABASE_SCHEMA.md` §2: soft delete is
+     * anonymisation, not removal.
+     */
+    deletedAt: Date,
   },
   { timestamps: true, collection: 'candidateProfiles' },
 );

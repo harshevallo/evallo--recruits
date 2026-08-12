@@ -80,6 +80,11 @@ export const verifyEmailSchema = z.object({
   token: z.string().min(1, 'Missing verification token'),
 });
 
+/** Cancels a pending account deletion during the grace period (16_RETENTION_POLICY.md §2). */
+export const restoreAccountSchema = z.object({
+  token: z.string().min(1, 'Missing restore token'),
+});
+
 export const resendVerificationSchema = z.object({
   email,
 });

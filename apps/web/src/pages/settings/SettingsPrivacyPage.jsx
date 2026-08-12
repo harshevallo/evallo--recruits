@@ -73,11 +73,21 @@ export function SettingsPrivacyPage() {
     return () => controller.abort();
   }, [hasProfile]);
 
+  /*
+   * `companyId`, not `id` — that is the key `GET /me/candidate-profile/visibility` returns, and
+   * the endpoint returns the refreshed ARRAY of blocked companies, which must be assigned to
+   * `blockedCompanies` rather than spread over the state object. Both were wrong here and neither
+   * could be noticed while nothing in the product could add a block in the first place.
+   */
   async function unblock(company) {
     setBusy(true);
     try {
-      const data = await unblockCompany(company.id);
-      setState((current) => ({ ...current, ...data }));
+      const blockedCompanies = await unblockCompany(company.companyId);
+      setState((current) => ({
+        ...current,
+        blockedCompanies,
+        visibility: current.visibility ? { ...current.visibility, blockedCompanies } : current.visibility,
+      }));
       setFeedback({ tone: 'success', text: `${company.name} can contact you again.` });
     } catch (error) {
       setFeedback({ tone: 'error', text: error.message ?? 'We could not unblock that company.' });
@@ -184,12 +194,21 @@ export function SettingsPrivacyPage() {
             </p>
 
             {blocked.length === 0 ? (
-              <p className="mt-5 text-sm text-gray-500">You have not blocked any companies.</p>
+              <p className="mt-5 text-sm text-gray-500">
+                You have not blocked any companies. You can block one from{' '}
+                <Link
+                  to={PATHS.CANDIDATE_COMPANIES}
+                  className="font-semibold text-brand-blue hover:underline"
+                >
+                  its company page
+                </Link>
+                .
+              </p>
             ) : (
               <ul className="mt-5 space-y-3">
                 {blocked.map((company) => (
                   <li
-                    key={company.id}
+                    key={company.companyId}
                     className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-slate-50/60 p-4"
                   >
                     <div className="flex min-w-0 items-center gap-3">

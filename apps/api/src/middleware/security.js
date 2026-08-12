@@ -15,9 +15,12 @@ import { env } from '../config/env.js';
  * `credentials: true` is required so the browser sends the httpOnly refresh cookie (ADR-005),
  * and that in turn forbids a wildcard origin — hence the exact-match allowlist. env.js already
  * rejects CLIENT_ORIGIN="*" at boot, so this cannot be misconfigured silently.
+ *
+ * CLIENT_ORIGIN may list several origins (apex + www, or a preview domain). Each is still matched
+ * exactly; the list never widens to a pattern.
  */
 export const corsMiddleware = cors({
-  origin: [env.CLIENT_ORIGIN],
+  origin: [...env.CLIENT_ORIGINS],
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   // Any custom header the client sends must be listed, or the browser blocks the request after

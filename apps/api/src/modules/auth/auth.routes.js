@@ -20,6 +20,7 @@ import {
   setPasswordValidation,
   resendVerificationValidation,
   changeEmailValidation,
+  restoreAccountValidation,
 } from './auth.validation.js';
 
 const router = Router();
@@ -69,6 +70,20 @@ router.post(
   validate(forgotPasswordValidation),
   asyncHandler(controller.forgotPassword),
 );
+/*
+ * Cancels a pending account deletion (16_RETENTION_POLICY.md §2).
+ *
+ * UNAUTHENTICATED by necessity: a `deletion_pending` account is refused by both sign-in paths, so
+ * the owner cannot reach an authenticated endpoint. The emailed single-use token is the credential,
+ * and a successful restore issues NO session — signing in stays a separate, password-checked act.
+ */
+router.post(
+  '/restore-account',
+  authLimiter,
+  validate(restoreAccountValidation),
+  asyncHandler(controller.restoreAccount),
+);
+
 router.post(
   '/reset-password',
   authLimiter,

@@ -6,6 +6,8 @@ import { env } from '../../config/env.js';
 import { sendSuccess, sendCreated } from '../../lib/response.js';
 import { ApiError } from '../../lib/ApiError.js';
 import * as authService from './auth.service.js';
+// Modules call other modules' SERVICES, never their models (07_PROJECT_STRUCTURE.md §3.2).
+import * as settingsService from '../settings/settings.service.js';
 import { rotateSession, revokeSession } from './session.service.js';
 import { signAccessToken } from '../../lib/tokens.js';
 import { User } from '../users/user.model.js';
@@ -13,14 +15,19 @@ import { User } from '../users/user.model.js';
 const REFRESH_COOKIE = 'evallo_rt';
 
 /**
- * Cookie options. httpOnly so JavaScript (and any XSS) cannot read it; SameSite=Lax so it rides
- * top-level navigations but not cross-site POSTs; Path scoped to the auth routes that use it.
+ * Cookie options.
+ *
+ * `httpOnly` is unconditional — JavaScript, and therefore any XSS, can never read the refresh
+ * token, and it is never placed in localStorage. `sameSite` and `secure` come from the resolved
+ * deployment topology (config/env.js → lib/cookies.js): `Lax` when the API and the web app share
+ * a registrable domain, `None; Secure` only when they provably do not. `path` keeps the cookie
+ * off every request except the auth routes that consume it.
  */
 function refreshCookieOptions({ persistent = true } = {}) {
   return {
     httpOnly: true,
-    secure: env.isProduction,
-    sameSite: 'lax',
+    secure: env.refreshCookie.secure,
+    sameSite: env.refreshCookie.sameSite,
     path: '/api/auth',
     /**
      * Omitting maxAge makes it a SESSION cookie — discarded when the browser closes. That is
@@ -166,6 +173,21 @@ export async function forgotPassword(req, res) {
 export async function resetPassword(req, res) {
   await authService.resetPassword(req.body.token, req.body.password);
   return sendSuccess(res, { ok: true });
+}
+
+/**
+ * POST /api/auth/restore-account — cancels a pending deletion (16_RETENTION_POLICY.md §2).
+ *
+ * Delegates to the settings service, which owns the deletion lifecycle; this module only maps
+ * HTTP, and the route lives here because the caller cannot be authenticated by definition.
+ * Deliberately issues no session and sets no cookie.
+ */
+export async function restoreAccount(req, res) {
+  const result = await settingsService.restoreAccount(req.body.token);
+  return sendSuccess(res, {
+    ...result,
+    message: 'Your account has been restored. You can sign in again.',
+  });
 }
 
 /** Marks the server's Google-configured state so the client shows/hides the button correctly. */

@@ -79,6 +79,21 @@ export async function updateVisibility(changes) {
   return unwrap(response);
 }
 
+/**
+ * CAN-04 — block a company (PRD §4.3).
+ *
+ * The block itself is enforced server-side by `candidateAccess.service`, which is the single
+ * authority for what a company may see. Nothing about that rule is reimplemented here; this only
+ * records the candidate's decision and returns the refreshed blocked list.
+ *
+ * @param {string} companyId
+ * @returns {Promise<Array<{ companyId: string, name: string, slug: string, logoUrl: string|null }>>}
+ */
+export async function blockCompany(companyId) {
+  const response = await apiClient.post('/me/candidate-profile/blocked-companies', { companyId });
+  return unwrap(response);
+}
+
 export async function unblockCompany(companyId) {
   const response = await apiClient.delete(`/me/candidate-profile/blocked-companies/${companyId}`);
   return unwrap(response);

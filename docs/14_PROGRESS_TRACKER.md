@@ -1,8 +1,16 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-10 (documentation audit against the working tree)
+**Last updated:** 2026-08-12 (production-readiness hardening pass)
 **Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
 **Overall:** 36 of 45 screens complete, 4 partial, 4 pending, 1 post-MVP
+
+> **2026-08-12 — production-readiness pass.** Five issues were fixed: CAN-04 blocking is reachable
+> from the UI (and the settings unblock, which had never worked, is fixed); the refresh cookie is
+> resolved from the deployment topology instead of being hard-coded `Lax`; route-level code
+> splitting cut the initial bundle 751.46 kB → 441.36 kB; `/terms` and `/privacy` are real pages.
+> **Account deletion was deliberately NOT implemented as a purge** — the retention policy does not
+> exist, so only safe reporting infrastructure was built (I-17). Two founder/legal dependencies now
+> gate pilot launch: the retention policy and the approved legal text.
 
 > **This revision was produced by auditing the code, not the previous document.** Endpoint counts
 > come from the route files, statuses from services/models/tests, and test totals from a full
@@ -71,6 +79,8 @@ Confirmed by the founder on 2026-08-03.
 ### ⏳ Pending — immediate
 | Item | Blocked by / note |
 |---|---|
+| **Account retention & deletion policy — SIGN-OFF** | **Founder + legal.** The mechanism is built and tested; `16_RETENTION_POLICY.md` §6 is the sign-off sheet. Both switches are off until it is signed (I-17, B-09) |
+| **Terms and Privacy approved text** | **Founder + legal.** The routes and page structure are real; the documents are not written (D-09) |
 | Integration tests for profile entries and SET-01 | Nothing — both surfaces ship untested (I-13) |
 | `await` audit writes on the §16.1 paths | Nothing — currently fire-and-forget (I-08) |
 | Taxonomy enums on `candidateProfiles` arrays | Schema change, deliberately out of REC-12 scope (I-06) |
@@ -84,8 +94,9 @@ Confirmed by the founder on 2026-08-03.
 |---|---|---|
 | **Transactions** | The MongoDB server is standalone, not a replica set. `/api/health` reports `supportsTransactions: false`. Refresh-token rotation works without them but is not atomic. Conversion steps in `08_SETUP_GUIDE.md` §1 — not done automatically because it modifies a system service | Founder |
 | **Google sign-in on localhost** | Google returns `403` from `gsi/status` for `http://localhost:3001` unless the origin is registered in the Google Cloud console. Email auth is unaffected | Founder |
-| Terms + Privacy content | The live forms already claim consent to both (D-09) | Founder |
-| Deployment configuration | Deliberately deferred | Founder |
+| Terms + Privacy **content** | The routes and page structure are built and reachable; the approved text does not exist, and the live forms already claim consent to both (D-09, I-16) | Founder + legal |
+| **Account retention & deletion policy** | The purge, the restore path and the retention windows are implemented and tested; **both arming switches are off** until `16_RETENTION_POLICY.md` §6 is signed off. The open items are decisions, not engineering: the grace period, the disposition of `notes` and `messages`, and the jurisdictions claimed (I-17, B-09, PRD §16.1) | Founder + legal |
+| Deployment configuration | Deliberately deferred. The **auth topology** is no longer part of this blocker: the refresh cookie now resolves from `CLIENT_ORIGIN` vs `API_PUBLIC_URL` and production refuses to boot on an unusable combination (09_DEPLOYMENT_GUIDE.md §2) | Founder |
 
 
 ---
@@ -151,13 +162,30 @@ Key: ✅ Complete · 🟡 Partial · 🔴 Not implemented · ⚪ Placeholder
 **Environment:** Windows 11 · Node v22.17.0 · npm 10.2.0 · MongoDB standalone ·
 web `:3001` · api `:8081` · database `evallo-recruit`
 
-### Test suites — all passing, **all 20 files in a single run**
+### Test suites — all passing, **all 24 files in a single run**
 
-Measured 2026-08-10 with one `npm test` (no per-file invocation, no `--test-concurrency=1`):
+Measured 2026-08-12 with one `npm test` (no per-file invocation, no `--test-concurrency=1`):
 
 ```
-# tests 365   # suites 81   # pass 365   # fail 0   # cancelled 0   # skipped 0   # todo 0
+# tests 443   # suites 101   # pass 443   # fail 0   # cancelled 0   # skipped 0   # todo 0
 ```
+
+> **One intermediate run reported 4 failures** during this pass, and the cause was a test added in
+> the same pass: the Google account-status assertion called the real `googleAuth`, which reaches
+> Google's key endpoint over the network. It was both flaky and vacuous — verification fails before
+> the status gate is ever reached, so it proved nothing about the guard it claimed to cover.
+> `googleAuth` now takes a verification seam (`deps.verifyToken`, never passed by the controller),
+> the test stubs it to exercise the gate itself, and a positive control asserts an ACTIVE account
+> still signs in. No suite in the repository makes a network call any more.
+
+Three suites were added by the 2026-08-12 production-readiness pass:
+
+| Suite | Cases | Covers |
+|---|--:|---|
+| `candidateBlocking.test.js` | 20 | CAN-04 block/unblock, and that a block removes the company from search, viewer, pipeline and messaging |
+| `accountDeletion.test.js` | 34 | Deletion request, both sign-in paths refused, the purge and its tombstones, both arming switches, the restore path, and the marketing/audit retention windows |
+| `dataExport.test.js` | 7 | SET-01 export completeness, and that recruiter notes never appear in it |
+| `unit/cookies.test.js` | 17 | Refresh-cookie `SameSite`/`Secure` across every deployment topology — the first unit test in the repo |
 
 | Suite | Cases* | Covers |
 |---|--:|---|

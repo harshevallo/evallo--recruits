@@ -26,7 +26,13 @@ const RETRY_INTERVAL_MS = 50;
  *     viewport, or keyboard users stay where they were.
  */
 export function ScrollToHash() {
-  const { hash } = useLocation();
+  /*
+   * `key` changes on every navigation, `hash` does not. Clicking "For Businesses" while already at
+   * `/#businesses` produces the same hash, so keying the effect on `hash` alone would leave the
+   * second click doing nothing — which a raw `<a href>` did handle, and the navbar now routes
+   * these links instead of following them (see MarketingNavbar).
+   */
+  const { hash, key } = useLocation();
 
   useEffect(() => {
     if (!hash) return undefined;
@@ -57,7 +63,7 @@ export function ScrollToHash() {
     timer = window.setTimeout(attempt, 0);
 
     return () => window.clearTimeout(timer);
-  }, [hash]);
+  }, [hash, key]);
 
   return null;
 }

@@ -32,6 +32,7 @@ export const PATHS = Object.freeze({
   FORGOT_PASSWORD: '/forgot-password',
   RESET_PASSWORD: '/reset-password',
   VERIFY_EMAIL: '/verify-email',
+  RESTORE_ACCOUNT: '/restore-account',
   // AUTH-02
   VERIFICATION_SENT: '/auth/verification-sent',
   CHANGE_EMAIL: '/auth/change-email',

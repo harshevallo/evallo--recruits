@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Avatar, Button, Container } from '@/components/ui';
+import { Link } from 'react-router-dom';
+import { Avatar, BackLink, Button, Container } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchVisibility, updateVisibility, unblockCompany } from '@/services';
@@ -137,6 +138,9 @@ export function VisibilitySettingsPage() {
 
   return (
     <Container className="py-32">
+      {/* Back to the candidate home, at the top — the same affordance the company pages use. */}
+      <BackLink to={PATHS.CANDIDATE_HOME} label="Candidate home" className="mb-6" />
+
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Visibility</h1>
         <p className="mt-2 max-w-xl text-gray-600">
@@ -253,7 +257,11 @@ export function VisibilitySettingsPage() {
 
         {blockedCompanies.length === 0 ? (
           <p className="text-sm text-gray-600">
-            You have not blocked anyone. You can block a company from its page.
+            You have not blocked anyone. Open a{' '}
+            <Link to={PATHS.CANDIDATE_COMPANIES} className="font-medium underline">
+              company page
+            </Link>{' '}
+            and choose Block.
           </p>
         ) : (
           <ul className="space-y-3">
@@ -288,16 +296,6 @@ export function VisibilitySettingsPage() {
         )}
       </section>
 
-      <div className="mt-8">
-        <Button
-          to={PATHS.CANDIDATE_HOME}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          Back to candidate home
-        </Button>
-      </div>
     </Container>
   );
 }

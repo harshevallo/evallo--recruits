@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { RouteFallback } from '@/router/RouteFallback';
 import { BackLink, Container } from '@/components/ui';
 import { PATHS } from '@/router/paths';
 
@@ -63,7 +65,9 @@ export function SettingsLayout() {
           <BackLink to={PATHS.ACCOUNT_SETTINGS} label="All settings" className="mb-6" />
         )}
 
-        <Outlet />
+        <Suspense fallback={<RouteFallback className="py-0" />}>
+          <Outlet />
+        </Suspense>
       </div>
     </Container>
   );

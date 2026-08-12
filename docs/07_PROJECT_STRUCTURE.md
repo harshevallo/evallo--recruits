@@ -169,11 +169,11 @@ apps/api/
 │  │  ├─ notFound.js
 │  │  └─ errorHandler.js      The ONLY place an error response is formatted
 │  ├─ modules/                One folder per domain (ADR-011)
-│  ├─ jobs/                   Scheduled/background work (post-MVP)
+│  ├─ jobs/                   Background work. Started by server.js, never by app.js
 │  ├─ seeds/                  Taxonomy + question bank seeding
 │  ├─ routes.js               Single mount point for every module router
 │  ├─ app.js                  Express assembly: middleware → routes → errors
-│  └─ server.js               Connect DB, then listen. Nothing else
+│  └─ server.js               Connect DB, start jobs, then listen. Nothing else
 ├─ tests/
 │  ├─ integration/            Route-level, real DB
 │  ├─ unit/                   Services and pure logic
@@ -571,7 +571,7 @@ Created only when their milestone arrives.
 | `api/src/modules/notes/` | **built** | Internal recruiter notes, a separate collection from `messages` by design (§11.2) |
 | `api/src/modules/settings/` | **built** | SET-01 account settings service and controller |
 | `api/src/modules/memberships/` | **built** | Company join requests (`joinRequest.*`); membership rows themselves live in `modules/companies` |
-| `api/src/jobs/` | **Post-MVP** | No scheduled work in MVP. Digests (PRD §15.1) are the first real need |
+| `api/src/jobs/` | **built 2026-08-12** | `jobRunner.js` (single-flight, error-isolated, unref'd timers, off under `NODE_ENV=test`), `accountDeletion.job.js` (reports the `deletion_pending` queue; purges nothing — I-17), `index.js` registry. Started from `server.js` after the database connects, **never** from `createApp()`, so importing the app in a test does not start timers. Digests (PRD §15.1) are the next consumer |
 | ~~`api/src/lib/mailer/`~~ | **built as `api/src/lib/email/`** | `EmailService` + `templates/` + `transports/{console,smtp}`. Q3 resolved: nodemailer, SendGrid over SMTP in production |
 | `api/src/lib/storage/providers/` | **still empty** | Provider undecided (§14 Q2). Consequence: no upload endpoint anywhere — credential documents and portfolio media are links, and `messages.attachments` is reserved and always empty (`12_KNOWN_ISSUES.md` I-15) |
 | `web/src/components/data/` | **M5** | Tables, filters, and pagination have no consumer before talent search |

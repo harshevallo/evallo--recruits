@@ -9,9 +9,14 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './lib/db.js';
 import { logger } from './lib/logger.js';
+import { startBackgroundJobs, stopJobs } from './jobs/index.js';
 
 async function start() {
   await connectDatabase();
+
+  // After the database, never before: a job that runs against a disconnected client only logs noise.
+  const started = startBackgroundJobs();
+  if (started.length) logger.info('background jobs started', { jobs: started });
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
@@ -26,6 +31,9 @@ async function start() {
   // partially-applied multi-document operations happen.
   async function shutdown(signal) {
     logger.info('Shutting down', { signal });
+
+    // Stop scheduling first, so no new job starts while connections are closing.
+    stopJobs();
 
     server.close(async () => {
       await disconnectDatabase();

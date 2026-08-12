@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { RouteFallback } from '@/router/RouteFallback';
 import {
   WorkspaceSidebar,
   SidebarTrigger,
@@ -57,7 +58,9 @@ export function CandidateWorkspaceLayout() {
         <div className="px-4 pt-24 md:hidden">
           <SidebarTrigger onOpen={() => setMobileOpen(true)} label={LABEL} />
         </div>
-        <Outlet />
+        <Suspense fallback={<RouteFallback className="py-24" />}>
+          <Outlet />
+        </Suspense>
       </div>
     </div>
   );

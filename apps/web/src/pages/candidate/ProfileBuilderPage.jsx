@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Badge, Button, Container, Icon, Modal } from '@/components/ui';
+import { Badge, Button, Icon, Logo, Modal } from '@/components/ui';
 import { SelectInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -178,6 +178,8 @@ export function ProfileBuilderPage() {
 
   const inFlight = useRef(false);
   const headingRef = useRef(null);
+  /* The shell owns the viewport, so section changes scroll THIS pane — `window` no longer moves. */
+  const mainRef = useRef(null);
 
   const sections = useMemo(() => (builder ? displaySectionsOf(builder) : []), [builder]);
 
@@ -297,33 +299,33 @@ export function ProfileBuilderPage() {
     setErrors({});
     setSaveState('idle');
     setSaveMessage(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     // Move focus to the new section so keyboard and screen-reader users follow the change.
     requestAnimationFrame(() => headingRef.current?.focus());
   }
 
   if (loadError) {
     return (
-      <Container className="py-32">
-        <div className="mx-auto max-w-3xl">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-6 md:p-10">
           <StatusRegion tone="error">{loadError}</StatusRegion>
           <Button to={PATHS.CANDIDATE_HOME} variant="primary" size="md" className="mt-6">
             Back to candidate home
           </Button>
         </div>
-      </Container>
+      </div>
     );
   }
 
   if (!builder || !activeSection) {
     return (
-      <Container className="py-32">
-        <div className="mx-auto max-w-3xl" role="status" aria-live="polite">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-6 md:p-10" role="status" aria-live="polite">
           <span className="sr-only">Loading the profile builder…</span>
           <Skeleton className="h-10 w-72 rounded-lg" />
           <Skeleton className="mt-8 h-96 w-full rounded-2xl" />
         </div>
-      </Container>
+      </div>
     );
   }
 
@@ -381,149 +383,174 @@ export function ProfileBuilderPage() {
   );
 
   return (
-    <Container className="py-32">
+    <>
       {/*
-        One shell, one rail.
+        The application bar. `flex-none` keeps it out of the scrolling region, so it holds its 4rem
+        without `position: fixed` and without the content needing a matching top offset.
 
-        This screen used to own the whole viewport: its own top bar, its own fixed rail, its own
-        scrolling pane. Beside the candidate rail that read as two sidebars fighting each other, and
-        moving between it and any other candidate screen swapped the entire chrome. It now lives in
-        the same shell as CAN-01/03/04 — the app navbar and the candidate rail — and the eight
-        sections become a horizontal strip rather than a second column.
+        It carries what a long form must never hide: where you are, whether your work is safe, and
+        the two ways out. The old page heading ("Profile builder") is gone — the bar already says
+        what this screen is, and the section title below is the real heading.
       */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Profile builder</h1>
-          <p className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span
-              className="h-2 w-2 flex-none rounded-full bg-emerald-500"
-              aria-hidden="true"
-            />
-            <span role="status">{isSaving ? 'Saving…' : 'Saved to cloud'}</span>
-          </p>
-        </div>
+      <header className="h-16 flex-none border-b border-gray-200 bg-white">
+        <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <Logo tone="dark" />
+            <span className="hidden h-6 w-px flex-none bg-gray-200 sm:block" />
+            <span className="hidden items-center gap-2 truncate text-sm font-semibold text-brand-dark sm:flex">
+              <Icon name="user-pen" className="text-brand-blue" />
+              Candidate profile builder
+            </span>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            to={PATHS.CANDIDATE_PROFILE_PREVIEW}
-            variant="outlineDark"
-            size="sm"
-            radius="lg"
-            className="!border-gray-300 !bg-white !text-brand-dark hover:!bg-gray-50"
-          >
-            Preview profile
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            radius="lg"
-            className="!bg-brand-dark hover:!bg-black"
-            onClick={() => setConfirmExit(true)}
-            disabled={isSaving}
-          >
-            Save & exit
-          </Button>
+          <div className="flex flex-none items-center gap-2 sm:gap-3">
+            <span className="mr-1 hidden items-center gap-1.5 text-xs font-medium text-gray-500 md:flex">
+              <span className="h-2 w-2 flex-none rounded-full bg-emerald-500" aria-hidden="true" />
+              <span role="status">{isSaving ? 'Saving…' : 'Saved to cloud'}</span>
+            </span>
+            <Button
+              to={PATHS.CANDIDATE_HOME}
+              variant="outlineDark"
+              size="sm"
+              radius="lg"
+              className="!hidden !border-gray-300 !bg-white !text-brand-dark hover:!bg-gray-50 lg:!inline-flex"
+            >
+              Exit to profile
+            </Button>
+            <Button
+              to={PATHS.CANDIDATE_PROFILE_PREVIEW}
+              variant="outlineDark"
+              size="sm"
+              radius="lg"
+              className="!border-gray-300 !bg-white !text-brand-dark hover:!bg-gray-50"
+            >
+              Preview
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              radius="lg"
+              className="!bg-brand-dark hover:!bg-black"
+              onClick={() => setConfirmExit(true)}
+              disabled={isSaving}
+            >
+              Save &amp; exit
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Profile strength — the same honest number, now above the sections rather than beside them. */}
-      <div className="mb-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-            Profile strength
-          </h2>
-          <span className="text-xs font-bold text-brand-blue">{readiness.percent}%</span>
-        </div>
-
-        <div
-          className="mb-2 h-2 w-full overflow-hidden rounded-full bg-gray-200"
-          role="progressbar"
-          aria-valuenow={readiness.percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Profile strength"
-        >
-          <div
-            className="h-2 rounded-full bg-brand-blue transition-all duration-500"
-            style={{ width: `${readiness.percent}%` }}
-          />
-        </div>
-
-        <p className="text-[11px] leading-tight text-gray-500">
-          {readiness.outstanding > 0 ? (
-            <>
-              Add{' '}
-              <strong className="font-semibold text-brand-dark">
-                {builder.publishBlockers[0]}
-              </strong>{' '}
-              {readiness.outstanding > 1
-                ? `and ${readiness.outstanding - 1} more to publish.`
-                : 'to publish.'}
-            </>
-          ) : readiness.unanswered > 0 ? (
-            <>
-              Ready to publish. {readiness.unanswered} optional{' '}
-              {readiness.unanswered === 1 ? 'answer' : 'answers'} left if you want a fuller profile.
-            </>
-          ) : (
-            <>Everything is answered. You can publish whenever you are ready.</>
-          )}
-        </p>
-      </div>
-
       {/*
-        Section navigation — horizontal, and scrolling sideways rather than collapsing, so every one
-        of the eight stays reachable at any width. A second vertical column here is exactly what made
-        this screen feel like it had two sidebars.
+        `min-h-0` is what makes the two panes scroll instead of stretching. A flex child defaults to
+        `min-height: auto`, refuses to shrink below its content, and pushes the overflow out to the
+        document — which is exactly how a "fixed" sidebar ends up drifting up the page.
       */}
-      <nav aria-label="Profile sections" className="mb-8 border-b border-gray-200">
-        <ol className="-mb-px flex gap-1 overflow-x-auto pb-1">
-          {sections.map((section) => {
-            const isActive = section.key === activeSection.key;
-            const label = SECTION_META[section.key]?.nav ?? section.title;
+      <div className="flex min-h-0 flex-1">
+        {/*
+          Section rail. Stationary because it is a sibling of the scrolling pane rather than part of
+          it, and independently scrollable so eight sections plus the strength meter stay reachable
+          on a short screen without moving the content.
+        */}
+        <aside className="hidden w-72 flex-none overflow-y-auto border-r border-gray-200 bg-white md:block">
+          <div className="p-5">
+            {/* Profile strength — the same honest number, back beside the sections it describes. */}
+            <div className="mb-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Profile strength
+                </h2>
+                <span className="text-xs font-bold text-brand-blue">{readiness.percent}%</span>
+              </div>
 
-            return (
-              <li key={section.key} className="flex-none">
-                <button
-                  type="button"
-                  onClick={() => goToSection(section.key)}
-                  aria-current={isActive ? 'step' : undefined}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-t-lg border-b-2 px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 ${
-                    isActive
-                      ? 'border-brand-blue font-semibold text-brand-blue'
-                      : 'border-transparent font-medium text-gray-600 hover:text-brand-dark'
-                  }`}
-                >
-                  <Icon
-                    name={SECTION_META[section.key]?.icon ?? 'circle-check'}
-                    className={`text-xs ${isActive ? 'text-brand-blue' : 'text-gray-400'}`}
-                  />
-                  {label}
+              <div
+                className="mb-2 h-2 w-full overflow-hidden rounded-full bg-gray-200"
+                role="progressbar"
+                aria-valuenow={readiness.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Profile strength"
+              >
+                <div
+                  className="h-2 rounded-full bg-brand-blue transition-all duration-500"
+                  style={{ width: `${readiness.percent}%` }}
+                />
+              </div>
 
-                  {/* Done / started / untouched, exactly as the rail showed it. */}
-                  {section.kind === 'visibility' ? null : section.complete ? (
-                    <Icon
-                      name="circle-check"
-                      label="Section complete"
-                      className="text-xs text-emerald-500"
-                    />
-                  ) : section.answered > 0 ? (
-                    <span
-                      className="h-1.5 w-1.5 rounded-full bg-amber-400"
-                      role="img"
-                      aria-label="Section started"
-                    />
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+              <p className="text-[11px] leading-tight text-gray-500">
+                {readiness.outstanding > 0 ? (
+                  <>
+                    Add{' '}
+                    <strong className="font-semibold text-brand-dark">
+                      {builder.publishBlockers[0]}
+                    </strong>{' '}
+                    {readiness.outstanding > 1
+                      ? `and ${readiness.outstanding - 1} more to publish.`
+                      : 'to publish.'}
+                  </>
+                ) : readiness.unanswered > 0 ? (
+                  <>
+                    Ready to publish. {readiness.unanswered} optional{' '}
+                    {readiness.unanswered === 1 ? 'answer' : 'answers'} left if you want a fuller
+                    profile.
+                  </>
+                ) : (
+                  <>Everything is answered. You can publish whenever you are ready.</>
+                )}
+              </p>
+            </div>
 
-      <div>
-        <main id="main-content">
-          <div className="max-w-3xl">
+            <nav aria-label="Profile sections">
+              <ol className="space-y-1">
+                {sections.map((section) => {
+                  const isActive = section.key === activeSection.key;
+                  const label = SECTION_META[section.key]?.nav ?? section.title;
+
+                  return (
+                    <li key={section.key}>
+                      <button
+                        type="button"
+                        onClick={() => goToSection(section.key)}
+                        aria-current={isActive ? 'step' : undefined}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 ${
+                          isActive
+                            ? 'bg-blue-50 font-semibold text-brand-blue'
+                            : 'font-medium text-gray-600 hover:bg-gray-50 hover:text-brand-dark'
+                        }`}
+                      >
+                        <Icon
+                          name={SECTION_META[section.key]?.icon ?? 'circle-check'}
+                          className={`w-4 flex-none text-xs ${
+                            isActive ? 'text-brand-blue' : 'text-gray-400'
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{label}</span>
+
+                        {/* Done / started / untouched, exactly as the strip showed it. */}
+                        {section.kind === 'visibility' ? null : section.complete ? (
+                          <Icon
+                            name="circle-check"
+                            label="Section complete"
+                            className="flex-none text-xs text-emerald-500"
+                          />
+                        ) : section.answered > 0 ? (
+                          <span
+                            className="h-1.5 w-1.5 flex-none rounded-full bg-amber-400"
+                            role="img"
+                            aria-label="Section started"
+                          />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          </div>
+        </aside>
+
+        {/* The one scrolling region on the screen. */}
+        <main id="main-content" ref={mainRef} className="min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl p-6 pb-32 md:p-10">
             {/* Kept for narrow screens as a second way into a section, beside the scrolling strip. */}
             <div className="mb-6 md:hidden">
               <label
@@ -697,6 +724,6 @@ export function ProfileBuilderPage() {
           </span>
         </div>
       )}
-    </Container>
+    </>
   );
 }

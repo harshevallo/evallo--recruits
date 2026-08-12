@@ -24,7 +24,7 @@ no screen of its own and could otherwise be forgotten.
 | B-06 | Notification preferences with digest frequencies | §15.1 | M6 | P1 |
 | B-07 | Core funnel analytics event taxonomy | §18.1 | M6 | P1 |
 | B-08 | Candidate and company data export | §19 | M6 | P1 |
-| B-09 | Account deletion and anonymisation workflow | §16.1 | M6 | P1 |
+| B-09 | Account deletion and anonymisation workflow — **blocked on a policy decision, not on engineering.** The job infrastructure and the eligibility query exist and report the queue (`src/jobs/accountDeletion.job.js`); the purge/anonymise pass is deliberately unimplemented until the retention period, the anonymise-vs-remove field policy, and the treatment of records another party owns are decided. See `12_KNOWN_ISSUES.md` I-17 | §16.1 | M6 | **P0 — accepted requests are not fulfilled** |
 | B-10 | Company duplicate detection and claim process | §21.6 | M2 | P1 |
 | B-11 | Slug-change redirect handling | §17 | M2 | P2 |
 | B-12 | Saved companies with hiring-change notifications | §8.2 | M4 | P2 |

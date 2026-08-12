@@ -76,6 +76,16 @@ export async function getCompanyRelationship(profile, slug) {
   return {
     companyId: String(company._id),
     saved: Boolean(saved),
+    /**
+     * CAN-04 — whether this candidate has blocked this company.
+     *
+     * Read from the profile the caller already has, so the company page can render the correct
+     * block/unblock state without a second request and without the client deriving the rule.
+     * The authority for what a block DOES remains `candidateAccess.service`.
+     */
+    blocked: (profile.blockedCompanyIds ?? []).some(
+      (id) => String(id) === String(company._id),
+    ),
     interest: interest
       ? {
           id: String(interest._id),

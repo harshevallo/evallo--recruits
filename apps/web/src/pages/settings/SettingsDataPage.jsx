@@ -120,8 +120,10 @@ export function SettingsDataPage() {
         <section className="mt-4 rounded-2xl border border-red-200 bg-red-50/40 p-6">
           <h3 className="text-base font-bold text-brand-dark">Delete account</h3>
           <p className="mt-1 text-sm text-gray-700">
-            Removes your account and personal data. Some records are retained where required for
-            platform integrity or legal obligations.
+            Closes your account immediately. We email you a restore link in case you change your
+            mind; once the grace period passes, your profile and professional content are deleted
+            permanently. Some records are retained where required for platform integrity or legal
+            obligations.
           </p>
           <p className="mt-3 text-xs text-gray-600">
             If you own a company, hand ownership to another member first — a company cannot be left
@@ -150,7 +152,7 @@ export function SettingsDataPage() {
         open={confirming}
         onClose={() => setConfirming(false)}
         title="Delete your account?"
-        description="This will permanently remove your account and associated personal data. Some records may be retained where required for platform integrity or legal obligations."
+        description="Your account closes immediately and you will be signed out. We email you a link that restores it during the grace period; after that, your profile and professional content are deleted permanently. Some records are retained where required for platform integrity or legal obligations."
       >
         <FormField
           label="Confirm your password"

@@ -28,6 +28,9 @@
 | `features/candidate/components/` (added) | `EntrySection` `VisibilitySection` |
 | `features/candidate/sections/` | `SectionCard` `questionLayout` `IdentitySection` `PreferencesSection` `ExpertiseSection` `PracticeSection` `PortfolioSection` `CredentialsSection` |
 | `pages/company/` (added) | `CompanyCandidatePage` `CompanyHiringPage` `CompanyPipelinePage` `CompanyMessagesPage` `CompanySettingsPage` |
+| `features/candidate/components/` (2026-08-12) | `BlockCompanyModal` |
+| `pages/legal/` (2026-08-12) | `LegalDocumentPage` |
+| `router/` (2026-08-12) | `RouteFallback` |
 | `pages/settings/` | `SettingsLayout` `SettingsHomePage` `SettingsAccountPage` `SettingsSecurityPage` `SettingsNotificationsPage` `SettingsPrivacyPage` `SettingsDataPage` |
 
 **Removed:** `WorkspaceNav` (superseded by `WorkspaceSidebar`) and `BuilderLayout` (the builder now
@@ -77,6 +80,21 @@ Five notes worth carrying forward:
   link resolves to company home inside a company, `/home` when signed in, `/` when anonymous.
   Sending a recruiter who clicked "Open profile" out to the marketing page reads as being logged
   out, which is why it no longer does.
+- **`BlockCompanyModal` states only what the server enforces.** Every line of its copy maps to a
+  branch of `candidateAccess.service` — excluded from search, profile unopenable, no new messages,
+  the company is not told, reversible. Nothing about "deleting your data" or "closing the
+  conversation" appears, because no code does that, and a modal is exactly where an
+  over-promise would be believed. Blocking lives on the candidate company page because that is the
+  only screen where a candidate is looking at one specific company; CAN-04 and SET-01 → Privacy
+  still own the list and the reverse action.
+- **`LegalDocumentPage` renders content, and refuses to invent it.** One component serves `/terms`
+  and `/privacy` from `content/legal/`. When a document is `published` it renders a contents list
+  and `<h2>` per section; while it is `pending_approval` it says so instead of paraphrasing a policy
+  that has not been written (D-09). Publishing approved text touches the content module only.
+- **`RouteFallback` is what a split route shows while its chunk loads.** Every layout wraps its own
+  `<Outlet/>` in `Suspense`, so the sidebar and navbar stay mounted and only the page area swaps —
+  and the fallback is `role="status"` with an off-screen label, so the wait is announced rather than
+  silent.
 - **`CompanySetupPage` gets its steps from the server.** Step keys, order, fields and per-step
   progress come from `GET /companies/:id/editor`; the page renders whatever it is handed. The
   current step lives in `?step=`, so a wizard position is a shareable, refresh-safe URL.

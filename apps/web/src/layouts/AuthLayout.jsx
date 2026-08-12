@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
+import { RouteFallback } from '@/router/RouteFallback';
 import { Logo } from '@/components/ui';
 
 /**
@@ -21,7 +23,9 @@ export function AuthLayout({ width = 'form' }) {
 
       <main id="main-content" className="flex flex-1 items-center justify-center px-4 py-8">
         <div className={width === 'wide' ? 'w-full max-w-5xl' : 'w-full max-w-md'}>
-          <Outlet />
+          <Suspense fallback={<RouteFallback className="py-8" />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
 

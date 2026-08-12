@@ -723,7 +723,11 @@ describe. See **ADR-014** for why this is deliberately not the `users` collectio
 **Privacy**
 - This is personal data collected before any account exists. It falls under the same deletion,
   export, and retention obligations as PRD §16.1.
-- **A retention policy is required before pilot launch** — indefinitely retained marketing leads
+- **A retention policy is required before pilot launch** — **drafted 2026-08-12 in
+  `16_RETENTION_POLICY.md`, awaiting sign-off.** `candidateProfiles.deletedAt` was added in the
+  same pass (additive, optional, no migration): account deletion empties the profile and marks it
+  `archived` rather than removing the row, so interests, conversations and pipeline entries keep a
+  valid reference and `candidateAccess.service` denies access through the rule that already exists — indefinitely retained marketing leads
   are a liability, not an asset. Tracked in `13_BACKLOG.md`.
 
 **Sample**

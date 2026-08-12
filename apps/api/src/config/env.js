@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { resolveCookiePolicy } from '../lib/cookies.js';
 
 // ESM has no __dirname (ADR-012).
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,16 @@ const optionalString = () =>
     z.string().min(1).optional(),
   );
 
+/** `"true"` (any case) is true; an empty string is absent, so `.default()` applies. */
+const booleanFlag = () =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim().toLowerCase() === 'true' : value),
+      z.boolean(),
+    ),
+  );
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(5000),
@@ -41,13 +52,37 @@ const envSchema = z.object({
       'MONGODB_CLOUD must start with mongodb:// or mongodb+srv://',
     ),
 
+  /**
+   * Allowed browser origin(s). Comma-separated when the web app is reachable at more than one
+   * (apex + www, or a preview domain); every entry is matched EXACTLY. Never a wildcard —
+   * `credentials: true` and `*` are mutually exclusive, and the browser enforces that.
+   */
   CLIENT_ORIGIN: z
     .string()
     .min(1, 'CLIENT_ORIGIN is required')
     .refine(
-      (value) => value !== '*',
+      (value) => !value.split(',').some((origin) => origin.trim() === '*'),
       'CLIENT_ORIGIN cannot be "*" — a wildcard origin is incompatible with credentials:true (ADR-005)',
     ),
+
+  /**
+   * The origin the BROWSER uses to reach this API — e.g. `https://api.evallo.in`. Optional, and
+   * only used to decide the refresh cookie's SameSite (see lib/cookies.js). Without it the
+   * cookie keeps the historical `SameSite=Lax`, which is correct for a same-site deployment.
+   */
+  API_PUBLIC_URL: optionalString(),
+
+  /** Refresh-cookie overrides. `auto` derives SameSite from CLIENT_ORIGIN vs API_PUBLIC_URL. */
+  COOKIE_SAMESITE: z.enum(['auto', 'lax', 'none', 'strict']).default('auto'),
+  COOKIE_SECURE: z
+    .preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.preprocess(
+        (v) => (typeof v === 'string' ? v.trim().toLowerCase() === 'true' : v),
+        z.boolean(),
+      ),
+    )
+    .optional(),
 
   /**
    * Self-hosted JWT auth — AUTH-01 (ADR-005).
@@ -63,6 +98,28 @@ const envSchema = z.object({
 
   /** Public base URL of the web app — used to build verification and reset links. */
   APP_URL: z.string().default('http://localhost:5173'),
+
+  /**
+   * Background jobs (`src/jobs/`). Always off under NODE_ENV=test.
+   *
+   * `ACCOUNT_DELETION_RETENTION_DAYS` is INTENTIONALLY optional and has no default: the retention
+   * period is an unresolved product/legal decision (backlog B-09, PRD §16.1). While it is unset
+   * the deletion job reports the queue and purges nothing — see jobs/accountDeletion.job.js.
+   */
+  JOBS_ENABLED: booleanFlag().default(true),
+  ACCOUNT_DELETION_RETENTION_DAYS: z.coerce.number().int().nonnegative().optional(),
+  ACCOUNT_DELETION_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(100),
+
+  /**
+   * The second of two switches guarding an irreversible action (16_RETENTION_POLICY.md §5).
+   * A retention period alone is NOT enough: with this false the job still only reports, so an
+   * operator can set the period, read a cycle of reports, and only then enable the purge.
+   */
+  ACCOUNT_DELETION_PURGE_ENABLED: booleanFlag().default(false),
+
+  /** Retention for pre-account marketing leads and for audit network identifiers. Unset = keep. */
+  EARLY_ACCESS_RETENTION_DAYS: z.coerce.number().int().positive().optional(),
+  AUDIT_IP_RETENTION_DAYS: z.coerce.number().int().positive().optional(),
 
   /**
    * Email provider. `console` logs the message + link; `smtp` sends via nodemailer.
@@ -128,6 +185,52 @@ if (isProduction && (!parsed.data.JWT_ACCESS_SECRET || !parsed.data.JWT_REFRESH_
   process.exit(1);
 }
 
+/** Exact-match CORS allowlist. Split here so the middleware never parses configuration itself. */
+const clientOrigins = parsed.data.CLIENT_ORIGIN.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+/**
+ * Refresh-cookie attributes for this deployment topology (ADR-005, TRD §13).
+ *
+ * Resolved once at boot so every code path — set, clear, and the health report — reads the same
+ * answer, and a misconfiguration is visible at startup rather than as a mystery sign-out later.
+ */
+const refreshCookie = resolveCookiePolicy({
+  clientOrigin: clientOrigins[0],
+  apiPublicUrl: parsed.data.API_PUBLIC_URL ?? null,
+  sameSite: parsed.data.COOKIE_SAMESITE,
+  secure: parsed.data.COOKIE_SECURE ?? null,
+  isProduction,
+});
+
+/*
+ * A cross-site refresh cookie over plain HTTP cannot work — the browser discards it. In
+ * production that is a broken sign-in for every user, so refuse to boot rather than ship it.
+ */
+if (isProduction && refreshCookie.sameSite === 'none') {
+  const apiIsHttps = (parsed.data.API_PUBLIC_URL ?? '').startsWith('https://');
+  if (!apiIsHttps) {
+    console.error(
+      '\nThe refresh cookie resolves to SameSite=None, which browsers only accept over HTTPS.\n' +
+        'Set API_PUBLIC_URL to the https origin of this API, or host the API on the same\n' +
+        'registrable domain as CLIENT_ORIGIN and set COOKIE_SAMESITE=lax.\n',
+    );
+    process.exit(1);
+  }
+}
+
+if (isProduction && !parsed.data.API_PUBLIC_URL) {
+  console.warn(
+    '\n[warn] API_PUBLIC_URL is not set. The refresh cookie defaults to SameSite=Lax, which only\n' +
+      '       works when the API and the web app share a registrable domain (TRD §13).\n',
+  );
+}
+
+if (refreshCookie.warning && !parsed.data.NODE_ENV.startsWith('test')) {
+  console.warn(`\n[warn] ${refreshCookie.warning}\n`);
+}
+
 /** Validated, frozen environment. Never read process.env anywhere else. */
 export const env = Object.freeze({
   ...parsed.data,
@@ -137,6 +240,11 @@ export const env = Object.freeze({
   isDevelopment: parsed.data.NODE_ENV === 'development',
   isTest: parsed.data.NODE_ENV === 'test',
   isGoogleConfigured: Boolean(parsed.data.GOOGLE_CLIENT_ID),
+
+  /** Every origin the browser may call this API from. Exact match, never a wildcard. */
+  CLIENT_ORIGINS: Object.freeze(clientOrigins),
+  /** `{ sameSite, secure, crossSite, source }` — see lib/cookies.js. */
+  refreshCookie: Object.freeze(refreshCookie),
 
   /** Resolved SMTP settings, EMAIL_* preferred over SMTP_*. */
   smtp: Object.freeze({
