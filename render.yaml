@@ -1,0 +1,83 @@
+# Render Blueprint — both services from this one repository.
+#
+# ADR-003 requires two independent builds from one repo, and this is that: an Express web service
+# for `apps/api` and a static site for `apps/web`. Both build from the REPOSITORY ROOT, not from
+# the workspace directory, because `@evallo/shared` is a workspace dependency — `npm ci` run inside
+# `apps/api` cannot resolve it.
+#
+# Every secret is declared `sync: false`, which means Render prompts for it in the dashboard and
+# never reads it from this file. Nothing here is a credential, so this file is safe to commit.
+#
+# NOTE ON SERVICE NAMES: a blueprint CREATES services with these names. If you already have a
+# service called `evallo-recruits`, either rename it to match one of these or you will end up with
+# duplicates pointing at the same repo.
+
+services:
+  # ── API — Express, long-running (deployment guide D1) ──────────────────────────────────────
+  #
+  # This is why Render rather than a serverless host: `server.js` calls `app.listen()`, holds a
+  # Mongoose connection pool open, and serves public routes from Express (deployment constraint 5,
+  # ADR-004). None of that survives a function runtime, and none of it needed changing here.
+  - type: web
+    name: evallo-recruits-api
+    runtime: node
+    plan: free
+    # Root `npm start` → `npm run start --workspace=apps/api` → `node src/server.js`.
+    # Render injects PORT; `env.PORT` reads it, so the bind address is correct with no extra config.
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Serverless-style freezing is not a risk here, but the purge job is irreversible and its
+      # retention window is still an open product/legal decision (B-09). Off until that is settled.
+      - key: JOBS_ENABLED
+        value: "false"
+
+      # Secrets and deployment-specific URLs: set these in the Render dashboard.
+      #
+      # MONGODB_CLOUD   must end with `/evallo-recruit` — without a database name the driver
+      #                 silently connects to `test` and the app comes up empty.
+      # CLIENT_ORIGIN   exact https origin of the web service. No wildcard, no trailing slash.
+      # API_PUBLIC_URL  this service's own https origin. Required: *.onrender.com subdomains are
+      #                 cross-site, so the refresh cookie resolves to SameSite=None, which browsers
+      #                 only accept over HTTPS (env.js refuses to boot otherwise).
+      # APP_URL         the web origin. Defaults to localhost:5173, which would put localhost links
+      #                 in every verification and password-reset email.
+      - key: MONGODB_CLOUD
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+
+  # ── Web — static Vite build ────────────────────────────────────────────────────────────────
+  - type: web
+    name: evallo-recruits-web
+    runtime: static
+    # Root `npm run build` → `npm run build --workspace=apps/web` → `vite build`.
+    buildCommand: npm ci && npm run build
+    staticPublishPath: apps/web/dist
+    envVars:
+      # BUILD-TIME, not runtime: Vite inlines this into the bundle, so changing it needs a rebuild,
+      # not a restart. Must include the `/api` path segment — e.g.
+      # https://evallo-recruits-api.onrender.com/api
+      - key: VITE_API_BASE_URL
+        sync: false
+      # Public by design — it identifies the app to Google and is not a secret.
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+    routes:
+      # React Router owns the URL space. Without this, a refresh on /me/profile asks the static
+      # host for a file that does not exist and returns 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html

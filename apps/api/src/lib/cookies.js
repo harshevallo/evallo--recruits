@@ -26,6 +26,20 @@ const MULTI_PART_SUFFIXES = new Set([
   'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'co.in', 'net.in', 'org.in', 'ac.in', 'gov.in',
   'com.au', 'net.au', 'org.au', 'edu.au', 'co.nz', 'com.sg', 'com.my', 'co.za', 'com.br',
   'co.jp', 'com.mx', 'com.hk', 'com.tr', 'com.ar', 'co.ke', 'ae.org', 'com.sa',
+
+  /*
+   * PaaS suffixes. These look like ordinary two-label domains, so the `lastTwo` heuristic would
+   * call `api.onrender.com` and `web.onrender.com` the SAME site — but every one of these is on
+   * the browser's Public Suffix List precisely so one customer's subdomain cannot set cookies for
+   * another's. The browser therefore treats them as different sites.
+   *
+   * That disagreement is not cosmetic: `auto` would resolve to SameSite=Lax, the browser would
+   * refuse to send the refresh cookie cross-site, and every user would be signed out the moment
+   * their 15-minute access token expired. Listing them here makes the registrable domain the full
+   * `evallo-recruits-api.onrender.com`, so two subdomains correctly read as cross-site.
+   */
+  'onrender.com', 'vercel.app', 'netlify.app', 'herokuapp.com', 'fly.dev', 'pages.dev',
+  'railway.app', 'up.railway.app', 'azurewebsites.net', 'web.app', 'firebaseapp.com',
 ]);
 
 /**
