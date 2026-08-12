@@ -45,6 +45,25 @@ export function createApp() {
 
   app.use(globalLimiter);
 
+  /*
+   * Service descriptor at the root.
+   *
+   * Every route this API serves lives under `API_PREFIX`, so `/` was a 404 — which is defensible
+   * for a browser but wrong for the two things that actually hit it: a platform health probe and
+   * an operator checking whether the deployment is up. Both got a logged warning and no answer.
+   *
+   * It reports identity and liveness only. Anything that touches the database — connection state,
+   * integrations, cookie policy — stays on `/api/health`, which is the endpoint monitoring should
+   * use, because a process can be listening while its database is unreachable.
+   */
+  app.get('/', (req, res) => {
+    res.json({
+      service: 'evallo-recruit-api',
+      status: 'ok',
+      docs: `${API_PREFIX}/health`,
+    });
+  });
+
   app.use(API_PREFIX, routes);
 
   app.use(notFound);
