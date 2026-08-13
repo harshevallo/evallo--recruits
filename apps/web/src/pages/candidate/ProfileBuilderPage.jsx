@@ -410,7 +410,14 @@ export function ProfileBuilderPage() {
               <Icon name="chevron-left" />
             </Link>
 
-            <Logo tone="dark" />
+            {/*
+              The wordmark yields first. This row has to hold a back control, the product identity
+              and two actions inside 375px, and of those the identity is the one already answered by
+              the section heading directly below — whereas dropping an action would remove a way out.
+            */}
+            <span className="hidden sm:block">
+              <Logo tone="dark" />
+            </span>
             <span className="hidden h-6 w-px flex-none bg-gray-200 sm:block" />
             <span className="hidden items-center gap-2 truncate text-sm font-semibold text-brand-dark sm:flex">
               <Icon name="user-pen" className="text-brand-blue" />
