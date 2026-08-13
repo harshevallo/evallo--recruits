@@ -13,6 +13,33 @@
 import { env } from '../../config/env.js';
 import { logger } from '../logger.js';
 import { consoleTransport } from './transports/console.transport.js';
+/**
+ * Upper bound on a single delivery, independent of the transport.
+ *
+ * The SMTP transport sets its own socket timeouts, but this does not rely on them: a transport is
+ * replaceable, and no caller should have to know whether the one in use bounds itself.
+ */
+const SEND_DEADLINE_MS = 15_000;
+
+/** Reject with `mail_timeout` if `promise` has not settled within `ms`. */
+function withDeadline(promise, ms) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`Email delivery exceeded ${ms}ms`);
+      error.code = 'mail_timeout';
+      reject(error);
+    }, ms);
+  });
+
+  /*
+   * The timer is deliberately NOT unref'd. Unref'ing lets the process exit while the race is still
+   * pending, so against a transport that never settles the returned promise never settles either —
+   * the exact failure this function exists to prevent, reintroduced one layer up. `clearTimeout`
+   * in `finally` is what stops it holding the process open, and it runs on both outcomes.
+   */
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
 import { smtpTransport } from './transports/smtp.transport.js';
 import {
   verificationTemplate,
@@ -71,9 +98,12 @@ class EmailService {
   /**
    * Render a template and deliver it.
    *
-   * Never throws: a mail failure must not fail the surrounding operation (a user who signs up
-   * successfully should not see an error because SMTP hiccuped — they can resend). The outcome
-   * is returned so a caller that cares can react.
+   * Never throws, and never hangs: a mail failure must not fail the surrounding operation (a user
+   * who signs up successfully should not see an error because SMTP hiccuped — they can resend),
+   * and it must not delay it either. "Not throwing" was only half the guarantee — awaiting an
+   * unbounded send still holds the HTTP response open, so a silently blocked SMTP port turned a
+   * successful signup into a request that never returned. The deadline below closes that gap, so
+   * the worst case is an undelivered email rather than an unusable endpoint.
    *
    * @param {'verification'|'passwordReset'|'companyInvitation'|'accountDeletionRequested'} template
    * @param {{ to: string, [key: string]: unknown }} data
@@ -90,7 +120,10 @@ class EmailService {
     const { subject, text, html } = build(templateData);
 
     try {
-      return await this.transport.send({ from: env.mailFrom, to, subject, text, html });
+      return await withDeadline(
+        this.transport.send({ from: env.mailFrom, to, subject, text, html }),
+        SEND_DEADLINE_MS,
+      );
     } catch (error) {
       /*
        * Log enough to diagnose, nothing that leaks secrets. nodemailer errors can carry the
