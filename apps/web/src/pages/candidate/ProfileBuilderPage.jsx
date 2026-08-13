@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Icon, Logo, Modal } from '@/components/ui';
 import { SelectInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
@@ -394,7 +394,22 @@ export function ProfileBuilderPage() {
       */}
       <header className="h-16 flex-none border-b border-gray-200 bg-white">
         <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            {/*
+              The way out, on the left, at every width.
+              This shell replaces the app navbar and the candidate rail, so it is the ONLY chrome on
+              the screen — and its other exits ("Exit to profile" below, Preview, Save & exit) are
+              either desktop-only or ask a question first. Without this a phone had no way back at
+              all except the browser's own button.
+            */}
+            <Link
+              to={PATHS.CANDIDATE_HOME}
+              aria-label="Back to your candidate profile"
+              className="-ml-1 flex flex-none items-center justify-center rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-brand-dark lg:hidden"
+            >
+              <Icon name="chevron-left" />
+            </Link>
+
             <Logo tone="dark" />
             <span className="hidden h-6 w-px flex-none bg-gray-200 sm:block" />
             <span className="hidden items-center gap-2 truncate text-sm font-semibold text-brand-dark sm:flex">

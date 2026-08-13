@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { PATHS, buildPath } from '@/router/paths';
+import { PATHS } from '@/router/paths';
+import { accountDestinations } from './accountDestinations';
 import { cn } from '@/utils/cn';
 
 function initialsFor(user) {
@@ -23,8 +24,6 @@ function initialsFor(user) {
  */
 export function UserMenu({ linkColor }) {
   const { isAuthenticated, isLoading, user, signOut, capabilities } = useAuth();
-  /* Same source the route guards read, so a menu item can never point somewhere they would refuse. */
-  const companies = capabilities?.companies ?? [];
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -95,70 +94,33 @@ export function UserMenu({ linkColor }) {
           </div>
 
           {/*
-            Every destination this account can actually reach.
-            Items appear only when the capability behind them exists (ADR-001): a person with no
-            candidate profile has no profile to open, and someone in no company has no workspace — a
-            link to either would be a guaranteed bounce off a route guard.
+            Destinations come from `accountDestinations`, shared with the mobile drawer — the same
+            question deserves the same answer on both surfaces, and one list means neither can be
+            updated without the other. Capability filtering lives there (ADR-001).
           */}
-          <Link
-            to={PATHS.APP_HOME}
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            Home
-          </Link>
-
-          {capabilities?.hasCandidateProfile && (
-            <>
-              <Link
-                to={PATHS.CANDIDATE_HOME}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Your candidate profile
-              </Link>
-              <Link
-                to={PATHS.CANDIDATE_MESSAGES}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Messages
-              </Link>
-            </>
-          )}
-
-          {companies.length > 0 && (
-            <div className="mt-1 border-t border-gray-100 pt-1">
-              <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                Your companies
-              </p>
-              {companies.slice(0, 4).map((company) => (
+          {accountDestinations(capabilities).map((group) => (
+            <div
+              key={group.group}
+              className={group.group === 'account' ? '' : 'mt-1 border-t border-gray-100 pt-1'}
+            >
+              {group.label && (
+                <p className="px-4 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => (
                 <Link
-                  key={company.slug}
-                  to={buildPath(PATHS.COMPANY_HOME, { companySlug: company.slug })}
+                  key={item.to}
+                  to={item.to}
                   role="menuitem"
                   onClick={() => setOpen(false)}
                   className="block truncate px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  {company.name}
+                  {item.label}
                 </Link>
               ))}
             </div>
-          )}
-
-          <div className="mt-1 border-t border-gray-100 pt-1">
-            <Link
-              to={PATHS.ACCOUNT_SETTINGS}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Account settings
-            </Link>
-          </div>
+          ))}
 
           <button
             type="button"

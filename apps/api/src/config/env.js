@@ -186,9 +186,25 @@ if (isProduction && (!parsed.data.JWT_ACCESS_SECRET || !parsed.data.JWT_REFRESH_
 }
 
 /** Exact-match CORS allowlist. Split here so the middleware never parses configuration itself. */
+/*
+ * A trailing slash is stripped rather than honoured. An `Origin` header carries scheme, host and
+ * port and never a path — not even `/` — so `https://app.example.com/` in configuration matches
+ * nothing a browser will ever send. Left alone it fails as a total CORS block with no server-side
+ * error: the API looks healthy, every request from the site fails, and the browser reports it as a
+ * network problem, which sends you looking at the wrong layer entirely.
+ *
+ * Normalising costs nothing and removes a configuration footgun that is invisible until it breaks.
+ */
 const clientOrigins = parsed.data.CLIENT_ORIGIN.split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
+
+if (parsed.data.CLIENT_ORIGIN.includes('/,') || /\/\s*$/.test(parsed.data.CLIENT_ORIGIN)) {
+  console.warn(
+    '\n[warn] CLIENT_ORIGIN contained a trailing slash, which no browser sends. It has been\n' +
+      `       normalised to: ${clientOrigins.join(', ')}\n`,
+  );
+}
 
 /**
  * Refresh-cookie attributes for this deployment topology (ADR-005, TRD §13).

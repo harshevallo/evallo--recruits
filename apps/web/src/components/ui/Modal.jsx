@@ -64,7 +64,14 @@ export function Modal({ open, onClose, title, description, children }) {
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-6">
+    /*
+      `h-[100dvh]`, not the `inset-0` height alone.
+      On a phone browser the layout viewport includes the area behind a collapsing URL bar, so a
+      panel sized to it extends past what is actually on screen — which is how a bottom-anchored
+      dialog ends up with its Cancel and Save buttons cut off and unreachable. The dynamic viewport
+      unit tracks the visible area instead, and `dvh` degrades to the same value as `vh` on desktop.
+    */
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-6">
       <div
         className="fixed inset-0 bg-brand-dark/60"
         onClick={onClose}
@@ -78,7 +85,12 @@ export function Modal({ open, onClose, title, description, children }) {
         aria-labelledby="modal-title"
         aria-describedby={description ? 'modal-description' : undefined}
         tabIndex={-1}
-        className="relative z-10 max-h-full w-full overflow-y-auto rounded-t-2xl bg-white p-6 shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-8"
+        /*
+          The extra bottom padding clears the phone's home indicator, which otherwise sits on top
+          of the last control in the dialog — usually the primary action. `max()` keeps the normal
+          padding on hardware that reports no inset.
+        */
+        className="relative z-10 max-h-full w-full overflow-y-auto rounded-t-2xl bg-white p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-8 sm:pb-8"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
