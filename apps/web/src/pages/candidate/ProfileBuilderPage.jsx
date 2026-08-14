@@ -139,16 +139,32 @@ function displaySectionsOf(builder) {
 }
 
 /**
- * Publish readiness, derived from the SAME `publishBlockers` the publish gate uses.
+ * How much of the profile is built, plus what still blocks publication.
  *
- * The design labels the meter "Profile Strength", but the number measures one honest thing:
- * whether the answers PRD §8.5 requires are present. `unanswered` is reported separately so the
- * nudge can talk about optional answers without conflating them with the publish gate (I-04a).
+ * Two different questions, reported separately on purpose. `percent` answers "how far through the
+ * builder am I" and moves as sections are completed. `outstanding` stays tied to the SAME
+ * `publishBlockers` the publish gate enforces, so the nudge beneath the bar can never invite
+ * someone to publish something the API would refuse (PRD §8.5, I-04a).
  */
 function readinessOf(builder) {
-  const required = builder.sections
-    .filter((section) => !section.optional)
-    .reduce((total, section) => total + section.total, 0);
+  /*
+   * Completion across every content section, not just the ones publication requires.
+   *
+   * It used to measure publish readiness — required sections only. Sections 4 to 8 are all
+   * `optional: true`, so answering the first three filled the bar to 100% while five sections sat
+   * untouched. A meter that reads "done" over an unfinished profile is worse than no meter: it
+   * removes the reason to continue.
+   *
+   * Publish & Visibility is excluded because it is not a section to fill in — it is the act of
+   * publishing what the other seven contain, and the server reports it as never `complete`. Leaving
+   * it in would cap an otherwise finished profile at 87%.
+   *
+   * Counting SECTIONS rather than questions is deliberate: the entry sections report
+   * `answered === total` even when empty (both are the entry count), so a question-weighted
+   * average would score an untouched Experience section as fully answered.
+   */
+  const content = builder.sections.filter((section) => section.kind !== 'visibility');
+  const completed = content.filter((section) => section.complete).length;
 
   const outstanding = builder.publishBlockers.length;
   const unanswered = builder.sections.reduce(
@@ -156,10 +172,13 @@ function readinessOf(builder) {
     0,
   );
 
-  if (required === 0) return { percent: 0, outstanding, unanswered };
-
-  const answered = Math.max(0, required - outstanding);
-  return { percent: Math.round((answered / required) * 100), outstanding, unanswered };
+  return {
+    percent: content.length === 0 ? 0 : Math.round((completed / content.length) * 100),
+    completed,
+    sectionCount: content.length,
+    outstanding,
+    unanswered,
+  };
 }
 
 export function ProfileBuilderPage() {
@@ -481,7 +500,9 @@ export function ProfileBuilderPage() {
                 <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
                   Profile strength
                 </h2>
-                <span className="text-xs font-bold text-brand-blue">{readiness.percent}%</span>
+                <span className="text-xs font-bold text-brand-blue">
+                  {readiness.completed} of {readiness.sectionCount} · {readiness.percent}%
+                </span>
               </div>
 
               <div

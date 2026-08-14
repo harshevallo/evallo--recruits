@@ -16,6 +16,20 @@ export function Modal({ open, onClose, title, description, children }) {
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
+  /*
+   * `onClose` is read through a ref so the setup effect below can depend on `open` ALONE.
+   *
+   * Callers pass it inline — `onClose={() => setEditing(null)}` — which is a new function identity
+   * on every render. With `onClose` in the dependency array, every keystroke inside the dialog
+   * re-ran the whole effect: focus was pushed back to the first field, so typing a name jumped the
+   * cursor out of the field after each character and the form was unusable. The ref keeps the
+   * latest handler available without making the effect re-run when its identity changes.
+   */
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return undefined;
 
@@ -27,7 +41,7 @@ export function Modal({ open, onClose, title, description, children }) {
 
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -59,7 +73,7 @@ export function Modal({ open, onClose, title, description, children }) {
       document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
