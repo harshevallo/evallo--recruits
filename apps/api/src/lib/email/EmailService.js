@@ -13,6 +13,15 @@
 import { env } from '../../config/env.js';
 import { logger } from '../logger.js';
 import { consoleTransport } from './transports/console.transport.js';
+import { smtpTransport } from './transports/smtp.transport.js';
+import { sendgridApiTransport } from './transports/sendgridApi.transport.js';
+import {
+  verificationTemplate,
+  passwordResetTemplate,
+  companyInvitationTemplate,
+  accountDeletionRequestedTemplate,
+} from './templates/index.js';
+
 /**
  * Upper bound on a single delivery, independent of the transport.
  *
@@ -40,13 +49,6 @@ function withDeadline(promise, ms) {
    */
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
-import { smtpTransport } from './transports/smtp.transport.js';
-import {
-  verificationTemplate,
-  passwordResetTemplate,
-  companyInvitationTemplate,
-  accountDeletionRequestedTemplate,
-} from './templates/index.js';
 
 const TEMPLATES = {
   verification: verificationTemplate,
@@ -75,6 +77,22 @@ class EmailService {
      * pooled connection would keep the test process alive after the run.
      */
     if (env.isTest) return consoleTransport;
+
+    /*
+     * The HTTP transport is checked first and separately, because it needs only the API key —
+     * `isSmtpConfigured` also demands a host and user, which this door does not use. Requiring
+     * them would make a correctly configured deployment fall back to console and log nothing to
+     * the user, which is the failure mode this transport exists to escape.
+     */
+    if (env.MAIL_PROVIDER === 'sendgrid_api') {
+      if (!env.smtp.pass) {
+        logger.warn(
+          'MAIL_PROVIDER=sendgrid_api but EMAIL_PASS (the API key) is not set — falling back to the console transport.',
+        );
+        return consoleTransport;
+      }
+      return sendgridApiTransport;
+    }
 
     const wantsSmtp = env.MAIL_PROVIDER === 'smtp' || env.MAIL_PROVIDER === 'sendgrid';
 

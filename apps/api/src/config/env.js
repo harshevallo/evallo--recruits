@@ -125,8 +125,12 @@ const envSchema = z.object({
    * Email provider. `console` logs the message + link; `smtp` sends via nodemailer.
    * Switching to SendGrid is a configuration change only — no code change (AUTH-03).
    */
-  // `sendgrid` is SMTP with SendGrid's host — same transport, clearer intent.
-  MAIL_PROVIDER: z.enum(['console', 'smtp', 'sendgrid']).default('console'),
+  /*
+   * `sendgrid` is SMTP with SendGrid's host — same transport, clearer intent.
+   * `sendgrid_api` is the same service over HTTPS instead, for hosts that block outbound SMTP.
+   * It needs only EMAIL_PASS (the API key); EMAIL_HOST/PORT/USER are unused.
+   */
+  MAIL_PROVIDER: z.enum(['console', 'smtp', 'sendgrid', 'sendgrid_api']).default('console'),
   MAIL_FROM: z.string().default('Evallo Recruit <no-reply@evallo.local>'),
 
   // SMTP settings. EMAIL_* is the primary naming; SMTP_* is accepted as an alias.
