@@ -98,10 +98,16 @@ export function CandidateHomePage() {
           </p>
         </div>
 
-        {/* Persistent actions for the candidate context (PRD §5.2). */}
+        {/*
+          Persistent actions for the candidate context (PRD §5.2).
+
+          "Portfolio" rather than "Preview": from home, the useful second action is seeing — and
+          sending — the finished thing. The publish and privacy controls are one step further in,
+          on the screen that owns them, because they are decisions rather than daily actions.
+        */}
         <div className="flex shrink-0 flex-wrap gap-3">
-          <Button to={PATHS.CANDIDATE_PROFILE_PREVIEW} variant="outlineDark" size="md" radius="lg" className="!border-gray-300 !text-brand-dark hover:!bg-gray-50">
-            Preview
+          <Button to={PATHS.CANDIDATE_PORTFOLIO} variant="outlineDark" size="md" radius="lg" className="!border-gray-300 !text-brand-dark hover:!bg-gray-50">
+            Portfolio
           </Button>
           <Button to={PATHS.CANDIDATE_PROFILE_BUILDER} variant="primary" size="md" radius="lg">
             {completeness.percent === 100 ? 'Edit profile' : 'Continue profile'}

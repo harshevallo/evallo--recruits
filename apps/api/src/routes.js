@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import healthRoutes from './modules/health/health.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
+import portfolioRoutes from './modules/portfolio/portfolio.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/user.routes.js';
 import companyRoutes from './modules/companies/company.routes.js';
@@ -26,6 +27,15 @@ const router = Router();
 router.use('/health', healthRoutes);
 
 router.use('/public', publicRoutes);
+
+/*
+ * ADR-019 — the candidate share link. Unauthenticated but NOT public: reaching it requires a
+ * 256-bit secret the candidate minted and can destroy at any time.
+ *
+ * Mounted beside `/public` rather than inside it on purpose. `public/` declares that it may never
+ * query a candidate collection, and that invariant is more useful kept true than reused.
+ */
+router.use('/portfolio', portfolioRoutes);
 
 // Authentication — public (issues our own JWTs).
 router.use('/auth', authRoutes);

@@ -357,11 +357,35 @@ employmentTypes: [String], deliveryModes: [String], availability: String,
 yearsExperience: Number, bankVersion: Number
 ```
 
+#### Share link — **built 2026-08-21** (ADR-019)
+
+```js
+shareToken:           { type: String, select: false },   // 32 random bytes, base64url
+shareEnabled:         { type: Boolean, default: false },
+shareTokenCreatedAt:  Date
+```
+
+Three fields rather than one, and each shape is a containment decision:
+
+- **`select: false`** — the secret is never returned by an ordinary query, so a handler that
+  forgets to project cannot leak it. Even the owner's own share endpoint must ask for it by name.
+- **`shareEnabled` separate from the token's existence** — turning sharing off is one write and
+  cannot half-apply.
+- **Revocation `$unset`s the token** rather than flagging it, so a rotated or disabled link becomes
+  *unresolvable* rather than merely refused. There is no window in which a withdrawn link still
+  identifies a profile.
+
 Indexes **as built** (`candidates/candidateProfile.model.js`):
 ```js
 { userId: 1 }                       // unique — one profile per user (PRD §4.1, Appendix D)
 { status: 1, lastActiveAt: -1 }
+{ shareToken: 1 }                   // unique, partialFilterExpression: { shareToken: { $type: 'string' } }
 ```
+
+The share index is **partial, not sparse**. A sparse unique index still collides on repeated
+`null` — which is exactly what a revoked token would write if revocation set `null` instead of
+unsetting. The partial filter restricts uniqueness to documents where the field is actually a
+string, so any number of profiles may have no link at all.
 
 #### ⚠️ The `facets` subdocument was never built — REC-12 queries these fields directly
 

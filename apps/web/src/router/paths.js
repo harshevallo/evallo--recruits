@@ -16,6 +16,19 @@ export const PATHS = Object.freeze({
   TERMS: '/terms',
   PRIVACY: '/privacy',
 
+  /*
+   * ADR-019 — a candidate portfolio reached by its share token.
+   *
+   * Unauthenticated but NOT public, and the URL shape carries that distinction: the token IS the
+   * address. No slug, no name, no id — nothing about the person is in the link, so it cannot be
+   * guessed from knowing who they are and it discloses nothing until it is opened.
+   *
+   * `/p/` rather than `/candidate/` or `/portfolio/` deliberately: short enough to paste into a
+   * message without wrapping, and it does not collide with the candidate-owned `/me/portfolio`.
+   * Blocked in robots.txt and rendered with `noindex`.
+   */
+  PUBLIC_PORTFOLIO: '/p/:token',
+
   // Marketing content pages — placeholders until content exists.
   PRICING: '/pricing',
   ASSESSMENTS: '/assessments',
@@ -47,7 +60,15 @@ export const PATHS = Object.freeze({
   CANDIDATE_HOME: '/me',
   CANDIDATE_PROFILE_BUILDER: '/me/profile',
   CANDIDATE_PROFILE_PREVIEW: '/me/profile/preview',
+  /*
+   * The candidate's own polished portfolio, with the share controls. A sibling of the preview
+   * rather than a replacement: the preview answers "is my profile ready and what is withheld",
+   * the portfolio answers "is this good enough to send someone".
+   */
+  CANDIDATE_PORTFOLIO: '/me/portfolio',
   CANDIDATE_VISIBILITY: '/me/visibility',
+  // CAN-11 — the read side of the save action CAN-06 has always had.
+  CANDIDATE_SAVED: '/me/saved',
   // CAN-05 / CAN-06 — the signed-in view of the public directory and company page. Separate
   // paths, not a query flag, so the anonymous URLs stay clean and indexable (ADR-004).
   CANDIDATE_COMPANIES: '/me/companies',

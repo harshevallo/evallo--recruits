@@ -206,6 +206,12 @@ logs. Check it first after any deployment.
 | `PATCH` | `/api/me/candidate-profile/visibility` | Bearer | CAN-04 |
 | `POST` | `/api/me/candidate-profile/blocked-companies` | Bearer | CAN-04 |
 | `DELETE` | `/api/me/candidate-profile/blocked-companies/:companyId` | Bearer | CAN-04 |
+| `GET` | `/api/me/candidate-profile/share` | Bearer | ADR-019 |
+| `POST` | `/api/me/candidate-profile/share` | Bearer | ADR-019 |
+| `POST` | `/api/me/candidate-profile/share/rotate` | Bearer | ADR-019 |
+| `DELETE` | `/api/me/candidate-profile/share` | Bearer | ADR-019 |
+| `GET` | `/api/portfolio/:token` | **None** (token) | ADR-019 |
+| `GET` | `/api/me/saved-companies` | Bearer | CAN-11 |
 | `GET` | `/api/me/companies/:slug/relationship` | Bearer | CAN-06 |
 | `PUT` | `/api/me/companies/:slug/saved` | Bearer | CAN-06 |
 | `DELETE` | `/api/me/companies/:slug/saved` | Bearer | CAN-06 |
@@ -582,10 +588,43 @@ recruiter will read — one code path, because two would drift and the drift wou
 defect. Also returns `privateFields` (what is withheld and *why*) and `publish`
 (`canPublish`, `blockers`, `isPublished`).
 
-`header` carries the full §8.8 set: `photoUrl`, `name`, `headline`, `location`
+`header` carries the full §8.8 set: `photoUrl`, `name`, `pronouns`, `headline`, `location`
 (`{ country, region, city, timezone }`), `languages`, `status`, `targetRoles`, `yearsExperience`,
 `availability`, `deliveryModes`, `employmentTypes`. Photo, location and languages come from the
 `users` document and are passed into the serialiser rather than duplicated onto the profile.
+
+**The evidence and practice layers** (added 2026-08-21). `toRecruiterView` previously reported
+`evidence` as four permanently empty arrays and dropped question-bank answers entirely, so a
+candidate could fill the whole builder and no audience would ever see any of it. It now takes a
+second argument produced by `portfolio.service.js#loadPortfolio()`:
+
+| Key | Contents |
+|---|---|
+| `evidence.experience[]` | `role`, `organization`, `location`, `deliveryMode`, dates, `current`, `description`, `outcome`, `verificationStatus` |
+| `evidence.education[]` | `institution`, `qualification`, `fieldOfStudy`, dates, `description`, `verificationStatus` |
+| `evidence.credentials[]` | licences, certifications, memberships |
+| `evidence.scores[]` | credentials whose `credentialType` reads as a score **and** which carry a `result` — split out so PRD §8.3 section 7 renders separately |
+| `evidence.media[]` | `title`, `url`, `provider`, `prompt`, `description` |
+| `evidence.references[]` | always `[]` — Phase 2 (PRD §20.3), reported rather than omitted |
+| `practice[]` | `{ key, label, body }` from `philosophy`, `diagnosticProcess`, `differentiation` |
+| `outcomes.statements[]` | `scoreGains` |
+| `outcomes.fromExperience[]` | the quantified `outcome` attached to each visible role |
+| `expertise.tests` / `.curricula` | free-text answers beside the indexed facets |
+
+`loadPortfolio()` is the **only** place ADR-008 per-item visibility is applied. An entry marked
+`private` never enters the payload for any audience — including the owner's own preview, because
+PRD §8.8 requires the preview to *be* the recruiter rendering. The preview compensates with
+`privateFields` entries keyed `withheld.experience` / `.education` / `.credentials` / `.media`,
+carrying **counts only**.
+
+Question-bank answers are projected through an explicit **allow-list**, never by dumping
+`candidateAnswers`. `compensation` and `workAuthorization` are permanently excluded
+(`NEVER_IN_PORTFOLIO`): both are matching data, and a share link carrying either would disclose the
+candidate's negotiating position and immigration status to anyone holding the URL.
+
+The same projection feeds `GET /api/companies/:companyId/candidates/:candidateId` (REC-13) and
+`GET /api/portfolio/:token`. One function, every audience — which is what keeps PRD §8.8's
+"exact same rendering" true over time rather than only on the day it was written.
 
 ### `POST /api/me/candidate-profile/publish`
 
@@ -625,6 +664,101 @@ the candidate viewer, pipeline addition, and company messaging (all `404`, indis
 **Where it is reachable from:** the candidate company page (`/me/companies/:slug`) offers Block with
 a confirmation dialog; CAN-04 visibility settings and SET-01 → Privacy list the blocks and offer
 Unblock.
+
+---
+
+## 6d. Endpoints — share link (ADR-019)
+
+> ⚠️ **ADR-019 is Proposed and amends PRD §21.2.** It introduces the product's only
+> unauthenticated candidate-data surface. Read the ADR before changing anything in this section.
+
+### `GET` · `POST` · `DELETE /api/me/candidate-profile/share` · `POST .../share/rotate`
+
+All four return the same shape, so one client state renders whichever action produced it:
+
+```json
+{
+  "enabled": true,
+  "token": "F8wE7hPzuAKw34TZJlIprFi4yyzuuvStEqv0jHKh5Sg",
+  "createdAt": "2026-08-21T09:12:44.001Z",
+  "resolvable": true,
+  "status": "discoverable",
+  "contactVisibility": "hidden"
+}
+```
+
+`token` is returned **only to its owner**, and only while `enabled` (the field is `select: false`
+on the model, so even the owner's own queries must ask for it). `resolvable` is the honest answer
+to "will this link actually open": a `draft` profile reports `enabled: true, resolvable: false`,
+which the share panel states on screen rather than letting the candidate discover it from a
+recipient who got a 404.
+
+| Verb | Effect |
+|---|---|
+| `GET` | Read state. Mints nothing. |
+| `POST` | Enable, minting a token the first time. **Idempotent** — enabling twice returns the *same* token, because rotation invalidates every copy already sent and must never be a side effect of a double click. |
+| `POST .../rotate` | New secret. Every link already sent stops resolving immediately. |
+| `DELETE` | Disable **and `$unset` the token**, so an old link becomes unresolvable rather than merely refused. |
+
+The URL is assembled **client-side** from `window.location.origin`. The API is deployed on a
+different host from the web app, so a server-built link would point at the API — and hard-coding
+the web origin into the API would break every preview deployment.
+
+### `GET /api/portfolio/:token`
+
+**Unauthenticated. Not public.** Mounted at `/api/portfolio`, deliberately *outside* `/api/public`,
+so that module's "may never import or query a candidate collection" invariant stays literally true
+for anyone auditing it.
+
+**Response** — `{ profile, meta: { indexable: false, updatedAt } }`. `profile` is the same
+projection CAN-03 and REC-13 receive. The payload carries **no candidate id, no user id, and no
+timestamps beyond `updatedAt`**: a link holder can read the portfolio but cannot use it to address
+the candidate anywhere else in the system.
+
+**Headers** — `X-Robots-Tag: noindex, nofollow, noarchive` and `Cache-Control: private, no-store`.
+The second matters: a shared cache holding this would keep serving after the candidate revoked the
+link, defeating the only control they have.
+
+**Refusals** — every failure is `404` with the identical message *"This portfolio link is not
+available."* A token that never existed, one that was rotated, one belonging to a `draft` or
+`archived` profile, and one whose account was deleted are deliberately indistinguishable:
+distinguishing them would confirm that a particular person is on the platform (PRD §16.1).
+
+**Resolves for** `private`, `discoverable`, `paused`. `paused` is included because PRD §4.3 defines
+it as removal from *new discovery*, and following a link someone was personally handed is not
+discovery. A candidate who wants the link dead turns the link off.
+
+**Contact** reaches a link holder only under `contactVisibility === authorized_recruiters`.
+`after_interest` and `on_request` resolve to hidden: both describe a relationship with a **company**,
+and a link holder is not a company — there is no interest to have expressed and no request to
+approve.
+
+**Validation** — the token must match `^[A-Za-z0-9_-]{20,200}$` (base64url, as minted), rejected by
+the validation layer before it reaches a query. Rate-limited by `shareLinkLimiter`
+(60 requests / 15 min / IP), which exists against *sweeping*, not guessing; 256 bits already handles
+guessing.
+
+**Not audited.** `auditEvents.actorUserId` is required and a link holder has no account; recording
+the candidate's own id would put a false entry in the one log §21.4 exists to make trustworthy.
+Views go to the request logger instead. Tracked in `12_KNOWN_ISSUES.md` as **L-05**.
+
+---
+
+## 6e. Endpoints — saved companies (CAN-11)
+
+### `GET /api/me/saved-companies`
+
+The read side of the save action CAN-06 has had since M4. Until now nothing read the
+`savedCompanies` collection back, so a candidate could bookmark a company and then had no screen on
+which to find it again.
+
+**Response** — `{ companies: [{ savedAt, note, company: { name, slug, logoUrl, initials, tagline,
+organizationType, isCurrentlyHiring } }] }`, newest first.
+
+A company that has since unpublished or been moderation-restricted is **dropped from the list**
+rather than returned as an unopenable row — the candidate cannot act on it, and PRD §9.3 keeps such
+pages out of every other candidate-facing surface. The `savedCompanies` record itself is untouched,
+so a company that returns to published reappears on its own.
 
 ---
 

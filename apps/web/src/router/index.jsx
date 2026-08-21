@@ -49,6 +49,14 @@ const LegalDocumentPage = lazy(() =>
 const PlaceholderPage = lazy(() =>
   import('@/pages/PlaceholderPage').then((m) => ({ default: m.PlaceholderPage })),
 );
+/*
+ * ADR-019 — a candidate portfolio opened by its share token. Unauthenticated, and outside every
+ * layout: the reader is a guest, so the page carries its own minimal chrome rather than the
+ * marketing navbar and footer, which exist to sell the product to a visitor.
+ */
+const SharedPortfolioPage = lazy(() =>
+  import('@/pages/public/SharedPortfolioPage').then((m) => ({ default: m.SharedPortfolioPage })),
+);
 
 // Auth (beyond the two entry screens)
 const ForgotPasswordPage = lazy(() =>
@@ -116,6 +124,12 @@ const ProfileBuilderPage = lazy(() =>
 );
 const ProfilePreviewPage = lazy(() =>
   import('@/pages/candidate/ProfilePreviewPage').then((m) => ({ default: m.ProfilePreviewPage })),
+);
+const PortfolioPage = lazy(() =>
+  import('@/pages/candidate/PortfolioPage').then((m) => ({ default: m.PortfolioPage })),
+);
+const SavedCompaniesPage = lazy(() =>
+  import('@/pages/candidate/SavedCompaniesPage').then((m) => ({ default: m.SavedCompaniesPage })),
 );
 const VisibilitySettingsPage = lazy(() =>
   import('@/pages/candidate/VisibilitySettingsPage').then((m) => ({
@@ -276,8 +290,15 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            /* Signed-in surface: minimal footer, because the rail already carries navigation. */
-            element: <MarketingLayout minimalFooter />,
+            /*
+             * Signed-in surface: navbar and rail, NO footer.
+             *
+             * The workspace is an application, not a document. Its navigation is the rail, several
+             * of its screens size themselves to the viewport, and marketing/legal links under a
+             * pipeline board are chrome nobody working there wants. Public routes above keep the
+             * full footer, which for a visitor is the site's navigation.
+             */
+            element: <MarketingLayout footer={false} />,
             children: [
               { path: PATHS.APP_HOME, element: <AppHomePage /> },
 
@@ -316,8 +337,17 @@ export const router = createBrowserRouter([
                     element: <CandidateWorkspaceLayout />,
                     children: [
                   { path: PATHS.CANDIDATE_HOME, element: <CandidateHomePage /> },
+                  /*
+                   * The portfolio and the preview are siblings over one payload, not two features.
+                   * The preview is the inspection (publish state, what is withheld, gaps drawn);
+                   * the portfolio is the artefact plus its share controls. Same endpoint, same
+                   * renderer, different surroundings.
+                   */
+                  { path: PATHS.CANDIDATE_PORTFOLIO, element: <PortfolioPage /> },
                   { path: PATHS.CANDIDATE_PROFILE_PREVIEW, element: <ProfilePreviewPage /> },
                   { path: PATHS.CANDIDATE_VISIBILITY, element: <VisibilitySettingsPage /> },
+                  // CAN-11 — the read side of the save action CAN-06 already had.
+                  { path: PATHS.CANDIDATE_SAVED, element: <SavedCompaniesPage /> },
 
                   /*
                    * CAN-05 reuses the PUB-01 directory component rather than duplicating it —
@@ -424,6 +454,17 @@ export const router = createBrowserRouter([
           },
         ],
       },
+
+      /*
+       * ADR-019 — the share link.
+       *
+       * A sibling of every layout, deliberately. It is not marketing (no navbar or footer selling
+       * the product over someone's CV), not the candidate workspace (the reader is not the
+       * candidate, and has no account at all), and not behind RequireAuth (needing an account is
+       * the exact thing the link exists to avoid). RootLayout's Suspense backstop covers the lazy
+       * chunk, which is exactly the case that boundary exists for: a split route outside a layout.
+       */
+      { path: PATHS.PUBLIC_PORTFOLIO, element: <SharedPortfolioPage /> },
 
       { path: PATHS.NOT_FOUND, element: <NotFoundPage /> },
     ],

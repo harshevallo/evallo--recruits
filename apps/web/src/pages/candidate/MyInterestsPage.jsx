@@ -8,7 +8,14 @@ import { fetchMyInterests, withdrawInterest } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
- * CAN-08 — my interests (PRD §8.2, §8.7 step 8).
+ * CAN-08 — shortlisted companies (PRD §8.2, §8.7 step 8).
+ *
+ * **Naming.** The screen is called "Shortlisted companies" and the route, the collection and every
+ * API remain `interests` / `expressionsOfInterest`. That split is deliberate: the product word is a
+ * UI decision that can change again, while `expressionsOfInterest` is the record of a consented
+ * disclosure with a status lifecycle and an access grant hanging off it. Renaming the data to match
+ * a label would be a migration bought for nothing, and `/me/interests` stays valid so no link
+ * anyone has already saved breaks.
  *
  * Company, role, date, status, and withdraw.
  *
@@ -85,7 +92,7 @@ export function MyInterestsPage() {
     return (
       <Container className="py-32">
         <div role="status" aria-live="polite">
-          <span className="sr-only">Loading your interests…</span>
+          <span className="sr-only">Loading your shortlisted companies…</span>
           <Skeleton className="h-10 w-72 rounded-lg" />
           <Skeleton className="mt-8 h-40 w-full rounded-2xl" />
         </div>
@@ -99,7 +106,9 @@ export function MyInterestsPage() {
       <BackLink to={PATHS.CANDIDATE_HOME} label="Candidate home" className="mb-6" />
 
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">My interests</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">
+          Shortlisted companies
+        </h1>
         <p className="mt-2 max-w-xl text-gray-600">
           Companies you have shared your profile with. Withdrawing removes their access.
         </p>
@@ -107,7 +116,7 @@ export function MyInterestsPage() {
 
       {state.status === 'error' && (
         <StatusRegion tone="error" className="mb-6">
-          {state.message ?? 'We could not load your interests.'}
+          {state.message ?? 'We could not load your shortlisted companies.'}
         </StatusRegion>
       )}
 
@@ -119,9 +128,9 @@ export function MyInterestsPage() {
 
       {state.interests.length === 0 ? (
         <EmptyState
-          icon="compass"
-          title="You have not expressed interest yet"
-          description="Browse companies and share your profile with the ones you would like to hear from."
+          icon="bookmark"
+          title="No shortlisted companies yet"
+          description="Browse companies and share your profile with the ones you would like to hear from. They appear here so you can track and withdraw."
           action={
             <Button to={PATHS.CANDIDATE_COMPANIES} variant="primary" size="md">
               Browse companies

@@ -54,6 +54,25 @@ export async function fetchCompanyBySlug(slug, options = {}) {
 }
 
 /**
+ * A candidate portfolio, addressed by its share token — ADR-019.
+ *
+ * `skipAuth` deliberately. The share page must behave identically for a signed-out stranger and
+ * for a signed-in recruiter who happens to have the link: sending an Authorization header would
+ * make the page's behaviour depend on who is looking, and a 401 on it would drag the visitor
+ * through the token-refresh path for a resource that needs no account at all.
+ *
+ * @param {string} token
+ * @returns {Promise<{ profile: object, meta: { indexable: boolean, updatedAt: string|null } }>}
+ */
+export async function fetchSharedPortfolio(token, options = {}) {
+  const response = await apiClient.get(`/portfolio/${encodeURIComponent(token)}`, {
+    signal: options.signal,
+    skipAuth: true,
+  });
+  return unwrap(response);
+}
+
+/**
  * Express interest in a company or one of its open roles — PUB-02.
  *
  * @param {string} slug

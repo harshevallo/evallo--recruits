@@ -26,6 +26,7 @@ Decisions are never silently reversed: a superseded ADR keeps its number, is mar
 | [016](#adr-016) | Founder HTML supersedes the PRD as the newer requirement source | Accepted | 2026-07-31 |
 | [017](#adr-017) | In-house authentication; no external identity provider | Accepted | 2026-08-01 |
 | [018](#adr-018) | `onboardingCompletedAt` — a timestamp, not a role | Accepted | 2026-08-02 |
+| [019](#adr-019) | Candidate share links — a revocable secret, not a public profile | **Proposed** | 2026-08-21 |
 
 ---
 
@@ -927,3 +928,116 @@ are simply never routed to AUTH-05).
 
 **Rejected alternative:** exposing the field through `PATCH /api/me`. A dedicated endpoint means
 the client can only stamp "now" and can never un-set it.
+
+---
+
+<a id="adr-019"></a>
+## ADR-019 — Candidate share links: a revocable secret, not a public profile
+
+**Status:** ⚠️ **Proposed — awaiting CTO approval.** Implemented behind the decision below;
+**amends PRD §21.2** and must be approved or reversed before pilot.
+
+### Context
+
+A candidate needs to send their portfolio to someone who is not on Evallo Recruit: a principal, an
+agency, a referrer, a former colleague writing them a reference. Today they cannot. The only way a
+company sees a candidate is by holding an `AccessGrant`, which exists solely as a by-product of the
+candidate expressing interest in that company.
+
+The obvious implementation — a public `/candidate/<slug>` page — is **forbidden by our own
+requirements**, in three places:
+
+- **PRD §21.2:** *"Candidate data never appears in public company HTML, public APIs, sitemaps, or
+  unauthenticated responses."*
+- **`public.routes.js`:** *"HARD BOUNDARY: this module may never import or query a candidate
+  collection."*
+- **ADR-004:** *"`/robots.txt` blocks candidate, search, message, pipeline, and account routes."*
+
+And the visibility model has no vocabulary for it. `draft` / `private` / `discoverable` / `paused`
+all describe what a **company** may reach; none of them means "anyone holding this URL".
+
+Three options were put to the CTO:
+
+| Option | Reach | Cost |
+|---|---|---|
+| Signed-in share link | Only people who create an Evallo account | Zero new privacy surface; kills the use case for the principal who will not sign up |
+| **Revocable secret link** | Anyone with the URL | Requires amending §21.2 |
+| No new route | Recruiters already inside a company workspace | The share button would be decorative |
+
+**CTO decision (2026-08-21): the revocable secret link.**
+
+### Decision
+
+A candidate may mint a **256-bit secret** that resolves their portfolio at `/p/<token>`, served by
+`GET /api/portfolio/:token`. The endpoint is unauthenticated. It is **not public**.
+
+That distinction is the whole ADR, and it rests on five properties, each enforced in
+`share.service.js` rather than by its callers:
+
+1. **The token is the entire address.** No slug, no id, no name. A link cannot be derived from
+   knowing who someone is, cannot be enumerated, and discloses nothing about the person until it is
+   opened.
+2. **Revocation is total.** Disabling or rotating `$unset`s the stored token, so an old link becomes
+   *unresolvable* rather than merely refused. There is no window in which a withdrawn link still
+   identifies a profile.
+3. **It never widens visibility.** A link holder is one more audience for the **same** projection
+   every other audience gets. `status` still gates access, ADR-008 per-item visibility still filters
+   entries, and contact is revealed only by `contactVisibility === authorized_recruiters` — the same
+   rule applied to a signed-in recruiter. `after_interest` and `on_request` resolve to *hidden*,
+   because both describe a relationship with a **company** and a link holder is not one.
+4. **Off by default.** Publishing does not mint a link. Previewing does not mint a link. Only an
+   explicit action does.
+5. **Silent about non-existence.** Never-valid, rotated, disabled, draft, archived and deleted all
+   return the same 404 with the same message. Distinguishing them would confirm that a particular
+   person is on the platform.
+
+`paused` **is** shareable, deliberately. §4.3 defines paused as removal from NEW discovery, and
+following a link someone was personally handed is not discovery. A candidate who wants the link dead
+turns the link off — a more direct control than their search visibility, and one the share panel
+states in words on screen.
+
+### Why this amends §21.2 rather than evading it
+
+§21.2 is written to stop candidate data leaking through surfaces a **stranger can reach without
+being given anything**: the company page, the directory, the sitemap, search. Every one of those is
+*discoverable*. A share link is not discoverable — it is disclosed, by the candidate, to a person
+they chose, and withdrawable by them at any moment.
+
+The route is mounted at `/api/portfolio` rather than inside `/api/public` **precisely to keep §21.2's
+implementation honest**: `public.routes.js` still may not touch a candidate collection, and a reader
+auditing that module can still trust its header.
+
+If the CTO rejects this ADR, the reversal is small: delete the `portfolio` module and the three
+`shareToken` fields, and point "Share portfolio" at the signed-in preview.
+
+### Consequences
+
+**Pros** — the candidate owns distribution of their own work, which is what a portfolio is for; the
+mechanism is one secret with one off switch, not a permission matrix; nothing about the existing
+recruiter access path changes.
+
+**Cons, stated plainly** —
+
+- A leaked URL is a leaked portfolio until the candidate revokes it. A screenshot of the link in a
+  group chat is outside our control. Mitigated by rotation, by the off switch, and by the link
+  carrying no name to make it worth forwarding.
+- **Anonymous views are not in `auditEvents`.** That model requires `actorUserId`, and a link holder
+  has no account. Writing the candidate's own id as the actor would put a false entry in the one log
+  §21.4 exists to make trustworthy. Views are written to the request logger instead. Tracked in
+  `12_KNOWN_ISSUES.md` as **L-05**.
+- **`noindex` is client-side only.** `apps/web` is a static SPA on Vercel (ADR-004 Stage 1 was never
+  built), so the meta tag exists only after JavaScript runs. The API sends `X-Robots-Tag` on the JSON,
+  `robots.txt` disallows `/p/`, and the URL is unguessable — but a non-rendering crawler that somehow
+  obtained a link would see no directive in the initial HTML. Tracked as **L-06**.
+- **Social previews are deliberately generic.** WhatsApp, Slack and LinkedIn fetch Open Graph tags
+  without executing JavaScript, so whatever the static shell carries is what appears in the card.
+  Rendering the candidate's name and headline there would disclose them in a group chat *before*
+  anyone chose to open the link. The card therefore says what the link **is**, never who it is about.
+  This is a privacy decision, not a limitation to fix later.
+
+### Impact
+
+New: `shareToken`, `shareEnabled`, `shareTokenCreatedAt` on `candidateProfiles` (unique partial
+index on `shareToken`); `apps/api/src/modules/portfolio/`; `share.service.js`; `/p/:token`;
+`apps/web/public/robots.txt`. Covered by 18 integration tests in `candidatePortfolio.test.js`, of
+which 13 are privacy assertions.

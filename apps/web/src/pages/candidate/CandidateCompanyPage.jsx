@@ -111,7 +111,7 @@ export function CandidateCompanyPage() {
       text:
         result.status === 'already_submitted'
           ? 'You have already expressed interest in this company.'
-          : 'Interest submitted. You can withdraw it any time from My interests.',
+          : 'Interest submitted. You can withdraw it any time from Shortlisted companies.',
     });
   }
 
@@ -186,7 +186,14 @@ export function CandidateCompanyPage() {
             disabled={busy}
             onClick={toggleSave}
           >
-            <Icon name={relationship?.saved ? 'heart' : 'star'} className="text-xs" />
+            {/*
+              `star` in BOTH states, and the label carries the difference.
+
+              This used to flip to `heart` once saved, which now reads as a third concept: the rail
+              marks saved companies with `star` and shortlisted ones with `bookmark`, so a heart
+              here would be a mark that means nothing anywhere else in the product.
+            */}
+            <Icon name="star" className="text-xs" />
             {relationship?.saved ? 'Saved' : 'Save'}
           </Button>
 
@@ -255,7 +262,7 @@ export function CandidateCompanyPage() {
           You expressed interest on{' '}
           {new Date(relationship.interest.submittedAt).toLocaleDateString()}. Manage it from{' '}
           <Link to={PATHS.CANDIDATE_INTERESTS} className="font-medium underline">
-            My interests
+            Shortlisted companies
           </Link>
           .
         </StatusRegion>

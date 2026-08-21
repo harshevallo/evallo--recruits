@@ -47,6 +47,7 @@ import {
   FaBrain,
   FaBolt,
   FaLocationDot,
+  FaBookmark,
 } from 'react-icons/fa6';
 import { FaTwitter, FaLinkedinIn, FaFacebookF } from 'react-icons/fa';
 
@@ -101,6 +102,12 @@ const REGISTRY = {
   'location-dot': FaLocationDot,
   'building-columns': FaBuildingColumns,
   star: FaStar,
+  /*
+   * `bookmark` and `star` are deliberately different marks for two different candidate actions:
+   * SAVED companies (star) is a private bookmark that tells the company nothing, while SHORTLISTED
+   * companies (bookmark) are ones the candidate actually reached out to. Same shelf, different act.
+   */
+  bookmark: FaBookmark,
   award: FaAward,
   'shield-halved': FaShieldHalved,
   'laptop-code': FaLaptopCode,

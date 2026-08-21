@@ -58,6 +58,12 @@
 | **CAN-02 evidence entries** | 2026-08-10 | `experiences` · `educationEntries` · `credentials` · `evidenceItems`, per-item visibility |
 | **SET-01 / SET-02 — settings** | 2026-08-10 | Account, security, notifications, privacy, data; company settings |
 | **Workspace shell** | 2026-08-10 | One collapsible rail, two workspace layouts, navigation de-duplicated |
+| **Candidate portfolio** | 2026-08-21 | One renderer over the evidence + practice layers, serving CAN-03, REC-13 and the share link |
+| **Share link (ADR-019)** | 2026-08-21 | Revocable 256-bit token at `/p/:token`; amends PRD §21.2, **Proposed** |
+| **CAN-11 — saved companies** | 2026-08-21 | `GET /api/me/saved-companies` + `/me/saved`; the read side of a CAN-06 write |
+| **Candidate IA** | 2026-08-21 | Rail regrouped DAILY / MY PROFILE / ACCOUNT; Profile vs Portfolio made distinct |
+| **Workspace switcher** | 2026-08-21 | Candidate ↔ recruiter from the account menu and mobile drawer, on every authenticated screen |
+| **Footer removed from the app** | 2026-08-21 | `MarketingLayout footer={false}` for the signed-in block; public pages keep the full footer |
 
 ### 🔄 In Progress
 **The candidate journey is complete through CAN-09, and the recruiter loop runs end to end**
@@ -69,6 +75,13 @@ Remaining in M3: **references only.** Experience, education, credentials and por
 built as four collections with per-item visibility (see the matrix above); references and issuer
 verification stay deferred to Phase 2 by PRD §20.3. `verificationStatus` exists on every entry but
 nothing writes any value other than `unverified`, so no credential is verified today.
+
+**2026-08-21 — those four collections are now actually rendered.** Between 2026-08-10 and this
+date they were written by the builder and read by nothing: `toRecruiterView()` hard-coded
+`evidence` as four empty arrays, so the candidate's own preview and the recruiter viewer both
+reported "no entries yet" whatever had been entered. `portfolio.service.js` closes that, and is the
+single place ADR-008 per-item visibility is applied. This was a **rendering** gap, not a data one —
+nothing needed backfilling.
 
 Remaining in M6: notification generation and delivery, and a real moderation queue.
 
@@ -151,8 +164,9 @@ Key: ✅ Complete · 🟡 Partial · 🔴 Not implemented · ⚪ Placeholder
 - **REC-17 / REC-19** — `COMPANY_EDIT` and `COMPANY_SETUP` both render `CompanySetupPage`, so the
   company profile editor is reachable and functional but is not a distinct screen; company-level
   settings exist as SET-02 rather than as a separate REC-19.
-- **CAN-11** — save/unsave and the `savedCompanies` collection are built (CAN-06), but no screen
-  lists saved companies and no API client fetches them.
+- **CAN-11** — ~~save/unsave built but nothing reads the collection back~~ **RESOLVED 2026-08-21.**
+  `GET /api/me/saved-companies` and `/me/saved` ship together; unpublished companies are dropped
+  from the list rather than returned as unopenable rows.
 - **CAN-12** — the concerns are covered across SET-01 (account) and CAN-04 (visibility); there is no
   separate candidate-settings screen, and none is needed unless the PRD requires the split.
 ---
@@ -191,6 +205,7 @@ Three suites were added by the 2026-08-12 production-readiness pass:
 |---|--:|---|
 | `auth.test.js` | 46 | AUTH-01…05, 10…12, sessions, Google |
 | `candidateJourney.test.js` | 41 | CAN-03…09 |
+| `candidatePortfolio.test.js` | 23 | Portfolio projection, per-item visibility, the answer allow-list, and the ADR-019 share link — **13 of the 23 are privacy assertions** |
 | `recruiterWorkflow.test.js` | 29 | Hiring intents, shortlist, pipeline, notes, company messaging |
 | `teamManagement.test.js` | 23 | REC-18 members, roles, removal, ownership |
 | `teamInvitations.test.js` | 22 | REC-07 |
@@ -299,7 +314,7 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 | CAN-08 | My interests | §8.2 | ✅ |
 | CAN-09 | Messages | §8.2, §11.2 | ✅ |
 | CAN-10 | Assessments | §8.2 | ➖ Phase 2 |
-| CAN-11 | Saved companies | §8.2 | 🟡 |
+| CAN-11 | Saved companies | §8.2 | ✅ |
 | CAN-12 | Candidate settings | §8.2 | 🟡 |
 
 ### Company / recruiter — setup

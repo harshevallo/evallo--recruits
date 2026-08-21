@@ -14,6 +14,14 @@ export const RATE_LIMITS = Object.freeze({
   GLOBAL: { windowMs: 15 * 60 * 1000, max: 300 },
   AUTH: { windowMs: 15 * 60 * 1000, max: 10 },
   PUBLIC_WRITE: { windowMs: 60 * 60 * 1000, max: 5 },
+  /*
+   * Unauthenticated share-link reads (ADR-019).
+   *
+   * Generous enough that a candidate can send one link to a hiring committee who all open it,
+   * and tight enough that the endpoint cannot be used to sweep the token space. The token itself
+   * is 256 bits, so this is defence in depth against traffic cost, not against guessing.
+   */
+  SHARE_LINK: { windowMs: 15 * 60 * 1000, max: 60 },
 });
 
 export const PAGINATION = Object.freeze({

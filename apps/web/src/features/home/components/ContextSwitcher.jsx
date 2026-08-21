@@ -80,7 +80,8 @@ export function ContextSwitcher({ companies = [], current = 'personal', personal
         )}
 
         <span className="min-w-0 flex-1">
-          <span className="block text-[11px] uppercase tracking-wide text-gray-400">Context</span>
+          {/* "Workspace", matching the account menu's switcher — one act, one word (ADR-001). */}
+          <span className="block text-[11px] uppercase tracking-wide text-gray-400">Workspace</span>
           <span className="block truncate text-sm font-semibold text-brand-dark">{label}</span>
         </span>
 

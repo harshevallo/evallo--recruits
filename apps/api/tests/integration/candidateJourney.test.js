@@ -423,7 +423,7 @@ describe('CAN-07 interest submission', () => {
     );
 
     const mine = await (await authGet('/api/me/interests', accessToken)).json();
-    assert.equal(mine.data.length, 1, 'now visible in My interests');
+    assert.equal(mine.data.length, 1, 'now visible in Shortlisted companies');
 
     const grant = await AccessGrant.findOne({
       candidateId: profile._id,

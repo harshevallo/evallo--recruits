@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { Icon } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { accountDestinations } from './accountDestinations';
 
@@ -16,10 +17,15 @@ import { accountDestinations } from './accountDestinations';
  * the only account surface a phone has, so it renders the same destinations the avatar menu does
  * (see accountDestinations) rather than a reduced set.
  *
+ * That includes the WORKSPACE SWITCHER. It is not a desktop affordance with a mobile fallback:
+ * both surfaces read one list, so switching from candidate to recruiter takes the same two taps on
+ * a phone as it takes two clicks on a laptop.
+ *
  * Items with `to` are routes; items with `href` are in-page anchors.
  */
 export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
   const { isAuthenticated, user, signOut, capabilities } = useAuth();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -37,7 +43,7 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
   const itemClass =
     'block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-800 hover:text-white';
 
-  const groups = isAuthenticated ? accountDestinations(capabilities) : [];
+  const groups = isAuthenticated ? accountDestinations(capabilities, pathname) : [];
 
   return (
     <div
@@ -72,8 +78,24 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
                   </p>
                 )}
                 {group.items.map((item) => (
-                  <Link key={item.to} to={item.to} onClick={onClose} className={itemClass}>
-                    {item.label}
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    aria-current={item.current ? 'page' : undefined}
+                    onClick={onClose}
+                    className={
+                      item.current
+                        ? `${itemClass} flex items-center gap-2.5 !bg-gray-800 !text-white`
+                        : `${itemClass} flex items-center gap-2.5`
+                    }
+                  >
+                    {item.icon && (
+                      <Icon name={item.icon} className="w-4 flex-none text-center text-xs opacity-70" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.current && (
+                      <Icon name="circle-check" className="flex-none text-xs text-brand-blue" />
+                    )}
                   </Link>
                 ))}
               </div>

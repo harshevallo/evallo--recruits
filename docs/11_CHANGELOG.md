@@ -10,6 +10,128 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 ## [Unreleased]
 
 ### Added
+- **2026-08-21 — Candidate portfolio, and a share link that respects the visibility model
+  (ADR-019).** Two product changes shipped together, plus one bug they exposed.
+
+  **The bug first, because it is the larger of the two.** `CandidateProfile.toRecruiterView()`
+  hard-coded `evidence` as four empty arrays and dropped question-bank answers entirely. The
+  builder had been writing experience, education, credentials and media to four real collections
+  since 2026-08-10, and **no audience had ever seen any of it** — the candidate's own CAN-03
+  preview and the REC-13 recruiter viewer both rendered "no experience, education, or credential
+  entries yet" no matter what had been entered. New `portfolio.service.js#loadPortfolio()` projects
+  the evidence and practice layers, and is the single place ADR-008 per-item visibility is applied.
+  Teaching practice, outcomes/impact, pronouns, tests prepared and curricula now render too, from
+  an explicit answer **allow-list** — `compensation` and `workAuthorization` are permanently
+  excluded, so no audience ever sees a candidate's rate or immigration status.
+
+  **The portfolio.** One renderer (`PortfolioDocument.jsx`) draws all twelve PRD §8.3 sections for
+  three audiences: `/me/portfolio` (the artefact, empty sections hidden, share controls
+  foregrounded), `/me/profile/preview` (the inspection — publish controls, withheld-field
+  indicators, empty sections drawn so a gap is visible), and REC-13, whose four hand-rolled
+  sections and one "Evidence provided." stub were replaced by the same component. PRD §8.8 requires
+  the candidate's preview to match the recruiter's view exactly; one component is the only way that
+  stays true after the day it was written.
+
+  **The share link.** A candidate may mint a revocable 256-bit secret resolving at `/p/<token>` via
+  `GET /api/portfolio/:token` — unauthenticated, so a principal or agency with no Evallo account
+  can read it. **This amends PRD §21.2 and is recorded as ADR-019, status Proposed.** It is not a
+  public profile: the token is the entire address (no slug, no name, no id), revocation `$unset`s
+  the secret so old links become unresolvable rather than merely refused, and the link **never
+  widens visibility** — `status` still gates access, per-item visibility still filters, and contact
+  reaches a link holder only under `authorized_recruiters` (`after_interest` and `on_request`
+  resolve to hidden, because both describe a relationship with a company and a link holder is not
+  one). `paused` stays shareable by design: §4.3 defines paused as removal from *new discovery*,
+  and following a link someone was handed is not discovery. Every refusal — unknown, rotated,
+  disabled, draft, deleted — is the same 404 with the same words.
+
+  Mounted at `/api/portfolio`, deliberately outside `/api/public`, so that module's "may never
+  query a candidate collection" header stays literally true.
+
+- **2026-08-21 — CAN-11 saved companies.** `GET /api/me/saved-companies` and `/me/saved`. Saving
+  has worked since CAN-06 and nothing had ever read the collection back, so a candidate could
+  bookmark a company and then had no screen on which to find it again. Companies that have since
+  unpublished are dropped from the list rather than shown as unopenable rows; the save record
+  survives, so a company returning to published reappears on its own.
+
+- **2026-08-21 — `apps/web/public/robots.txt`.** ADR-004 has required this since M2 and it did not
+  exist. Blocks `/me`, `/p/`, `/c/`, `/home`, `/settings` and every auth flow; allows the marketing
+  site and the public company directory.
+
+### Changed
+- **2026-08-21 — Workspace switching moved into the application shell.** A user is not "a
+  candidate" or "a recruiter" — ADR-001 makes both derived capabilities and the same person
+  routinely has both — but until now the only way to move between them was HOME-01's
+  `ContextSwitcher`, which renders **only on `/home`**. Switching therefore cost a detour through
+  the account home from wherever you were.
+
+  The switcher now lives in `accountDestinations`, the list the desktop avatar menu and the mobile
+  drawer already shared, so it appears on every authenticated screen on both surfaces at once. It
+  is **navigation, not state**: switching is a `<Link>` to `/me` or `/c/<slug>`, the active
+  workspace is read back out of the path exactly as `CompanyContext` already reads the active
+  company, and no active-role value is stored anywhere. Nothing to keep in sync and no new global
+  state.
+
+  **Authorization is unchanged and unchanged-able from here.** Entries are built from the
+  server-recomputed `capabilities`, so a candidate-only account is offered no recruiter workspace
+  and a recruiter-only account is offered no candidate one. That is presentation: the route guards
+  still bounce a typed URL, and the API still answers `404 MEMBERSHIP_REQUIRED` for a company the
+  caller does not belong to and `404` for a candidate profile that does not exist — verified
+  against both endpoints with a real session rather than assumed.
+
+  A candidate with no company sees "Create or join a company" (REC-01, an existing route) instead
+  of a hidden option with no explanation. HOME-01's own switcher keeps its behaviour and picks up
+  the word "Workspace" so the product has one term for one act.
+
+- **2026-08-21 — "My interests" is now "Shortlisted companies".** A product-terminology change,
+  not a data one: the route stays `/me/interests`, and `expressionsOfInterest` / `interests` keep
+  their names throughout the API and the database. The record is a consented disclosure with a
+  status lifecycle and an access grant hanging off it; renaming that to match a UI label would be
+  a migration bought for nothing, and the old URL keeps working for anyone who saved it.
+
+  Renamed in the rail, the page heading, the empty state, the loading and error announcements, the
+  consent modal, the company-page confirmation and status line, the Messages empty state, and the
+  one integration-test assertion that named the visible screen.
+
+  **Icon: `heart` → `bookmark`** (`FaBookmark`, added to the existing registry — no new library).
+  `star` was the natural alternative but the rail already uses it for **Saved companies**, and the
+  two are different acts: saved is a private bookmark the company never learns about, shortlisted
+  means you actually reached out. Two marks for two meanings. The same change retired a third,
+  unrelated mark: the company page's Save toggle flipped to `heart` once saved, which now would
+  have meant nothing anywhere else — it uses `star` in both states, with the label carrying the
+  difference.
+
+- **2026-08-21 — The authenticated application has no footer.** `MarketingLayout` gained a
+  `footer` prop and the signed-in route block passes `footer={false}`.
+
+  A footer is a page-level affordance — it belongs under a document a visitor has finished
+  reading. A workspace is not a document: its navigation is the rail, several of its screens size
+  themselves to the viewport, and a strip of marketing and legal links under a pipeline board is
+  chrome nobody working there wants.
+
+  **Public pages keep the full footer.** For a visitor those columns are the site's navigation and
+  PRD §17 counts them as internal linking. The `MarketingFooter` component is untouched and still
+  rendered on the landing page, the company directory, company profiles and the legal pages — the
+  layout prop is the whole separation. Its `minimal` variant, which existed only for the signed-in
+  shell, is gone: a variant nothing renders is a second footer to keep in sync for no surface.
+
+- **2026-08-21 — Candidate sidebar restructured into DAILY / MY PROFILE / ACCOUNT.** It was seven
+  undifferentiated links under one heading, "Your profile" — which was also wrong, since five of
+  the seven were not the profile. A flat list weights "Visibility" the same as "Messages", so
+  finding the one thing that needs you today meant reading every label. The three groups answer
+  three different questions: *what needs me today* (badged), *how do I present myself*, *how is my
+  account set up*. `WorkspaceSidebar` now accepts either a flat array or groups, so the company
+  rail is untouched.
+
+  **Profile and Portfolio are now distinct destinations**, not synonyms: **Edit profile** is the
+  builder, **Portfolio** is the artefact and where sharing lives, **Publish & privacy** is the
+  preview plus the publish gate. Same data, same endpoint, three jobs.
+
+  **Badges are real or absent.** Messages carries a count of conversations with unread messages or
+  a pending invitation — the only candidate endpoint that reports something not yet acted on. My
+  interests carries none: interest states are recruiter-set and none of them asks the candidate for
+  anything, so a count there would be activity theatre. A badge that means nothing trains people to
+  ignore the one that does.
+
 - **2026-08-12 — Account deletion is now actually processed (B-09).** `accountDeletion.job.js`
   gained the purge pass, implementing `16_RETENTION_POLICY.md` §3: the person's own content is
   deleted; `users` and `candidateProfiles` are **emptied and retained as tombstones** so the

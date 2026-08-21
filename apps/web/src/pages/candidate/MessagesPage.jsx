@@ -229,7 +229,7 @@ export function MessagesPage() {
           description="Companies start the conversation after you express interest. When one does, it appears here."
           action={
             <Button to={PATHS.CANDIDATE_INTERESTS} variant="primary" size="md">
-              See your interests
+              See shortlisted companies
             </Button>
           }
         />

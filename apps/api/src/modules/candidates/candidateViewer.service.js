@@ -24,6 +24,7 @@ import {
 import { recordAuditEvent } from '../audit/audit.service.js';
 import { CandidateProfile } from './candidateProfile.model.js';
 import { resolveCandidateAccess } from './candidateAccess.service.js';
+import { loadPortfolio } from './portfolio.service.js';
 
 /**
  * How this company came to be looking at this candidate — PRD §21.4 requires the SOURCE of every
@@ -84,23 +85,32 @@ export async function getCandidateForCompany({
   const access = await resolveCandidateAccess(profile, company._id);
   if (!access.visible) throw ApiError.notFound('Candidate not found.');
 
-  const user = await User.findById(profile.userId)
-    .select('name email profilePicture location languages')
-    .lean();
+  const [user, portfolio] = await Promise.all([
+    User.findById(profile.userId).select('name email profilePicture location languages').lean(),
+    /*
+     * The evidence and practice layers, filtered by per-item visibility (ADR-008). Loaded through
+     * the SAME projection CAN-03 previews, so what this recruiter reads is exactly what the
+     * candidate was shown — including which of their entries were withheld.
+     */
+    loadPortfolio(profile),
+  ]);
 
   /*
    * The one recruiter representation, shared with CAN-03. `contactRevealed` comes from the
    * candidate's own rule via the access service — never from the viewer's role, so an owner sees
    * exactly what a viewer sees.
    */
-  const recruiterView = profile.toRecruiterView({
-    name: user?.name ?? null,
-    photoUrl: user?.profilePicture ?? null,
-    location: user?.location ?? null,
-    languages: user?.languages ?? [],
-    email: user?.email,
-    contactRevealed: access.contactRevealed,
-  });
+  const recruiterView = profile.toRecruiterView(
+    {
+      name: user?.name ?? null,
+      photoUrl: user?.profilePicture ?? null,
+      location: user?.location ?? null,
+      languages: user?.languages ?? [],
+      email: user?.email,
+      contactRevealed: access.contactRevealed,
+    },
+    portfolio,
+  );
 
   const [interests, grant] = await Promise.all([
     interestHistory(profile._id, company._id),

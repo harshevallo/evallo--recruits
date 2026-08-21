@@ -15,13 +15,40 @@ import {
 import { ApiError } from '../../lib/ApiError.js';
 import { Company } from '../companies/company.model.js';
 import { getBuilderState } from './builder.service.js';
+import { loadPortfolio } from './portfolio.service.js';
 
 /**
  * Fields the recruiter view withholds, named so the preview can label them (PRD §8.2 CAN-03:
  * "private-field indicators").
  */
-function privateFields(profile) {
+function privateFields(profile, withheld = {}) {
   const hidden = [];
+
+  /*
+   * ADR-008 per-item visibility, reported before the contact rules.
+   *
+   * An entry the candidate marked `private` is filtered out by `loadPortfolio` and never reaches
+   * any audience — including this preview, because PRD §8.8 requires the preview to BE the
+   * recruiter rendering. Without this indicator the candidate would see an entry vanish from
+   * their own preview with no explanation, and the obvious conclusion is that the app lost it.
+   */
+  const WITHHELD_LABELS = {
+    experience: ['experience entry', 'experience entries'],
+    education: ['education entry', 'education entries'],
+    credentials: ['credential', 'credentials'],
+    media: ['portfolio item', 'portfolio items'],
+  };
+
+  for (const [key, [singular, plural]] of Object.entries(WITHHELD_LABELS)) {
+    const count = withheld[key] ?? 0;
+    if (count > 0) {
+      hidden.push({
+        field: `withheld.${key}`,
+        label: `${count} hidden ${count === 1 ? singular : plural}`,
+        reason: 'You set these to private, so they appear on no one else’s screen.',
+      });
+    }
+  }
 
   if (profile.contactVisibility === CONTACT_VISIBILITY.HIDDEN) {
     hidden.push({
@@ -67,21 +94,32 @@ function privateFields(profile) {
  * @param {object} user      The owner, for the header name
  */
 export async function getPreview(profile, user) {
-  const builder = await getBuilderState(profile, user);
+  const [builder, portfolio] = await Promise.all([
+    getBuilderState(profile, user),
+    loadPortfolio(profile),
+  ]);
 
   const contactRevealed = profile.contactVisibility === CONTACT_VISIBILITY.AUTHORIZED_RECRUITERS;
 
   return {
-    /** PRD §8.8 — the preview must be the same rendering a recruiter gets. */
-    profile: profile.toRecruiterView({
-      name: user.name ?? null,
-      photoUrl: user.profilePicture ?? null,
-      location: user.location ?? null,
-      languages: user.languages ?? [],
-      email: user.email,
-      contactRevealed,
-    }),
-    privateFields: privateFields(profile),
+    /**
+     * PRD §8.8 — the preview must be the same rendering a recruiter gets.
+     *
+     * Same serialiser, same projection, same per-item visibility filter. The candidate is shown
+     * their portfolio as an audience receives it, not as they entered it.
+     */
+    profile: profile.toRecruiterView(
+      {
+        name: user.name ?? null,
+        photoUrl: user.profilePicture ?? null,
+        location: user.location ?? null,
+        languages: user.languages ?? [],
+        email: user.email,
+        contactRevealed,
+      },
+      portfolio,
+    ),
+    privateFields: privateFields(profile, portfolio.withheld),
     visibility: {
       status: profile.status,
       contactVisibility: profile.contactVisibility,

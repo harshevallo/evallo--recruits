@@ -26,11 +26,18 @@ import {
   getCompanyRelationship,
   saveCompany,
   unsaveCompany,
+  listSavedCompanies,
   consentDisclosure,
   submitInterest,
   listInterests,
   withdrawInterest,
 } from './candidateInterest.service.js';
+import {
+  getShareState,
+  enableShare,
+  rotateShare,
+  disableShare,
+} from './share.service.js';
 import {
   listConversations,
   getConversation,
@@ -275,6 +282,29 @@ export async function saveCompanyForUser(user, slug) {
 
 export async function unsaveCompanyForUser(user, slug) {
   return unsaveCompany(await requireProfile(user._id), slug);
+}
+
+/** CAN-11 — the saved list. */
+export async function listSavedCompaniesForUser(user) {
+  return listSavedCompanies(await requireProfile(user._id));
+}
+
+/* ── Share link (ADR-019) ──────────────────────────────────────────────────────────────────── */
+
+export async function getShareLink(user) {
+  return getShareState(await requireProfile(user._id));
+}
+
+export async function enableShareLink(user) {
+  return enableShare(await requireProfile(user._id));
+}
+
+export async function rotateShareLink(user) {
+  return rotateShare(await requireProfile(user._id));
+}
+
+export async function disableShareLink(user) {
+  return disableShare(await requireProfile(user._id));
 }
 
 export async function getConsentDisclosure(user) {

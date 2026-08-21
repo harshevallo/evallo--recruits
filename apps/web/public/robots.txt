@@ -1,0 +1,43 @@
+# Evallo Recruit — crawler policy
+#
+# ADR-004 requires "/robots.txt blocking all candidate, search, message, pipeline, and account
+# surfaces". Served as a static file from the web app rather than from Express, because the SPA is
+# deployed to Vercel and the API to a different host — a crawler resolving evallo-recruit's
+# robots.txt reaches the web origin, so that is where the file has to live.
+#
+# This is a crawler instruction, not access control. Every path below is additionally protected by
+# an authentication guard or, for /p/, by a 256-bit secret in the URL.
+
+User-agent: *
+
+# The candidate's own surface. Nothing here is public.
+Disallow: /me
+Disallow: /me/
+
+# Share links (ADR-019). The token IS the address, so a crawler could only reach one of these by
+# following a link someone published — which is exactly the case this rule is for. The pages also
+# carry noindex, and the API answers with X-Robots-Tag: noindex.
+Disallow: /p/
+
+# Company workspaces: recruiter search, pipeline, messages, interests, team, settings.
+Disallow: /c/
+
+# Personal account surfaces.
+Disallow: /home
+Disallow: /settings
+Disallow: /settings/
+
+# Authentication flows. Indexing a one-time token URL would be a security problem, not just noise.
+Disallow: /auth/
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /restore-account
+Disallow: /forgot-password
+Disallow: /signin
+Disallow: /signup
+
+# Explicitly open: the marketing site, the public company directory, and company profiles. These
+# are the only pages PRD §17 asks to be indexed.
+Allow: /$
+Allow: /companies
+Allow: /companies/

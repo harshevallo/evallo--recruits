@@ -50,3 +50,15 @@ export const publicWriteLimiter = buildLimiter({
   ...RATE_LIMITS.PUBLIC_WRITE,
   message: 'Too many submissions. Please try again later.',
 });
+
+/**
+ * Unauthenticated candidate share links (ADR-019).
+ *
+ * The only rate limiter attached to a candidate-data read, because it is the only such read with
+ * no account behind it. Its job is to stop the endpoint being swept, not to stop guessing — a
+ * 256-bit token already handles that.
+ */
+export const shareLinkLimiter = buildLimiter({
+  ...RATE_LIMITS.SHARE_LINK,
+  message: 'Too many requests. Please try again shortly.',
+});

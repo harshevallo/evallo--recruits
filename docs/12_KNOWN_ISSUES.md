@@ -113,6 +113,13 @@ The completeness concern in the original entry was addressed: profile strength i
 same `publishBlockers` the publish gate uses, and unanswered optional questions are reported
 separately, so an evidence-free profile cannot read "100% complete" as a publish claim.
 
+**Update 2026-08-21 — collected is now also rendered.** A separate and worse problem sat behind
+this entry: the builder wrote experience, education, credentials and media to four real
+collections, and `toRecruiterView()` reported all four as permanently empty arrays. Every audience
+— the candidate's own preview and the recruiter viewer alike — showed "no experience, education,
+or credential entries yet" regardless of what had been entered. `portfolio.service.js` now projects
+them, so the eight built sections reach a reader. References and assessments remain Phase 2.
+
 ### I-04b — ~~Interest statuses never advance past "Submitted"~~ RESOLVED 2026-08-10
 **Severity:** — · **Resolution:** REC-11 and REC-15 are both built
 
@@ -398,6 +405,53 @@ long-running search query can affect public page latency.
 Appropriate for a limited pilot (PRD §20). Module boundaries (ADR-011) already exist should
 extraction become warranted. **Do not pre-emptively split this** — that trade would add
 distributed-system cost for load that does not yet exist.
+
+---
+
+### L-08 — Anonymous share-link views are not in the audit log
+**Source:** ADR-019 · **Severity:** Low · **Added:** 2026-08-21
+
+PRD §21.4 requires the source of every candidate-profile access to be logged. `GET
+/api/portfolio/:token` does not write an `auditEvents` row, because `actorUserId` is a required
+field on that model and a share-link holder has no account.
+
+Writing the **candidate's own** id as the actor was considered and rejected: it would put a false
+entry into the one log §21.4 exists to make trustworthy, which is worse than an honest gap. Views
+are written to the request logger (`shared portfolio viewed`, with referrer) instead.
+
+Low severity because the disclosure is one the candidate deliberately made and can revoke at any
+moment — unlike a recruiter view, which happens without their involvement and is therefore the
+case §21.4 is actually written about.
+
+**Exit:** make `actorUserId` nullable and add an `anonymous_share` actor type, or add a
+`portfolioViews` collection if the candidate should see view counts. Neither is worth doing before
+someone asks for the data.
+
+---
+
+### L-09 — `noindex` on the share page is client-side only
+**Source:** ADR-019, ADR-004 · **Severity:** Low · **Added:** 2026-08-21
+
+`apps/web` is a static SPA served by Vercel (`vercel.json` rewrites everything to `index.html`).
+ADR-004's Stage 1 Express metadata injection is still **Proposed** and was never built, so there is
+no server able to put a per-page `<meta name="robots">` into the initial HTML. `/p/:token` sets it
+from JavaScript on mount.
+
+Three things make this acceptable rather than a defect:
+
+1. The API answers with `X-Robots-Tag: noindex, nofollow, noarchive`, which is a header and needs no
+   rendering.
+2. `apps/web/public/robots.txt` disallows the whole `/p/` prefix.
+3. The URL contains 256 bits of secret. A crawler that does not execute JavaScript also has no way
+   to *discover* the address.
+
+**Related, and deliberately not a limitation:** the Open Graph tags on a share page are generic
+("A teaching portfolio on Evallo Recruit") and carry no name or headline. Social crawlers do not
+execute JavaScript, so anything person-specific there would be rendered in a group chat *before*
+anyone chose to open the link. That is a privacy decision, not something to fix when SSR lands.
+
+**Exit:** implementing ADR-004 Stage 1 would let the shell carry the tag — and would still leave
+the OG decision exactly as it is.
 
 ---
 

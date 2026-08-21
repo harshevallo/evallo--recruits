@@ -97,8 +97,8 @@ export function CompanyWorkspaceLayout() {
   }));
 
   /*
-   * A flex ROW: rail then content. The rail is sticky inside it, so the footer — which
-   * MarketingLayout renders after this whole row — is never covered by it.
+   * A flex ROW: rail then content, with the rail sticky inside it — in normal flow as a real
+   * column, so it cannot overlap whatever follows the row.
    *
    * `min-h-screen` is load-bearing, not cosmetic. The rail clears the fixed navbar via
    * `sticky top-20`, and a sticky box can only be pushed down while its containing block still has

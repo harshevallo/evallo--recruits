@@ -57,6 +57,28 @@ const candidateProfileSchema = new mongoose.Schema(
     /** Question-bank version the profile was last edited under (ADR-007). */
     bankVersion: Number,
 
+    /*
+     * ── Share link (ADR-019) ────────────────────────────────────────────────────────────────
+     *
+     * A candidate-minted, revocable secret that lets someone WITHOUT an Evallo account open the
+     * portfolio. This is the product's only unauthenticated candidate surface, and every part of
+     * its shape is a containment decision:
+     *
+     *   · the token is the whole address — there is no slug, no name and no id in the URL, so a
+     *     link cannot be guessed from knowing who someone is, and a leaked URL discloses nothing
+     *     about the person until it is opened;
+     *   · `shareEnabled` is separate from the token's existence, so turning sharing off is one
+     *     write and cannot half-apply;
+     *   · revoking CLEARS the token rather than flagging it, so a rotated or disabled link is
+     *     unresolvable rather than merely refused.
+     *
+     * Sharing never widens what is visible. The link is subject to the same `status` gate and the
+     * same per-item visibility as every other audience — it changes WHO may look, never WHAT.
+     */
+    shareToken: { type: String, select: false },
+    shareEnabled: { type: Boolean, default: false },
+    shareTokenCreatedAt: Date,
+
     publishedAt: Date,
     lastActiveAt: Date,
 
@@ -77,6 +99,22 @@ const candidateProfileSchema = new mongoose.Schema(
 /** One active candidate profile per user. */
 candidateProfileSchema.index({ userId: 1 }, { unique: true });
 candidateProfileSchema.index({ status: 1, lastActiveAt: -1 });
+
+/**
+ * The share-link lookup (ADR-019).
+ *
+ * Sparse, because only candidates who have minted a link carry the field, and unique so two
+ * profiles can never answer to the same secret. `partialFilterExpression` rather than `sparse`
+ * alone: a sparse unique index still collides on repeated `null`, which is exactly what a
+ * revoked token writes.
+ */
+candidateProfileSchema.index(
+  { shareToken: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { shareToken: { $type: 'string' } },
+  },
+);
 
 candidateProfileSchema.methods.toOwnerView = function toOwnerView() {
   return {
@@ -111,9 +149,22 @@ candidateProfileSchema.methods.toOwnerView = function toOwnerView() {
  * languages belong to the PERSONAL layer on `users` (05_DATABASE_SCHEMA §2), so the caller passes
  * them in rather than this document duplicating them.
  *
+ * The evidence and practice layers live in their own collections (ADR-008) and are projected by
+ * `portfolio.service.js#loadPortfolio()`, which is where per-item visibility is applied. They are
+ * passed IN rather than loaded here for the same reason the header fields are: this method is
+ * synchronous and owns no queries, so a caller can never accidentally serve a projection that
+ * skipped the visibility filter — there is no path that produces one.
+ *
  * @param {{ name?, photoUrl?, location?, languages?, email?, contactRevealed? }} viewer
+ * @param {object} [portfolio]  The output of `loadPortfolio()`. Omitted only where the caller
+ *                              genuinely wants the header alone; the sections then render empty.
  */
-candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(viewer = {}) {
+candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(
+  viewer = {},
+  portfolio = {},
+) {
+  const evidence = portfolio.evidence ?? {};
+
   return {
     header: {
       name: viewer.name ?? null,
@@ -127,24 +178,29 @@ candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(viewer
       availability: this.availability ?? null,
       deliveryModes: this.deliveryModes ?? [],
       employmentTypes: this.employmentTypes ?? [],
+      /** Rendered exactly as the candidate wrote them; never inferred, never normalised. */
+      pronouns: portfolio.identity?.pronouns ?? null,
     },
     introduction: this.summary ?? null,
     expertise: {
       subjects: this.subjects ?? [],
       learnerSegments: this.learnerSegments ?? [],
+      /** Free text the bank collects beside the indexed facets — tests prepared, curricula. */
+      tests: portfolio.expertise?.tests ?? null,
+      curricula: portfolio.expertise?.curricula ?? null,
     },
-    /*
-     * The evidence layer (experience, education, credentials, scores, media, references) lives in
-     * its own collections per ADR-008 and is not built yet. Reported as empty rather than omitted,
-     * so the preview shows the same "no evidence yet" state a recruiter would see.
-     */
     evidence: {
-      experience: [],
-      education: [],
-      credentials: [],
-      media: [],
-      references: [],
+      experience: evidence.experience ?? [],
+      education: evidence.education ?? [],
+      credentials: evidence.credentials ?? [],
+      scores: evidence.scores ?? [],
+      media: evidence.media ?? [],
+      references: evidence.references ?? [],
     },
+    /** PRD §8.3 section 8 — prose under professional headings, never the question wording. */
+    practice: portfolio.practice ?? [],
+    /** PRD §8.3 section 9 — measurable impact, merged from role outcomes and score gains. */
+    outcomes: portfolio.outcomes ?? { statements: [], fromExperience: [] },
     /**
      * Contact is revealed only when the candidate's own rule allows it — never merely because
      * the viewer holds a recruiter role (PRD §7.10, §4.3).

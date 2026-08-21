@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
-  SUBJECT_LABELS,
-  LEARNER_SEGMENT_LABELS,
   CANDIDATE_ROLE_LABELS,
   AVAILABILITY_LABELS,
   COUNTRY_LABELS,
-  LANGUAGE_LABELS,
   CANDIDATE_VISIBILITY,
   CONTACT_VISIBILITY,
 } from '@evallo/shared';
@@ -27,6 +24,7 @@ import {
   createCandidateNote,
   deleteCandidateNote,
 } from '@/services';
+import { PortfolioBody, PortfolioNav } from '@/features/candidate/portfolio/PortfolioDocument';
 import { useCompany } from '@/context/CompanyContext';
 import { PATHS, buildPath } from '@/router/paths';
 
@@ -70,27 +68,6 @@ function humanise(value) {
   return String(value)
     .replace(/_/g, ' ')
     .replace(/^./, (c) => c.toUpperCase());
-}
-
-/** A labelled group of chips. Renders nothing at all when the candidate shared nothing. */
-function ChipGroup({ title, values, labels }) {
-  if (!values?.length) return null;
-
-  return (
-    <div>
-      <h3 className={`mb-2.5 ${MICRO_LABEL}`}>{title}</h3>
-      <ul className="flex flex-wrap gap-2">
-        {values.map((value) => (
-          <li
-            key={value}
-            className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-brand-dark"
-          >
-            {labels?.[value] ?? humanise(value)}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 function Section({ id, title, subtitle, children }) {
@@ -316,20 +293,17 @@ export function CompanyCandidatePage() {
   }
 
   const { profile, access, interests, lastActiveAt } = state.data;
-  const { header, introduction, expertise, evidence, contact } = profile;
+  const { header, contact } = profile;
 
-  const hasEvidence = Object.values(evidence ?? {}).some((list) => list?.length);
-  const hasExpertise =
-    expertise.subjects?.length || expertise.learnerSegments?.length || header.targetRoles?.length;
-
-  /* Only sections that actually render get a nav entry — a link to nothing is worse than none. */
-  const sections = [
-    introduction && { id: 'overview', label: 'Overview', icon: 'user' },
-    hasExpertise && { id: 'expertise', label: 'Teaching expertise', icon: 'layer-group' },
-    { id: 'preferences', label: 'Work preferences', icon: 'compass' },
-    { id: 'evidence', label: 'Experience & evidence', icon: 'certificate' },
-    interests.length > 0 && { id: 'relationship', label: 'Interest in you', icon: 'comments' },
-  ].filter(Boolean);
+  /*
+   * The section rail is built by the shared renderer from the sections that actually drew, so it
+   * can never link to a heading that is not on the page. "Interest in your company" is this
+   * screen's alone — it means nothing to a candidate previewing themselves or to a share-link
+   * reader — so it is injected rather than living in the shared component.
+   */
+  const extraNavItems = interests.length > 0
+    ? [{ id: 'relationship', label: 'Interest in you', icon: 'comments' }]
+    : [];
 
   const metaLine = [
     header.location?.country
@@ -456,102 +430,27 @@ export function CompanyCandidatePage() {
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[15rem_1fr]">
-        {/*
-          Section navigation. Anchor links rather than tabs, because this is one continuous
-          document a recruiter reads top to bottom — tabs would hide half of it behind a click.
-        */}
-        <nav aria-label="Profile sections" className="hidden lg:block">
-          <div className={`${CARD} sticky top-24 p-3`}>
-            <ul className="space-y-1">
-              {sections.map((section) => (
-                <li key={section.id}>
-                  <a
-                    href={`#${section.id}`}
-                    className="group flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-brand-blue"
-                  >
-                    <Icon
-                      name={section.icon}
-                      className="w-4 text-center text-gray-400 transition-colors group-hover:text-brand-blue"
-                    />
-                    {section.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </nav>
+        <PortfolioNav profile={profile} extraItems={extraNavItems} />
 
         <div className="min-w-0 space-y-6">
-          {introduction && (
-            <Section id="overview" title="Overview">
-              <p className="whitespace-pre-line text-[15px] leading-relaxed text-gray-700">
-                {introduction}
-              </p>
-            </Section>
-          )}
-
-          {hasExpertise && (
-            <Section
-              id="expertise"
-              title="Teaching expertise"
-              subtitle="What they teach, and who they teach it to."
-            >
-              <div className="space-y-6">
-                <ChipGroup title="Subjects" values={expertise.subjects} labels={SUBJECT_LABELS} />
-                <ChipGroup
-                  title="Learner segments"
-                  values={expertise.learnerSegments}
-                  labels={LEARNER_SEGMENT_LABELS}
-                />
-                <ChipGroup
-                  title="Target roles"
-                  values={header.targetRoles}
-                  labels={CANDIDATE_ROLE_LABELS}
-                />
-              </div>
-            </Section>
-          )}
-
-          <Section
-            id="preferences"
-            title="Work preferences"
-            subtitle="How they want to work, in their own words."
-          >
-            <div className="space-y-6">
-              <ChipGroup title="Employment" values={header.employmentTypes} />
-              <ChipGroup title="Delivery" values={header.deliveryModes} />
-              <ChipGroup title="Languages" values={header.languages} labels={LANGUAGE_LABELS} />
-              {!header.employmentTypes?.length &&
-                !header.deliveryModes?.length &&
-                !header.languages?.length && (
-                  <p className="text-sm text-gray-600">
-                    This person has not shared their work preferences yet.
-                  </p>
-                )}
-            </div>
-          </Section>
-
           {/*
-            ADR-008 puts experience, education, credentials, media and references in their own
-            collections, which are not built. The section is shown as empty rather than hidden, so
-            a recruiter can tell "nothing supplied" from "we do not display this".
-          */}
-          <Section id="evidence" title="Experience and evidence">
-            {hasEvidence ? (
-              <p className="text-sm text-gray-700">Evidence provided.</p>
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-6 text-center">
-                <p className="text-sm text-gray-600">
-                  No experience, education, or credential entries yet.
-                </p>
-                <p className="mx-auto mt-1.5 max-w-md text-xs text-gray-500">
-                  Candidates can publish without evidence, so an empty section is not a gap in this
-                  person&rsquo;s history.
-                </p>
-              </div>
-            )}
-          </Section>
+            The portfolio itself, drawn by the shared renderer.
 
+            This screen used to hand-roll four sections over the same payload and stub the fifth
+            with "Evidence provided." — while `toRecruiterView` reported evidence as four
+            permanently empty arrays, so no recruiter ever saw an experience entry a candidate had
+            written. Both halves are fixed: the server projects the real evidence layer, and this
+            page renders it through the SAME component the candidate previews. PRD §8.8 requires
+            those two to match, and one component is the only way to keep them matching.
+
+            `contactSlot` carries this audience's extras — the interest history and the "why you
+            can see this" panel — so they land where the recruiter expects them without the shared
+            renderer needing to know a recruiter exists.
+          */}
+          <PortfolioBody
+            profile={profile}
+            contactSlot={
+              <>
           {interests.length > 0 && (
             <Section
               id="relationship"
@@ -748,6 +647,9 @@ export function CompanyCandidatePage() {
               )}
             </section>
           </div>
+              </>
+            }
+          />
         </div>
       </div>
 

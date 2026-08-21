@@ -138,6 +138,18 @@ router.post(
   asyncHandler(candidate.publishProfile),
 );
 
+/*
+ * Share link (ADR-019) — the candidate's own control over the one unauthenticated surface that
+ * can reach their portfolio.
+ *
+ * Personal surface, like everything else here: the handler resolves the profile from the session,
+ * so there is no candidate id to substitute and no way to mint or revoke someone else's link.
+ */
+router.get('/candidate-profile/share', asyncHandler(candidate.getShareLink));
+router.post('/candidate-profile/share', asyncHandler(candidate.enableShareLink));
+router.post('/candidate-profile/share/rotate', asyncHandler(candidate.rotateShareLink));
+router.delete('/candidate-profile/share', asyncHandler(candidate.disableShareLink));
+
 // CAN-04 — discoverability, contact rules, and company blocks.
 router.get('/candidate-profile/visibility', asyncHandler(candidate.getVisibility));
 router.patch(
@@ -173,6 +185,14 @@ router.delete(
   validate(companySlugValidation),
   asyncHandler(candidate.unsaveCompany),
 );
+
+/*
+ * CAN-11 — the saved list.
+ *
+ * The read side of a write that has existed since CAN-06. Not under `/companies/...` because it
+ * is not scoped to one company: it is this candidate's own shortlist.
+ */
+router.get('/saved-companies', asyncHandler(candidate.listSavedCompanies));
 
 // CAN-07 — interest submission (PRD §8.7).
 router.get('/interests/consent-disclosure', asyncHandler(candidate.getConsentDisclosure));

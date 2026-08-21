@@ -116,6 +116,42 @@ export async function unsaveCompany(req, res) {
   return sendSuccess(res, await candidateService.unsaveCompanyForUser(user, req.params.slug));
 }
 
+/** CAN-11 — the companies this candidate saved, newest first. */
+export async function listSavedCompanies(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(res, {
+    companies: await candidateService.listSavedCompaniesForUser(user),
+  });
+}
+
+/* ── Share link (ADR-019) ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * The four share handlers all return the SAME shape, so the client has one state to render
+ * whichever action produced it. Enabling, rotating and disabling are POST/DELETE rather than a
+ * PATCH with a body, because each is a distinct act with distinct consequences — rotation kills
+ * every link already sent, and that must not be reachable by mistyping a field.
+ */
+export async function getShareLink(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(res, await candidateService.getShareLink(user));
+}
+
+export async function enableShareLink(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(res, await candidateService.enableShareLink(user));
+}
+
+export async function rotateShareLink(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(res, await candidateService.rotateShareLink(user));
+}
+
+export async function disableShareLink(req, res) {
+  const user = await requireAppUser(req);
+  return sendSuccess(res, await candidateService.disableShareLink(user));
+}
+
 /** PRD §8.7 step 6 — what the company will receive, shown before consent. */
 export async function getConsentDisclosure(req, res) {
   const user = await requireAppUser(req);

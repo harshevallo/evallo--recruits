@@ -65,6 +65,45 @@ export async function publishProfile(status) {
   return unwrap(response);
 }
 
+/* ── Share link (ADR-019) ──────────────────────────────────────────────────────────────────── */
+
+/**
+ * The candidate's own share state: whether the link is on, the token, and whether it currently
+ * resolves given their visibility state.
+ *
+ * The URL is assembled client-side from `window.location.origin` rather than returned by the API.
+ * The API is deployed on a different host from the web app, so a server-built link would point at
+ * the API — and hard-coding the web origin into the API would break every preview deployment.
+ */
+export async function fetchShareLink(options = {}) {
+  const response = await apiClient.get('/me/candidate-profile/share', { signal: options.signal });
+  return unwrap(response);
+}
+
+/** Idempotent — enabling twice returns the same token rather than rotating it. */
+export async function enableShareLink() {
+  const response = await apiClient.post('/me/candidate-profile/share');
+  return unwrap(response);
+}
+
+/** Destructive: every link already sent stops working. The UI confirms before calling this. */
+export async function rotateShareLink() {
+  const response = await apiClient.post('/me/candidate-profile/share/rotate');
+  return unwrap(response);
+}
+
+export async function disableShareLink() {
+  const response = await apiClient.delete('/me/candidate-profile/share');
+  return unwrap(response);
+}
+
+/* ── CAN-11 saved companies ────────────────────────────────────────────────────────────────── */
+
+export async function fetchSavedCompanies(options = {}) {
+  const response = await apiClient.get('/me/saved-companies', { signal: options.signal });
+  return unwrap(response).companies;
+}
+
 /* ── CAN-04 visibility ─────────────────────────────────────────────────────────────────────── */
 
 export async function fetchVisibility(options = {}) {

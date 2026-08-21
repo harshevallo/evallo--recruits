@@ -57,6 +57,57 @@ export async function unsaveCompany(profile, slug) {
 }
 
 /**
+ * CAN-11 — the saved list itself.
+ *
+ * Saving has worked since CAN-06 but nothing has ever read the collection back, so a candidate
+ * could bookmark a company and then had no screen on which to find it again. This is the read
+ * side of a write that already existed.
+ *
+ * A company that has since unpublished, been archived or been moderated is dropped rather than
+ * shown as a broken row: the candidate cannot act on it, and PRD §9.3 keeps such pages out of
+ * every other candidate-facing surface for the same reason. The save record itself is left alone —
+ * a company that returns to published reappears in the list on its own.
+ */
+export async function listSavedCompanies(profile) {
+  const saved = await SavedCompany.find({ candidateId: profile._id })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (saved.length === 0) return [];
+
+  const companies = await Company.find({
+    _id: { $in: saved.map((row) => row.companyId) },
+    status: COMPANY_STATUS.PUBLISHED,
+    moderationStatus: { $in: [MODERATION_STATUS.NONE, null] },
+  })
+    .select('name slug logoUrl tagline organizationType isCurrentlyHiring')
+    .lean();
+
+  const byId = new Map(companies.map((company) => [String(company._id), company]));
+
+  return saved
+    .map((row) => {
+      const company = byId.get(String(row.companyId));
+      if (!company) return null;
+
+      return {
+        savedAt: row.createdAt,
+        note: row.note ?? null,
+        company: {
+          name: company.name,
+          slug: company.slug,
+          logoUrl: company.logoUrl ?? null,
+          initials: companyInitials(company.name),
+          tagline: company.tagline ?? null,
+          organizationType: company.organizationType ?? null,
+          isCurrentlyHiring: Boolean(company.isCurrentlyHiring),
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
+/**
  * CAN-06 — the candidate's relationship to a company: saved, and whether interest already exists.
  * The public page content itself still comes from the public endpoint; this only adds the
  * signed-in overlay so the two never disagree about company data.

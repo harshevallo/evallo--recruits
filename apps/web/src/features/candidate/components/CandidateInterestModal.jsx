@@ -152,7 +152,7 @@ export function CandidateInterestModal({ open, onClose, company, roles = [], onS
         <Checkbox
           className="mb-5"
           label="I agree to share my profile with this company"
-          description="You can withdraw at any time from My interests, which removes their access."
+          description="You can withdraw at any time from Shortlisted companies, which removes their access."
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
         />
