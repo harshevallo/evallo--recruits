@@ -15,35 +15,32 @@ import { PATHS } from '@/router/paths';
  * No permission filtering: this is the person's own data, and reaching it needs nothing beyond
  * being signed in with a candidate profile — which `RequireCandidate` has already established.
  *
- * ── Why three groups and not one list ────────────────────────────────────────────────────────
+ * ── The rail is DAILY work only ──────────────────────────────────────────────────────────────
  *
- * The rail used to be seven undifferentiated links under one heading, "Your profile". That is a
- * list of URLs, not an information architecture: "Visibility" and "Messages" sat at the same
- * weight, so a candidate scanning the rail had to read every label to find the one thing that
- * needed them today. It also mislabelled itself — five of the seven items were not the profile.
+ * It has been through three shapes. It started as seven undifferentiated links under one heading,
+ * "Your profile" — a list of URLs, not an information architecture, and mislabelled besides, since
+ * five of the seven were not the profile. Grouping it into DAILY / MY PROFILE / ACCOUNT fixed the
+ * weighting but left profile management occupying half the rail.
  *
- * The groups answer three different questions, and each item belongs to exactly one of them:
+ * It is now the four things a job-seeker does on a normal day, and nothing else:
  *
- *   DAILY       "What needs me today?"      — changes without the candidate doing anything, so
- *                                              this is the group that carries badges.
- *   MY PROFILE  "How do I present myself?"  — changes only when they decide to change it.
- *   ACCOUNT     "How is my account set up?" — visited rarely, so it sits last and stays small.
+ *   Search for Roles      find work — the reason to open the product
+ *   Search for Companies  find who to work for
+ *   Your Activity         what has happened since last time (CAN-01)
+ *   Messages              the one item that changes without the candidate doing anything, so the
+ *                         only one that carries a badge
  *
- * ── Profile vs Portfolio ─────────────────────────────────────────────────────────────────────
+ * Shortlisted and Saved companies sit under those as the record of what the two searches produced.
  *
- * Two entries under MY PROFILE, because they are two different jobs over one set of data:
+ * ── Where profile management went ────────────────────────────────────────────────────────────
  *
- *   Edit profile   the builder. Structured input, section by section (CAN-02).
- *   Portfolio      the artefact. How it reads to a reader, and where sharing lives.
- *   Publish & privacy   the preview plus the publish and visibility controls (CAN-03/04).
+ * Into the account menu (`accountDestinations`), which the avatar and the mobile drawer already
+ * share and which already carried Portfolio & sharing. Maintaining a profile is occasional work;
+ * giving it equal billing with the job search made the rail read as though editing your CV were
+ * the daily task. **No route was removed** — `/me/portfolio`, `/me/profile`, `/me/profile/preview`
+ * and `/me/visibility` all still exist and are all still reachable, one click from any screen.
  *
- * ── What is deliberately NOT here ────────────────────────────────────────────────────────────
- *
- * CAN-10 (assessments) is Phase 2 per PRD §20.3 and has no screen. Notifications, privacy and
- * security are real routes but live under `/settings`, which has its own sub-navigation — listing
- * all five here would duplicate that nav in the rail and give the ACCOUNT group more weight than
- * a rarely-visited area deserves. One entry points at the settings dashboard, which is where
- * those four already are.
+ * CAN-10 (assessments) remains absent: Phase 2 per PRD §20.3, with no screen to point at.
  */
 const LABEL = 'Candidate';
 
@@ -103,9 +100,10 @@ export function CandidateWorkspaceLayout() {
       group: 'daily',
       label: 'Daily',
       items: [
-        { to: PATHS.CANDIDATE_HOME, label: 'Home', icon: 'user', end: true },
-        { to: PATHS.CANDIDATE_COMPANIES, label: 'Discover companies', icon: 'compass' },
-        { to: PATHS.CANDIDATE_INTERESTS, label: 'Shortlisted companies', icon: 'bookmark' },
+        { to: PATHS.CANDIDATE_ROLES, label: 'Search for Roles', icon: 'briefcase' },
+        { to: PATHS.CANDIDATE_COMPANIES, label: 'Search for Companies', icon: 'building' },
+        /* CAN-01. "Your Activity" says what the screen is; "Home" only said where it sat. */
+        { to: PATHS.CANDIDATE_HOME, label: 'Your Activity', icon: 'chart-line', end: true },
         {
           to: PATHS.CANDIDATE_MESSAGES,
           label: 'Messages',
@@ -113,23 +111,16 @@ export function CandidateWorkspaceLayout() {
           badge: messagesBadge,
           badgeLabel: 'conversations need you',
         },
+      ],
+    },
+    {
+      /* What the two searches above produced — shortlisted is where you applied, saved is a bookmark. */
+      group: 'lists',
+      label: 'Your lists',
+      items: [
+        { to: PATHS.CANDIDATE_INTERESTS, label: 'Shortlisted companies', icon: 'bookmark' },
         { to: PATHS.CANDIDATE_SAVED, label: 'Saved companies', icon: 'star' },
       ],
-    },
-    {
-      group: 'profile',
-      label: 'My profile',
-      items: [
-        { to: PATHS.CANDIDATE_PORTFOLIO, label: 'Portfolio', icon: 'id-card' },
-        { to: PATHS.CANDIDATE_PROFILE_BUILDER, label: 'Edit profile', icon: 'user-pen' },
-        { to: PATHS.CANDIDATE_PROFILE_PREVIEW, label: 'Publish & privacy', icon: 'eye' },
-        { to: PATHS.CANDIDATE_VISIBILITY, label: 'Visibility', icon: 'shield-halved' },
-      ],
-    },
-    {
-      group: 'account',
-      label: 'Account',
-      items: [{ to: PATHS.ACCOUNT_SETTINGS, label: 'Settings', icon: 'gear' }],
     },
   ];
 

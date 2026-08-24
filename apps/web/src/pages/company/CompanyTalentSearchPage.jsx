@@ -33,6 +33,7 @@ import {
   startCompanyConversation,
 } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
+import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
 
 /**
  * REC-12 — talent search (PRD §7.7, §10, §21.4).
@@ -76,6 +77,62 @@ const FACETS = [
   { key: 'country', label: 'Country', options: COUNTRY_OPTIONS, labels: COUNTRY_LABELS },
   { key: 'language', label: 'Languages', options: LANGUAGE_OPTIONS, labels: LANGUAGE_LABELS },
 ];
+
+/**
+ * One facet's checkbox list, with a filter box once the vocabulary is too long to scan.
+ *
+ * Country went from 18 options to all 249 ISO territories, which turned this panel into a
+ * 249-row scroll box with no way to reach Kenya except the mouse wheel. The threshold lives in
+ * `utils/optionSearch` so a facet earns its search box by size rather than by someone remembering
+ * to add one.
+ *
+ * SELECTED options are always rendered, even when the query excludes them. A filter that hides a
+ * filter you already applied is how a recruiter ends up with results they cannot explain and a
+ * checkbox they cannot find to clear.
+ */
+function FacetOptions({ facet, selected, onToggle }) {
+  const [query, setQuery] = useState('');
+  const searchable = facet.options.length > SEARCH_THRESHOLD;
+
+  const visible = useMemo(() => {
+    if (!searchable || !query.trim()) return facet.options;
+
+    const matched = rankOptions(facet.options, query);
+    const shown = new Set(matched.map((option) => option.value));
+    /* Active choices first, then the matches — so what you have chosen never scrolls out of reach. */
+    return [...facet.options.filter((o) => selected.includes(o.value) && !shown.has(o.value)), ...matched];
+  }, [facet.options, query, searchable, selected]);
+
+  return (
+    <>
+      {searchable && (
+        <TextInput
+          type="search"
+          value={query}
+          aria-label={`Search ${facet.label.toLowerCase()}`}
+          placeholder={`Search ${facet.label.toLowerCase()}\u2026`}
+          onChange={(event) => setQuery(event.target.value)}
+          className="mb-2 !py-2 !text-xs"
+        />
+      )}
+
+      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+        {visible.length === 0 ? (
+          <p className="px-1 py-2 text-xs text-gray-500">No matches.</p>
+        ) : (
+          visible.map((option) => (
+            <Checkbox
+              key={option.value}
+              label={option.label ?? facet.labels?.[option.value] ?? option.value}
+              checked={selected.includes(option.value)}
+              onChange={() => onToggle(facet.key, option.value)}
+            />
+          ))
+        )}
+      </div>
+    </>
+  );
+}
 
 const FACET_LABELS = Object.fromEntries(FACETS.map((f) => [f.key, f.label]));
 
@@ -387,16 +444,11 @@ export function CompanyTalentSearchPage() {
                 <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   {facet.label}
                 </legend>
-                <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
-                  {facet.options.map((option) => (
-                    <Checkbox
-                      key={option.value}
-                      label={option.label ?? facet.labels?.[option.value] ?? option.value}
-                      checked={searchParams.getAll(facet.key).includes(option.value)}
-                      onChange={() => toggleFacet(facet.key, option.value)}
-                    />
-                  ))}
-                </div>
+                <FacetOptions
+                  facet={facet}
+                  selected={searchParams.getAll(facet.key)}
+                  onToggle={toggleFacet}
+                />
               </fieldset>
             ))}
 

@@ -14,7 +14,12 @@
  */
 
 import mongoose from 'mongoose';
-import { CANDIDATE_VISIBILITY, EVIDENCE_VERIFICATION } from '@evallo/shared';
+import {
+  CANDIDATE_VISIBILITY,
+  EVIDENCE_VERIFICATION,
+  VIDEO_PROVIDERS,
+  videoProviderFor,
+} from '@evallo/shared';
 
 /** Item visibility reuses the candidate's own vocabulary, so one concept has one set of words. */
 const ITEM_VISIBILITY = Object.freeze([
@@ -213,24 +218,13 @@ export const ENTRY_KINDS = Object.freeze({
 /**
  * Embed providers allowed for portfolio media (PRD §16.3).
  *
- * An allow-list rather than a URL check: accepting any link would let a profile embed arbitrary
- * third-party content into a recruiter's browser, which is the exact risk §16.3 names.
+ * The list itself moved to `@evallo/shared` (`taxonomy/media.js`) once the BUILDER needed it too:
+ * "Add video" stays disabled until the link would be accepted, and a second copy of the host list
+ * in the client is precisely the drift ADR-009 exists to prevent — it shows up as a button enabled
+ * for a link the server then rejects.
+ *
+ * These re-exports keep the existing server-side names working, so `providerFor` remains the one
+ * function the write path and the validation schema both call.
  */
-export const MEDIA_PROVIDERS = Object.freeze({
-  'youtube.com': 'YouTube',
-  'www.youtube.com': 'YouTube',
-  'youtu.be': 'YouTube',
-  'vimeo.com': 'Vimeo',
-  'www.vimeo.com': 'Vimeo',
-});
-
-/** Resolves a URL to an allowed provider, or null when it is not on the list. */
-export function providerFor(url) {
-  try {
-    const parsed = new URL(String(url));
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-    return MEDIA_PROVIDERS[parsed.hostname] ?? null;
-  } catch {
-    return null;
-  }
-}
+export const MEDIA_PROVIDERS = VIDEO_PROVIDERS;
+export const providerFor = videoProviderFor;

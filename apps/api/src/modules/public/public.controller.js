@@ -10,6 +10,7 @@ import {
   getDirectoryFacets,
   getPublicCompanyBySlug,
 } from './companyPublic.service.js';
+import { listPublicRoles, getRoleFacets } from './rolePublic.service.js';
 import { submitCompanyInterest } from '../interests/interest.service.js';
 
 /** Attribution derived from the request. Never trusted from the client body. */
@@ -46,6 +47,22 @@ export async function getCompanyDirectory(req, res) {
 /** Facet counts for the directory filter panel. */
 export async function getCompanyDirectoryFacets(_req, res) {
   return sendSuccess(res, await getDirectoryFacets());
+}
+
+/**
+ * Candidate role search — one row per active hiring intent, across every publicly visible company.
+ *
+ * Distinct from the directory above: that returns organisations and can filter BY role, this
+ * returns roles. Same visibility predicate, so a role cannot appear for a company that could not.
+ */
+export async function getRoles(req, res) {
+  const { roles, meta } = await listPublicRoles(req.query);
+  return sendSuccess(res, roles, { meta });
+}
+
+/** Facet counts for the role filter panel. */
+export async function getRoleSearchFacets(_req, res) {
+  return sendSuccess(res, await getRoleFacets());
 }
 
 /** PUB-02 — public company profile. */

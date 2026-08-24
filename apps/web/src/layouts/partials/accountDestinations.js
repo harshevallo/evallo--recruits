@@ -137,16 +137,25 @@ export function accountDestinations(capabilities, pathname = '') {
   }
 
   /*
-   * Candidate deep links, below the switcher rather than inside it. These are places within a
-   * workspace, not workspaces — and on a phone this menu is the only account surface, so the two
-   * a candidate reaches for away from their desk belong one tap deep.
+   * PROFILE MANAGEMENT lives here, not in the workspace rail.
+   *
+   * The rail is daily work — searching for roles and companies, activity, messages. Maintaining a
+   * profile is occasional, and giving it half the rail made the product read as though editing your
+   * CV were the daily task. This menu is the natural home: it is already the account area, it is
+   * already on every authenticated screen, and it already carried Portfolio & sharing.
+   *
+   * Every route is the SAME route the rail pointed at — nothing was moved or removed, only
+   * relocated in the navigation.
    */
   if (hasCandidate) {
     groups.push({
       group: 'candidate',
+      label: 'Your profile',
       items: [
-        { to: PATHS.CANDIDATE_PORTFOLIO, label: 'Portfolio & sharing' },
-        { to: PATHS.CANDIDATE_MESSAGES, label: 'Messages' },
+        { to: PATHS.CANDIDATE_PORTFOLIO, label: 'Portfolio & sharing', icon: 'id-card' },
+        { to: PATHS.CANDIDATE_PROFILE_BUILDER, label: 'Edit profile', icon: 'user-pen' },
+        { to: PATHS.CANDIDATE_PROFILE_PREVIEW, label: 'Publish & privacy', icon: 'eye' },
+        { to: PATHS.CANDIDATE_VISIBILITY, label: 'Visibility', icon: 'shield-halved' },
       ],
     });
   }

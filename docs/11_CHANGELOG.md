@@ -90,7 +90,157 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
   exist. Blocks `/me`, `/p/`, `/c/`, `/home`, `/settings` and every auth flow; allows the marketing
   site and the public company directory.
 
+### Added
+- **2026-08-24 — Search for Roles, a second search beside company discovery.** `/me/roles`, backed
+  by new `GET /api/public/roles` + `/roles/facets`.
+
+  Two searches rather than one with a mode flag, because the result UNIT differs: roles returns
+  hiring intents with their company attached as context, the directory returns organisations with
+  roles as tags. One screen would have meant one card leading with whichever thing a flag said. The
+  role card inverts the directory's emphasis — **title primary, company secondary** — which is why
+  it is a new component rather than a reused `CompanyCard` or `OpenRoleCard` (the latter sits on a
+  company's own page and deliberately never names the company).
+
+  **Visibility is inherited, not restated.** `publiclyVisible()` was exported from
+  `companyPublic.service.js` and role search resolves visible companies through it FIRST, then
+  queries active intents within them. So there is no code path that can return an intent whose
+  company was not already proved visible, and unpublishing a company removes every one of its roles
+  with no second rule to remember. Compensation still respects each intent's own
+  `compensation.visibility`, and `interestQuestions` never leave the server.
+
+  Filters: keyword (new text index on `hiringIntents`, title weighted over description), role
+  category, subject, engagement, delivery, country, free-text city/region, and an experience
+  CEILING — "roles wanting at most N years", which deliberately keeps roles that state no
+  requirement, because silence is not a demand for more than you have. Compensation is not a filter:
+  most intents hide it, so a pay range would silently drop the majority of results.
+
+  Clicking a role goes to `/me/companies/<slug>#open-roles` — an anchor that already existed — so
+  the consent disclosure, intent selector and access grant are the ones CAN-06/CAN-07 already own.
+  No second interest implementation.
+
 ### Changed
+- **2026-08-24 — The candidate rail is daily work only.** DAILY is now Search for Roles · Search for
+  Companies · Your Activity (renamed from "Home", which said where the screen sat rather than what
+  it is) · Messages, with the two lists those searches produce beneath. Profile management moved
+  into the account menu, which the avatar and mobile drawer already share and which already carried
+  Portfolio & sharing.
+
+  **No route was removed.** `/me/portfolio`, `/me/profile`, `/me/profile/preview` and
+  `/me/visibility` are all still there and all still one click away — they were relocated in the
+  navigation, not deleted. Maintaining a profile is occasional work; giving it half the rail made
+  the product read as though editing your CV were the daily task.
+
+### Fixed
+- **2026-08-24 — "Add video" could create two entries from one double-click.** The guard was
+  `if (busy) return`, and `busy` is React state — so two clicks dispatched in the same tick both
+  read `false` from the same closure and both fired. Reproduced it: three clicks, three `POST`s,
+  duplicate rows. The in-flight latch is now a **ref**, which updates synchronously, so the second
+  call sees the first; the same fix covers edit and remove in that section. This is the pattern
+  `ProfileBuilderPage` already used for section saves — the media section predated it.
+
+### Changed
+- **2026-08-24 — Portfolio videos play inside the builder too, and "Add video" is properly gated.**
+
+  Three things, all in Portfolio & Media:
+
+  **The star came off "Video link".** Nothing there is required of the candidate: the media section
+  is `optional: true` and never contributes to `publishBlockers`, so a profile publishes perfectly
+  well with no video at all (PRD §8.5 — "no evidence item is required to publish"). The star said
+  the opposite, and it was the only starred field in an entirely optional block. A link IS required
+  to create an *entry*, and that requirement now sits on the submit button, stated at the moment it
+  applies rather than as a permanent mark. "Video title" keeps its star: it is a property of a
+  video you have already chosen to add, and never read as "you must add one".
+
+  **"Add video" stays disabled** until the link would actually be accepted — empty, malformed, and
+  non-allow-listed hosts all keep it off, including lookalikes like `youtube.com.evil.test`. The
+  check is `isSupportedVideoUrl` imported from `@evallo/shared`, i.e. **the same function the API
+  validates with**, so the button can never be enabled for a link the server refuses or disabled
+  for one it would take. Server-side validation and its field errors are untouched — a valid link
+  with no title still round-trips and shows "Give the video a title".
+
+  **The tile plays in place.** It was an `<a target="_blank">` to youtube.com, which sent the
+  candidate out of the builder, mid-edit, to check their own clip. The player extracted into
+  `VideoLightbox`, now shared with the portfolio document, so the person managing a clip and the
+  recruiter reading it watch through one component. Nothing loads until the click; closing unmounts
+  the frame; a link the allow-list cannot resolve still opens out rather than becoming a dead
+  button.
+
+- **2026-08-24 — The video-provider allow-list moved to `@evallo/shared`.** It lived in
+  `profileEntry.model.js` and had already been half-copied into the client's embed resolver. Once
+  the builder needed it for the button gate that copy became a third, which is exactly the drift
+  ADR-009 exists to prevent. One list (`taxonomy/media.js`), imported by the API's write path, the
+  API's validation schema and the builder. The server-side names (`MEDIA_PROVIDERS`, `providerFor`)
+  are kept as re-exports so nothing downstream changed.
+
+- **2026-08-24 — Every country, and a search box that finds them.** `COUNTRY_OPTIONS` was a
+  17-market pilot shortlist plus "Elsewhere". It is now all **249 officially-assigned ISO 3166-1
+  alpha-2 territories** — membership written out deliberately (ICU also carries deprecated codes
+  like `ZR` and pseudo-codes like `ZZ`/`EU`), spelling generated from CLDR so no entry is a typo,
+  sorted by label. `OTHER` stays last for profiles that already stored it: dropping a value that
+  exists in the database turns a saved answer into a validation failure the next time its owner
+  edits an unrelated field.
+
+  One taxonomy, so the server's answer validation, the candidate builder, account settings, company
+  setup and the recruiter's search facet all widened together.
+
+  The combobox's matching became **ranked and accent-folded**, extracted to `utils/optionSearch` so
+  one implementation serves every long list. Typing `ind` now returns *India, Indonesia, British
+  Indian Ocean Territory* — exact-code, then label-prefix, then word-start, then anywhere — instead
+  of alphabetical order burying India under a territory almost nobody lives in. Folding is what
+  lets an ASCII keyboard reach Côte d'Ivoire, Åland Islands, Curaçao and São Tomé.
+
+  Two controls that would have broken under 249 options were fixed in the same pass rather than
+  left to be discovered: the recruiter's **country facet** would have rendered a 249-checkbox
+  scroll box, so any facet past twelve options now gets a filter (selected values stay pinned and
+  visible, or you could apply a filter you could no longer find to clear); and **company setup**'s
+  primary country moved from a native `<select>` to the same searchable control the candidate
+  builder and account settings already use.
+
+- **2026-08-24 — One forward button in the profile builder, on every section.** It was three
+  different controls: `Save and Next` on question sections, `Next: Portfolio & Media` on entry
+  sections, and — on the final Publish & Visibility step — **nothing at all**, so the one screen
+  where you most want a way out had an empty right-hand side. The forward button was also
+  `text-base` against Back's `text-sm`, which read as two unrelated widgets rather than a pair.
+
+  Now: same position, same typography as Back, same arrow. "Save and Next" wherever there is
+  somewhere to go, "Save & exit" on the last section — handing over to the same confirmation the
+  top bar uses, so there is one exit and one confirmation whichever control you reach for.
+
+  "Save and Next" is honest on every section, not only the ones with a form: question sections
+  submit and save, and every other path goes through `goToSection`, which flushes a pending draft
+  before it moves.
+
+  **Follow-up, same day — the button no longer changes SHAPE either.** Unifying the labels left two
+  things still moving it: mid-save it swapped to "Saving…" and dropped its arrow, so the control
+  resized under the cursor on every save. It now carries a `min-w` set to its widest label, and a
+  spinner occupies the arrow's slot rather than the icon being removed. Measured identical across
+  all eight sections and across idle / saving / disabled: **184×40px, 14px/600, 10px 24px padding,
+  12px radius**, on desktop and at 375px.
+
+  The final action stays **Save & exit**, not "Save and Skip". Publish & Visibility has no section
+  after it and holds no draft — the CAN-04 settings write as you change them — so there is nothing
+  to save on the way out and nowhere to skip to.
+
+  The save/navigate trace was verified request-by-request rather than by reading: one `PATCH` per
+  question section, **zero** for entry sections, none duplicated under triple-clicks, and a 400 /
+  connection-refused / retry sequence that stayed on its section each time before advancing.
+  `moveToSection` never saves, so `save() → goToSection() → save()` cannot occur.
+
+- **2026-08-24 — Portfolio videos play in place.** A video card was a link that threw the reader
+  onto youtube.com in a new tab — for a recruiter halfway down a portfolio, that loses their place
+  and lands them on a page built to show them somebody else's videos next. Clicking now opens a
+  16:9 player in a dialog on the same page, with **"Watch on YouTube/Vimeo"** inside it for anyone
+  who would rather have the full site.
+
+  The old comment defended the link on privacy grounds — "opening in a new tab keeps third-party
+  script out of this page entirely". That is answered rather than ignored: the iframe is mounted by
+  the **click**, not by the page, so reading a portfolio with six videos still makes zero requests
+  to either provider; YouTube is embedded through `youtube-nocookie.com`; `embedFor()` re-derives
+  the provider from the hostname, so PRD §16.3's allow-list still decides and an unrecognised URL
+  degrades to the old link rather than an empty black box; and `referrerPolicy` keeps a share
+  token in the path from ever reaching the video host. Closing the dialog unmounts the frame, which
+  is what stops playback.
+
 - **2026-08-21 — Workspace switching moved into the application shell.** A user is not "a
   candidate" or "a recruiter" — ADR-001 makes both derived capabilities and the same person
   routinely has both — but until now the only way to move between them was HOME-01's

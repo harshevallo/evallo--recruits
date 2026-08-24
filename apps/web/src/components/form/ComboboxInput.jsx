@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/ui';
+import { rankOptions } from '@/utils/optionSearch';
 import { cn } from '@/utils/cn';
 
 /**
@@ -49,12 +50,8 @@ export function ComboboxInput({
 
   const selected = options.find((option) => option.value === value) ?? null;
 
-  /* Substring match on the label, so "ind" finds India and "kingdom" finds United Kingdom. */
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter((option) => option.label.toLowerCase().includes(needle));
-  }, [options, query]);
+  /* Ranked substring match, shared with the talent-search facet panel — see utils/optionSearch. */
+  const matches = useMemo(() => rankOptions(options, query), [options, query]);
 
   /* Clamped at render: typing shortens the list under whatever was highlighted. */
   const activeOption = activeIndex >= 0 && activeIndex < matches.length ? activeIndex : -1;

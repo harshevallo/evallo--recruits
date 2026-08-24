@@ -105,6 +105,39 @@ npm run build --workspace=apps/web
 
 `apps/api` requires no build step — it runs ESM directly (ADR-012).
 
+### Vercel — why there are TWO `vercel.json` files
+
+Vercel reads **exactly one** `vercel.json`: the one at the project's configured **Root Directory**.
+Anything deeper is ignored. This repo therefore ships one for each of the two ways the project can
+be configured, and they describe the same deployment from their own vantage point:
+
+| Root Directory | File Vercel reads | `outputDirectory` |
+|---|---|---|
+| repo root (blank / `./`) | `vercel.json` | `apps/web/dist` |
+| `apps/web` | `apps/web/vercel.json` | `dist` |
+
+Both carry the SPA catch-all rewrite, which client-side routing needs — without it a deep link like
+`/me/portfolio` or a share link `/p/<token>` 404s on refresh. Static files still win over the
+rewrite, so `/robots.txt` and `/assets/*` are served as real files.
+
+**The failure this prevents**
+
+> `No Output Directory named "dist" found after the Build completed.`
+
+`dist` is the **Vite** preset default. The root `package.json` has no Vite dependency — it only
+delegates (`npm run build --workspace=apps/web`) — so Vercel scanning the repo root cannot detect
+Vite; it would look for `public`. Naming `dist` proves Vercel was looking at **`apps/web`**, and so
+never read the root `vercel.json` that points at `apps/web/dist`.
+
+Read the error the same way next time: **which directory Vercel names tells you which directory it
+thinks is the root.**
+
+**Preferred configuration:** Root Directory blank (the repo root). It is the correct shape for an
+npm-workspaces monorepo — one config file, and the install covers every workspace, which matters
+because `apps/web` imports `@evallo/shared` and Vite aliases `@shared` to `packages/shared/src`.
+Both paths live outside `apps/web`, so an `apps/web` root additionally requires Vercel's *"Include
+source files outside of the Root Directory"* setting to be on.
+
 ---
 
 ## 4. Deployment checklist

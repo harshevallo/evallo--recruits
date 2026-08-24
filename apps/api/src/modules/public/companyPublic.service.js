@@ -17,8 +17,12 @@ import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
 /**
  * The public visibility predicate. Every directory query starts from this — a company is
  * publicly listable only when published and not moderation-restricted (PRD §9.3).
+ *
+ * Exported so ROLE search can inherit it rather than restate it (`rolePublic.service.js`). A role
+ * must not surface when its company cannot: one predicate, two callers, so unpublishing a company
+ * removes its roles from search with no second rule to keep in sync.
  */
-function publiclyVisible() {
+export function publiclyVisible() {
   return {
     status: COMPANY_STATUS.PUBLISHED,
     moderationStatus: { $in: [MODERATION_STATUS.NONE, null] },

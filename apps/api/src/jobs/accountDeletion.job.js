@@ -242,6 +242,8 @@ export async function purgeAccount(user) {
           profilePicture: '',
           headline: '',
           phone: '',
+          phoneCountry: '',
+          accountLanguages: [],
           location: '',
           notificationPreferences: '',
         },

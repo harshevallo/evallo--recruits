@@ -131,6 +131,9 @@ const PortfolioPage = lazy(() =>
 const SavedCompaniesPage = lazy(() =>
   import('@/pages/candidate/SavedCompaniesPage').then((m) => ({ default: m.SavedCompaniesPage })),
 );
+const RoleSearchPage = lazy(() =>
+  import('@/pages/candidate/RoleSearchPage').then((m) => ({ default: m.RoleSearchPage })),
+);
 const VisibilitySettingsPage = lazy(() =>
   import('@/pages/candidate/VisibilitySettingsPage').then((m) => ({
     default: m.VisibilitySettingsPage,
@@ -353,6 +356,12 @@ export const router = createBrowserRouter([
                    * CAN-05 reuses the PUB-01 directory component rather than duplicating it —
                    * the only difference is where a card links, which is a prop.
                    */
+                  /*
+                   * Two searches, deliberately separate. Roles returns hiring intents across every
+                   * visible company; Companies returns organisations. Same visibility predicate on
+                   * the server, different result unit, different card.
+                   */
+                  { path: PATHS.CANDIDATE_ROLES, element: <RoleSearchPage /> },
                   {
                     path: PATHS.CANDIDATE_COMPANIES,
                     element: (

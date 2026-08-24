@@ -7,7 +7,7 @@ import {
   COUNTRY_OPTIONS,
 } from '@evallo/shared';
 import { Button, Container, Icon } from '@/components/ui';
-import { FormField, TextInput, Textarea, SelectInput, Checkbox } from '@/components/form';
+import { FormField, TextInput, Textarea, SelectInput, ComboboxInput, Checkbox } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchCompanyEditor, saveCompanyStep } from '@/services';
@@ -278,13 +278,21 @@ export function CompanySetupPage() {
                 </FormField>
                 <FormField label="Primary country" name="country" required className="mb-5">
                   {(f) => (
-                    <SelectInput
+                    /*
+                      Searchable, not a native select. The country vocabulary is all 249 ISO
+                      territories, and a 249-row dropdown is a scroll, not a choice — the same
+                      control the candidate builder and account settings already use.
+                    */
+                    <ComboboxInput
                       {...f}
-                      options={[{ value: '', label: 'Select…' }, ...COUNTRY_OPTIONS]}
+                      options={COUNTRY_OPTIONS}
+                      listboxLabel="Primary country"
+                      searchPlaceholder="Search countries…"
+                      emptyMessage="No countries match that search."
                       value={valueFor('location')?.country ?? ''}
                       disabled={isSaving}
-                      onChange={(e) =>
-                        setField('location', { ...valueFor('location'), country: e.target.value })
+                      onChange={(next) =>
+                        setField('location', { ...valueFor('location'), country: next })
                       }
                     />
                   )}

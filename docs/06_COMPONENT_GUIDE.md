@@ -18,7 +18,7 @@
 | `features/auth/components/` | `AuthCard` `FirstActionChoice` `GoogleButton` |
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
 | `features/candidate/components/` | `ProfileCompletenessCard` `VisibilityCard` `NextStepsCard` `OpportunitiesCard` `ActivityCard` `BuilderQuestion` `CandidateInterestModal` |
-| `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` `MessagesPage` |
+| `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `PortfolioPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` (“Shortlisted companies”) `SavedCompaniesPage` `MessagesPage` |
 | `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` `CompanyTeamPage` `CompanyHomePage` `CompanyInterestsPage` `CompanyTalentSearchPage` |
 | `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
 | `features/account/components/` | `CreateCompanyForm` `CompanyJoinSearch` |

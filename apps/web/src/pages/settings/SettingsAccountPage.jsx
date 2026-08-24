@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react';
-import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS, TIMEZONE_OPTIONS } from '@evallo/shared';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import {
+  COUNTRY_OPTIONS,
+  ACCOUNT_LANGUAGE_OPTIONS,
+  TIMEZONE_OPTIONS,
+  CALLING_CODE_OPTIONS,
+  callingCodeFor,
+  composePhone,
+  splitStoredPhone,
+} from '@evallo/shared';
 import { Avatar, Badge, Button } from '@/components/ui';
 import { FormField, TextInput, SelectInput, ComboboxInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { useAuth } from '@/context/AuthContext';
 import { updateCurrentUser } from '@/services';
+import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
 
 /**
  * SET-01 → Account. Account IDENTITY, not professional profile content.
@@ -20,20 +29,52 @@ export function SettingsAccountPage() {
   const [form, setForm] = useState(null);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
+
+  /*
+   * The in-flight latch is a REF, not the `busy` state.
+   *
+   * `busy` drives the disabled attribute, which is a render concern and therefore always one tick
+   * behind: two clicks dispatched in the same tick both read `busy === false` from the same
+   * closure and both fire. Verified — a double-click on Save sent TWO `PATCH /api/me` requests. A
+   * ref updates synchronously, so the second call sees the first.
+   */
+  const inFlight = useRef(false);
   const [feedback, setFeedback] = useState(null);
 
   /* Seed from the account once it is loaded, then leave the form alone — it is the draft. */
   useEffect(() => {
     if (!user || form) return;
+    /*
+     * The stored `phone` is one string; the form edits it as two fields.
+     *
+     * `phoneCountry` is authoritative when present — it is the only thing that can distinguish the
+     * twenty-six countries sharing `+1`. Only when it is absent (a legacy or seeded row) does
+     * `splitStoredPhone` try to infer it, and it declines to guess on any shared code, leaving the
+     * number rendered exactly as stored.
+     */
+    const inferred = splitStoredPhone(user.phone);
+    const phoneCountry = user.phoneCountry ?? inferred.iso ?? '';
+    const storedCode = callingCodeFor(phoneCountry);
+    const national =
+      storedCode && (user.phone ?? '').trim().startsWith(storedCode)
+        ? (user.phone ?? '').trim().slice(storedCode.length).trim()
+        : inferred.national;
+
     setForm({
       name: user.name ?? '',
-      phone: user.phone ?? '',
+      phoneCountry,
+      phone: national,
       headline: user.headline ?? '',
       country: user.location?.country ?? '',
       region: user.location?.region ?? '',
       city: user.location?.city ?? '',
       timezone: user.location?.timezone ?? '',
-      languages: user.languages ?? [],
+      /*
+       * ACCOUNT languages — "languages you speak" — not `user.languages`, which is the TEACHING
+       * field the profile builder owns and the recruiter search facets on. Both used to be edited
+       * here through one array; they are now separate fields with separate vocabularies.
+       */
+      accountLanguages: user.accountLanguages ?? [],
     });
   }, [user, form]);
 
@@ -49,7 +90,8 @@ export function SettingsAccountPage() {
 
   async function submit(event) {
     event.preventDefault();
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors({});
     setFeedback(null);
@@ -57,7 +99,13 @@ export function SettingsAccountPage() {
     try {
       await updateCurrentUser({
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        /*
+         * `phone` keeps its existing shape — the whole number, dial code included — so the export,
+         * the deletion purge and every reader downstream are unaffected. `phoneCountry` rides
+         * alongside purely so the picker can be restored exactly on the next load.
+         */
+        phone: composePhone(form.phoneCountry, form.phone),
+        phoneCountry: form.phoneCountry,
         headline: form.headline.trim(),
         location: {
           country: form.country,
@@ -65,7 +113,7 @@ export function SettingsAccountPage() {
           city: form.city.trim(),
           timezone: form.timezone,
         },
-        languages: form.languages,
+        accountLanguages: form.accountLanguages,
       });
       await refresh();
       setFeedback({ tone: 'success', text: 'Saved.' });
@@ -75,6 +123,7 @@ export function SettingsAccountPage() {
         setFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
       }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -152,23 +201,59 @@ export function SettingsAccountPage() {
             )}
           </FormField>
 
-          <FormField
-            label="Phone number"
-            name="phone"
-            error={errors.phone}
-            hint="Optional. Never shown to a company unless your contact rules allow it."
-            className="mb-5"
-          >
-            {({ hasError: _h, ...control }) => (
-              <TextInput
-                {...control}
-                type="tel"
-                value={form.phone}
-                disabled={busy}
-                onChange={(e) => set('phone', e.target.value)}
-              />
-            )}
-          </FormField>
+          {/*
+            Two controls, one datum.
+
+            Stacked below `sm` and side by side above it: at 375px a dialling picker and a number
+            input cannot share a row without one of them becoming too narrow to read. The grid gives
+            the picker a fixed comfortable column on desktop and the number the remaining space,
+            which is the shape the number actually wants — it is the longer of the two.
+          */}
+          <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-[13rem_1fr]">
+            <FormField
+              label="Country code"
+              name="phoneCountry"
+              error={errors.phoneCountry}
+              className="mb-0"
+            >
+              {({ hasError: _h, ...control }) => (
+                <ComboboxInput
+                  {...control}
+                  options={CALLING_CODE_OPTIONS}
+                  listboxLabel="Dialling country"
+                  placeholder="Select…"
+                  searchPlaceholder="Search countries…"
+                  emptyMessage="No countries match that search."
+                  value={form.phoneCountry}
+                  disabled={busy}
+                  onChange={(next) => set('phoneCountry', next)}
+                />
+              )}
+            </FormField>
+
+            <FormField
+              label="Phone number"
+              name="phone"
+              error={errors.phone}
+              hint="Optional. Never shown to a company unless your contact rules allow it."
+              className="mb-0"
+            >
+              {({ hasError: _h, ...control }) => (
+                <TextInput
+                  {...control}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
+                  placeholder={
+                    callingCodeFor(form.phoneCountry) ? '9876543210' : 'Include your country code'
+                  }
+                  value={form.phone}
+                  disabled={busy}
+                  onChange={(e) => set('phone', e.target.value)}
+                />
+              )}
+            </FormField>
+          </div>
 
           <FormField label="One-line description" name="headline" error={errors.headline} className="mb-5">
             {({ hasError: _h, ...control }) => (
@@ -235,40 +320,30 @@ export function SettingsAccountPage() {
           </FormField>
         </div>
 
-        <fieldset className="mb-5">
-          <legend className="mb-1.5 block text-sm font-semibold text-gray-700">Languages</legend>
-          <div className="flex flex-wrap gap-2">
-            {LANGUAGE_OPTIONS.map((option) => {
-              const selected = form.languages.includes(option.value);
-              return (
-                <label
-                  key={option.value}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    selected
-                      ? 'border-brand-blue bg-blue-50/40 font-semibold text-brand-dark'
-                      : 'border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-brand-blue"
-                    checked={selected}
-                    disabled={busy}
-                    onChange={() =>
-                      set(
-                        'languages',
-                        selected
-                          ? form.languages.filter((value) => value !== option.value)
-                          : [...form.languages, option.value],
-                      )
-                    }
-                  />
-                  {option.label}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
+        {/*
+          "Languages you speak" — a searchable checkbox group.
+
+          Native checkboxes rather than a custom multi-select widget: they bring keyboard support
+          and correct screen-reader semantics for free, and `fieldset`/`legend` is what associates
+          the group with its question (PRD §19). The filter appears only once the list is long
+          enough to be worth scanning past, using the same threshold and the same ranked,
+          accent-folded matcher as the country pickers.
+
+          A SELECTED language stays visible even when the query excludes it — a filter that hides
+          something you have already ticked is how you end up unable to untick it.
+        */}
+        <AccountLanguages
+          selected={form.accountLanguages}
+          disabled={busy}
+          onToggle={(value) =>
+            set(
+              'accountLanguages',
+              form.accountLanguages.includes(value)
+                ? form.accountLanguages.filter((v) => v !== value)
+                : [...form.accountLanguages, value],
+            )
+          }
+        />
 
         <div className="mb-6">
           <p className="mb-1.5 text-sm font-semibold text-gray-700">Account type</p>
@@ -297,5 +372,80 @@ export function SettingsAccountPage() {
         </div>
       </form>
     </>
+  );
+}
+
+/**
+ * The account-language picker.
+ *
+ * Its vocabulary is `ACCOUNT_LANGUAGE_OPTIONS` — curated global/national languages — and NOT the
+ * teaching taxonomy. See `packages/shared/src/taxonomy/accountLanguages.js` for why the two are
+ * separate datasets over separate fields.
+ */
+function AccountLanguages({ selected, disabled, onToggle }) {
+  const [query, setQuery] = useState('');
+  const searchable = ACCOUNT_LANGUAGE_OPTIONS.length > SEARCH_THRESHOLD;
+
+  const visible = useMemo(() => {
+    if (!searchable || !query.trim()) return ACCOUNT_LANGUAGE_OPTIONS;
+
+    const matched = rankOptions(ACCOUNT_LANGUAGE_OPTIONS, query);
+    const shown = new Set(matched.map((option) => option.value));
+    return [
+      ...ACCOUNT_LANGUAGE_OPTIONS.filter((o) => selected.includes(o.value) && !shown.has(o.value)),
+      ...matched,
+    ];
+  }, [query, searchable, selected]);
+
+  return (
+    <fieldset className="mb-5">
+      <legend className="mb-1.5 block text-sm font-semibold text-gray-700">
+        Languages you speak
+      </legend>
+      <p className="mb-2 text-xs text-gray-500">
+        Separate from the languages you teach in, which you set in your profile.
+      </p>
+
+      {searchable && (
+        <TextInput
+          type="search"
+          value={query}
+          aria-label="Search languages"
+          placeholder="Search languages\u2026"
+          disabled={disabled}
+          onChange={(event) => setQuery(event.target.value)}
+          className="mb-3 !py-2 !text-sm"
+        />
+      )}
+
+      {visible.length === 0 ? (
+        <p className="text-sm text-gray-500">No languages match that search.</p>
+      ) : (
+        <div className="flex max-h-60 flex-wrap gap-2 overflow-y-auto pr-1">
+          {visible.map((option) => {
+            const isOn = selected.includes(option.value);
+            return (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  isOn
+                    ? 'border-brand-blue bg-blue-50/40 font-semibold text-brand-dark'
+                    : 'border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-brand-blue"
+                  checked={isOn}
+                  disabled={disabled}
+                  onChange={() => onToggle(option.value)}
+                />
+                {option.label}
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </fieldset>
   );
 }

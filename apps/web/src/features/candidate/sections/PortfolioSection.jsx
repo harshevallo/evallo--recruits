@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { isSupportedVideoUrl } from '@evallo/shared';
+import { VideoLightbox } from '@/features/candidate/portfolio/VideoLightbox';
 import { Badge, Button, Icon, Modal } from '@/components/ui';
 import { FormField, TextInput, Textarea, SelectInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
@@ -44,16 +46,42 @@ function thumbnailFor(url) {
   return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
 }
 
-/** The dark 16:9 tile, with a real thumbnail behind it when we can name one. */
+/**
+ * The dark 16:9 tile, with a real thumbnail behind it when we can name one.
+ *
+ * Pressing it opens the shared player over this screen. It used to be an `<a target="_blank">`
+ * that sent the candidate to youtube.com — out of the builder, mid-edit, to check their own clip.
+ * `VideoLightbox` carries the provider allow-list and the "Watch on YouTube" escape hatch, so
+ * nothing is lost by staying here.
+ *
+ * A link the allow-list cannot resolve keeps the old behaviour rather than becoming a dead button.
+ */
 function VideoThumbnail({ entry }) {
   const thumbnail = thumbnailFor(entry.url);
+  const [playing, setPlaying] = useState(false);
+  const playable = isSupportedVideoUrl(entry.url);
 
+  const Tag = playable ? 'button' : 'a';
+  const tagProps = playable
+    ? { type: 'button', onClick: () => setPlaying(true), 'aria-label': `Play "${entry.title}"` }
+    : {
+        href: entry.url,
+        target: '_blank',
+        rel: 'noreferrer noopener',
+        'aria-label': `Open "${entry.title}" in a new tab`,
+      };
+
+  /*
+   * The player is a SIBLING of the tile, never a child.
+   *
+   * `Modal` portals to document.body, but a React portal still bubbles events up the REACT tree,
+   * not the DOM tree. Nested inside the tile, every click within the dialog — including Close —
+   * reached the tile's own `onClick` and re-opened it, so the dialog could not be dismissed.
+   */
   return (
-    <a
-      href={entry.url}
-      target="_blank"
-      rel="noreferrer noopener"
-      aria-label={`Open "${entry.title}" in a new tab`}
+    <>
+    <Tag
+      {...tagProps}
       className="relative block aspect-video w-full flex-shrink-0 overflow-hidden rounded-xl bg-gray-900 sm:w-48"
     >
       {thumbnail && (
@@ -74,7 +102,18 @@ function VideoThumbnail({ entry }) {
           {entry.provider}
         </span>
       )}
-    </a>
+    </Tag>
+
+    {playable && (
+      <VideoLightbox
+        open={playing}
+        onClose={() => setPlaying(false)}
+        url={entry.url}
+        title={entry.title}
+        subtitle={entry.prompt ?? undefined}
+      />
+    )}
+    </>
   );
 }
 
@@ -86,8 +125,33 @@ export function PortfolioSection({ entries = [], onChanged }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
+  /*
+   * The in-flight latch is a REF, not the `busy` state.
+   *
+   * `busy` drives the disabled attribute, which is a render concern and therefore always one tick
+   * behind. Two clicks dispatched in the same tick both read `busy === false` from the same
+   * closure and both fire — which is exactly how a double-click on "Add video" produced TWO
+   * entries and two POSTs. A ref updates synchronously, so the second call sees the first.
+   *
+   * Same pattern `ProfileBuilderPage` already uses for section saves; this section predated it.
+   */
+  const inFlight = useRef(false);
+
   // Preview is local: the URL is resolved to a thumbnail without asking the server first.
   const previewThumbnail = thumbnailFor(draft.url);
+
+  /*
+   * Can this draft be submitted at all?
+   *
+   * `isSupportedVideoUrl` is the SAME check the server applies — it is imported from
+   * `@evallo/shared`, not re-implemented here, so the button can never be enabled for a link the
+   * API would refuse or disabled for one it would take (ADR-009). Empty and malformed both fail
+   * it, which covers the two disabled cases without a second rule.
+   *
+   * `busy` is in the guard as well as inside `add()`: the handler already refuses a second call
+   * while one is open, and this stops the click from being possible in the first place.
+   */
+  const canAdd = !busy && isSupportedVideoUrl(draft.url);
 
   function setField(key, value) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -101,7 +165,8 @@ export function PortfolioSection({ entries = [], onChanged }) {
 
   async function add(event) {
     event.preventDefault();
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors({});
     try {
@@ -115,13 +180,15 @@ export function PortfolioSection({ entries = [], onChanged }) {
         setFeedback({ tone: 'error', text: error.message ?? 'We could not add that video.' });
       }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   async function saveEdit(event) {
     event.preventDefault();
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setErrors({});
     try {
@@ -140,11 +207,14 @@ export function PortfolioSection({ entries = [], onChanged }) {
         setFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
       }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   async function remove(entry) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       await deleteProfileEntry('media', entry.id);
@@ -153,6 +223,7 @@ export function PortfolioSection({ entries = [], onChanged }) {
     } catch (error) {
       setFeedback({ tone: 'error', text: error.message ?? 'We could not remove that.' });
     } finally {
+      inFlight.current = false;
       setBusy(false);
       setConfirmDelete(null);
     }
@@ -247,7 +318,19 @@ export function PortfolioSection({ entries = [], onChanged }) {
           </div>
         </div>
 
-        <FormField label="Video link" name="media-url" error={errors.url} required>
+        {/*
+          NO required marker, deliberately.
+
+          Nothing here is required of the candidate: the media section is `optional: true` and
+          never contributes to `publishBlockers`, so a profile publishes perfectly well with no
+          video at all (PRD §8.5 — "no evidence item is required to publish"). The star said the
+          opposite, and it was the only starred field in an entirely optional block.
+
+          A link IS required to create an ENTRY, and that requirement is now carried by the submit
+          button, which stays disabled until the link would be accepted — stated at the moment it
+          applies rather than as a permanent mark on an optional section.
+        */}
+        <FormField label="Video link" name="media-url" error={errors.url}>
           {({ hasError: _hasError, ...control }) => (
             <div className="flex gap-2">
               <TextInput
@@ -330,7 +413,7 @@ export function PortfolioSection({ entries = [], onChanged }) {
         </FormField>
 
         <div className="flex justify-end">
-          <Button type="submit" variant="primary" size="sm" radius="lg" disabled={busy}>
+          <Button type="submit" variant="primary" size="sm" radius="lg" disabled={!canAdd}>
             {busy ? 'Adding…' : 'Add video'}
           </Button>
         </div>

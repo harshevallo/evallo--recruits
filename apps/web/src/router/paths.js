@@ -71,6 +71,12 @@ export const PATHS = Object.freeze({
   CANDIDATE_SAVED: '/me/saved',
   // CAN-05 / CAN-06 — the signed-in view of the public directory and company page. Separate
   // paths, not a query flag, so the anonymous URLs stay clean and indexable (ADR-004).
+  /*
+   * "Search for Roles" — a sibling of company discovery, not a mode of it. The result unit is a
+   * ROLE (a hiring intent), where `/me/companies` returns organisations; different unit, different
+   * card, different facets.
+   */
+  CANDIDATE_ROLES: '/me/roles',
   CANDIDATE_COMPANIES: '/me/companies',
   CANDIDATE_COMPANY_PROFILE: '/me/companies/:slug',
   CANDIDATE_INTERESTS: '/me/interests',

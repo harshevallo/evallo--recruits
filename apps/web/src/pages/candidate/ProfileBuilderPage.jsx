@@ -400,14 +400,75 @@ export function ProfileBuilderPage() {
   /* Only question sections hold an unsaved draft; entries and visibility write as you edit. */
   const savesDraft = activeSection.kind === 'questions';
 
-  /** Bottom-of-pane navigation, shared by every section shape: Back on the left, forward on the right. */
+  /**
+   * Bottom-of-pane navigation: Back on the left, ONE forward action on the right, on every
+   * section.
+   *
+   * It used to be three different buttons wearing three different labels, and the differences
+   * tracked an implementation detail rather than anything the candidate could see:
+   *
+   *   question sections   "Save and Next"                  (has a draft to flush)
+   *   entry sections      "Next: Portfolio & Media"        (saves as you edit, so no "Save")
+   *   the last section    — nothing at all —               (no next section to point at)
+   *
+   * Three problems, in the order a candidate hits them. The label changed as you walked through
+   * the builder, so the button you had learned moved and renamed itself. Its text was a different
+   * SIZE from Back beside it (`text-base` against `text-sm`), which read as two unrelated
+   * controls. And the final section — Publish & Visibility — ended the flow with an empty right
+   * side, so the one screen where you most want a way out had none.
+   *
+   * Now: same place, same typography as Back, same arrow, one label per situation —
+   * "Save and Next" while there is somewhere to go, "Save & exit" on the last section.
+   *
+   * "Save and Next" is honest on every section, not just the ones with a form. Question sections
+   * submit and save; every other path goes through `goToSection`, which flushes a pending draft
+   * before it moves. There is no section where pressing it leaves work unsaved.
+   */
+  const isLastSection = !nextSection;
+
+  /* One typography contract for both buttons, so they read as a pair rather than two widgets. */
+  const FOOTER_BUTTON = 'rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors';
+
+  /**
+   * The forward button is the SAME SHAPE on every section and in every state.
+   *
+   * Two things used to move it. Its label carried the destination — "Next: Portfolio & Media" — so
+   * the button grew and shrank with the name of whatever came next. And mid-save it swapped to
+   * "Saving…" and dropped its arrow, so the control a candidate had just pressed visibly resized
+   * under the cursor, on every section, every time.
+   *
+   * `min-w` fixes the width to the widest label this button can hold, and the icon slot is never
+   * empty — the arrow is replaced by a spinner rather than removed. So the geometry is identical
+   * across all eight sections and across idle / saving / disabled, which is the point: the button
+   * you learn on Identity is the same object on Credentials.
+   *
+   * `justify-center` matters once the width is fixed: without it the shorter saving label would
+   * sit left inside a wider box.
+   */
+  const FORWARD_BUTTON =
+    `${FOOTER_BUTTON} inline-flex min-w-[11.5rem] items-center justify-center gap-2 ` +
+    'bg-brand-dark px-6 text-white shadow-lg hover:bg-black ' +
+    'disabled:cursor-not-allowed disabled:opacity-60';
+
+  /*
+   * The last section is the terminal step, and "Skip" is not what it does.
+   *
+   * Publish & Visibility has no section after it and holds no draft — it is a view onto the CAN-04
+   * settings, which write as you change them. So there is nothing to save on the way out and
+   * nowhere to skip to. The action that already exists in the product for leaving the builder is
+   * Save & exit (the top bar's, with its confirmation), and the footer hands over to exactly that
+   * rather than inventing a second way out.
+   */
+  const forwardLabel = isLastSection ? 'Save & exit' : 'Save and Next';
+  const forwardIcon = isLastSection ? 'circle-check' : 'arrow-right';
+
   const footerNav = (
     <div className="mt-8 flex items-center justify-between gap-3">
       {previousSection ? (
         <button
           type="button"
           onClick={() => goToSection(previousSection.key)}
-          className="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200/60"
+          className={`${FOOTER_BUTTON} text-gray-600 hover:bg-gray-200/60`}
         >
           Back
         </button>
@@ -415,40 +476,44 @@ export function ProfileBuilderPage() {
         <span />
       )}
 
-      {savesDraft ? (
-        /*
-         * Submits the section form rather than carrying its own handler, so the button and the
-         * Enter key are one path with one save between them. `form=` is what lets it sit out
-         * here in the footer, where the reference puts it, while belonging to the form above.
-         */
-        <Button
-          type="submit"
-          form={SECTION_FORM_ID}
-          variant="primary"
-          size="md"
-          radius="lg"
-          disabled={isSaving}
-          className="!bg-brand-dark !px-7 !py-3 hover:!bg-black"
-        >
-          {isSaving ? 'Saving…' : nextSection ? 'Save and Next' : 'Save section'}
-          {!isSaving && <Icon name="arrow-right" className="text-xs" />}
-        </Button>
-      ) : (
-        /* Nothing to save here, so it stays a plain move — calling it "Save" would be a lie. */
-        nextSection && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            radius="lg"
-            className="!bg-brand-dark !px-7 !py-3 hover:!bg-black"
-            onClick={() => goToSection(nextSection.key)}
-          >
-            Next: {SECTION_META[nextSection.key]?.title ?? nextSection.title}
-            <Icon name="arrow-right" className="text-xs" />
-          </Button>
-        )
-      )}
+      {/*
+        `type="submit"` with `form=` only where a form exists. That keeps the button and the Enter
+        key on ONE path with one save between them, and it is what lets the control sit out here
+        in the footer while belonging to the form above.
+
+        Everywhere else it is a plain button, because there is no form to submit — the handler
+        below still routes through the same save-then-move logic.
+      */}
+      <button
+        type={savesDraft && !isLastSection ? 'submit' : 'button'}
+        form={savesDraft && !isLastSection ? SECTION_FORM_ID : undefined}
+        disabled={isSaving}
+        onClick={
+          savesDraft && !isLastSection
+            ? undefined
+            : () => {
+                /*
+                 * The last section hands over to the SAME confirmation the top bar uses, rather
+                 * than exiting outright. One exit, one confirmation, whichever control you reach
+                 * for — and a long form should not lose work to a mis-click.
+                 */
+                if (isLastSection) setConfirmExit(true);
+                else goToSection(nextSection.key);
+              }
+        }
+        className={FORWARD_BUTTON}
+      >
+        {isSaving ? 'Saving…' : forwardLabel}
+        {isSaving ? (
+          /* Occupies the arrow's slot, so nothing reflows while the request is open. */
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white"
+          />
+        ) : (
+          <Icon name={forwardIcon} className="text-xs" />
+        )}
+      </button>
     </div>
   );
 

@@ -87,4 +87,16 @@ const hiringIntentSchema = new mongoose.Schema(
 hiringIntentSchema.index({ companyId: 1, status: 1 });
 hiringIntentSchema.index({ status: 1, roleCategories: 1 });
 
+/**
+ * Keyword search for the candidate's role search.
+ *
+ * `title` and `description` are the free text a company writes; the structured fields are already
+ * covered by facets, so putting them in here would make a keyword match indistinguishable from a
+ * filter. Mirrors the text index `companies` carries for the directory.
+ */
+hiringIntentSchema.index(
+  { title: 'text', description: 'text' },
+  { name: 'hiringIntent_text', weights: { title: 10, description: 1 } },
+);
+
 export const HiringIntent = mongoose.model('HiringIntent', hiringIntentSchema);

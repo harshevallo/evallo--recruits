@@ -13,3 +13,4 @@ export * from './earlyAccess.schema.js';
 export * from './company.schema.js';
 export * from './interest.schema.js';
 export * from './search.schema.js';
+export * from './roleSearch.schema.js';

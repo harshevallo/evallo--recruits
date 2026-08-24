@@ -13,8 +13,25 @@ export async function updateUserProfile(userId, updates) {
   const user = await User.findById(userId);
   if (!user) throw ApiError.notFound('User not found.');
 
-  // Allowlist: email, password, provider, platformRole, and status are never client-settable here.
-  const allowed = ['name', 'headline', 'profilePicture', 'location', 'languages'];
+  /*
+   * Allowlist: email, password, provider, platformRole, and status are never client-settable here.
+   *
+   * `phone` and `phoneCountry` were added 2026-08-24. `phone` had been missing since SET-01
+   * shipped, which meant the settings form rendered a phone input, `updateProfileValidation`
+   * accepted the value, and this loop then dropped it — the field looked editable and silently
+   * saved nothing. Verified by calling this function directly: `name` persisted, `phone` came back
+   * `undefined`.
+   */
+  const allowed = [
+    'name',
+    'headline',
+    'phone',
+    'phoneCountry',
+    'profilePicture',
+    'location',
+    'languages',
+    'accountLanguages',
+  ];
   for (const field of allowed) {
     if (updates[field] !== undefined) user[field] = updates[field];
   }

@@ -22,6 +22,13 @@ export default [
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
+      /*
+       * WHATWG globals that exist identically in Node and the browser, so using them does not
+       * break this package's environment-agnostic rule. Declared one by one rather than pulling in
+       * `globals.browser` or `globals.node`, which is what `no-restricted-globals` below is here
+       * to prevent.
+       */
+      globals: { URL: 'readonly', URLSearchParams: 'readonly' },
     },
     rules: {
       // No browser or Node globals: this code runs in both.

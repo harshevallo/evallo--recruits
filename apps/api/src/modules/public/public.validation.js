@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   earlyAccessRequestSchema,
   companyDirectoryQuerySchema,
+  roleSearchQuerySchema,
   publicInterestSchema,
 } from '@evallo/shared';
 
@@ -18,6 +19,8 @@ const slugParam = z.object({
 export const earlyAccessValidation = { body: earlyAccessRequestSchema };
 
 export const companyDirectoryValidation = { query: companyDirectoryQuerySchema };
+
+export const roleSearchValidation = { query: roleSearchQuerySchema };
 
 export const companyProfileValidation = { params: slugParam };
 

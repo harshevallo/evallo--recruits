@@ -12,7 +12,15 @@ const FOCUSABLE =
  * dialog treatment: focus moves in on open, is trapped while open, and returns to the trigger on
  * close. Escape and backdrop click both dismiss.
  */
-export function Modal({ open, onClose, title, description, children }) {
+/**
+ * @param {'md'|'wide'} [size]
+ *   `wide` is for content with its own aspect ratio to honour — currently the portfolio's video
+ *   player, where `max-w-lg` would letterbox a 16:9 frame down to something not worth watching.
+ *   Everything else stays `md`; a dialog wider than its content is harder to read, not easier.
+ */
+const PANEL_WIDTH = Object.freeze({ md: 'sm:max-w-lg', wide: 'sm:max-w-3xl' });
+
+export function Modal({ open, onClose, title, description, size = 'md', children }) {
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
@@ -104,7 +112,7 @@ export function Modal({ open, onClose, title, description, children }) {
           of the last control in the dialog — usually the primary action. `max()` keeps the normal
           padding on hardware that reports no inset.
         */
-        className="relative z-10 max-h-full w-full overflow-y-auto rounded-t-2xl bg-white p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-8 sm:pb-8"
+        className={`relative z-10 max-h-full w-full overflow-y-auto rounded-t-2xl bg-white p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:p-8 sm:pb-8 ${PANEL_WIDTH[size] ?? PANEL_WIDTH.md}`}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>

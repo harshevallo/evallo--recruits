@@ -270,6 +270,9 @@ export async function exportAccountData(userId) {
       email: user.email,
       name: user.name ?? null,
       phone: user.phone ?? null,
+      /* Part of the same personal datum — an export that omitted it would be incomplete. */
+      phoneCountry: user.phoneCountry ?? null,
+      accountLanguages: user.accountLanguages ?? [],
       headline: user.headline ?? null,
       location: user.location ?? null,
       languages: user.languages ?? [],

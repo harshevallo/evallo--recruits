@@ -32,6 +32,23 @@ export async function fetchPublicCompanies(params, options = {}) {
   return unwrapWithMeta(response);
 }
 
+/**
+ * Candidate role search — one result per active hiring intent, across every visible company.
+ *
+ * Separate from `fetchPublicCompanies`: that returns organisations and can filter by role, this
+ * returns roles with their company attached as context.
+ */
+export async function fetchPublicRoles(params, options = {}) {
+  const response = await apiClient.get('/public/roles', { params, signal: options.signal });
+  return unwrapWithMeta(response);
+}
+
+/** Facet counts for the role filter panel. */
+export async function fetchRoleFacets(options = {}) {
+  const response = await apiClient.get('/public/roles/facets', { signal: options.signal });
+  return unwrap(response);
+}
+
 /** Facet counts for the directory filter panel. */
 export async function fetchDirectoryFacets(options = {}) {
   const response = await apiClient.get('/public/companies/facets', {

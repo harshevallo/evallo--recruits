@@ -10,7 +10,10 @@ import {
   LANGUAGE_LABELS,
   EVIDENCE_VERIFICATION,
 } from '@evallo/shared';
+import { useState } from 'react';
 import { Avatar, Badge, Icon } from '@/components/ui';
+import { embedFor } from './videoEmbed';
+import { VideoLightbox } from './VideoLightbox';
 
 /**
  * The portfolio renderer — one presentation layer over the candidate data, for every audience.
@@ -222,6 +225,71 @@ function TimelineEntry({ title, subtitle, meta, description, outcome, verificati
 
       {tail}
     </li>
+  );
+}
+
+/* ── Media ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * One portfolio video: a card that opens the shared player in place.
+ *
+ * The player itself lives in `VideoLightbox`, because the BUILDER's Portfolio & Media section
+ * needs exactly the same thing — the candidate managing their clips and the recruiter reading
+ * them should watch through one component, not two that agree today.
+ */
+function MediaCard({ item }) {
+  const [playing, setPlaying] = useState(false);
+  const embed = embedFor(item.url);
+
+  const body = (
+    <>
+      <span className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-slate-100 text-gray-500 transition-colors group-hover:bg-brand-blue group-hover:text-white">
+        <Icon name="circle-play" className="text-base" />
+      </span>
+      <span className="min-w-0 text-left">
+        <span className="block text-sm font-bold text-brand-dark">{item.title}</span>
+        {item.prompt && <span className="mt-0.5 block text-xs text-gray-500">{item.prompt}</span>}
+        {item.description && (
+          <span className="mt-1.5 block text-sm text-gray-600">{item.description}</span>
+        )}
+        {item.provider && (
+          <span className="mt-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {item.provider}
+          </span>
+        )}
+      </span>
+    </>
+  );
+
+  const cardClass =
+    'group flex h-full w-full gap-4 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors hover:border-brand-blue/40 hover:bg-blue-50/40';
+
+  /*
+   * No recognised embed — an old link shape, or a provider the allow-list does not carry. It stays
+   * exactly what it was before: a link out. Better than a play button that opens nothing.
+   */
+  if (!embed) {
+    return (
+      <a href={item.url} target="_blank" rel="noopener noreferrer nofollow" className={cardClass}>
+        {body}
+      </a>
+    );
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setPlaying(true)} className={cardClass}>
+        {body}
+      </button>
+
+      <VideoLightbox
+        open={playing}
+        onClose={() => setPlaying(false)}
+        url={item.url}
+        title={item.title}
+        subtitle={item.prompt ?? undefined}
+      />
+    </>
   );
 }
 
@@ -568,35 +636,7 @@ export function PortfolioBody({ profile, showEmpty = false, contactSlot }) {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {(evidence?.media ?? []).map((item) => (
             <li key={item.id}>
-              {/*
-                A LINK, not an iframe. PRD §16.3 keeps embeds behind a provider allow-list; the
-                server has already checked the host, and opening in a new tab keeps third-party
-                script out of this page entirely rather than merely sandboxed within it.
-              */}
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="group flex h-full gap-4 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-brand-blue/40 hover:bg-blue-50/40"
-              >
-                <span className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-slate-100 text-gray-500 transition-colors group-hover:bg-brand-blue group-hover:text-white">
-                  <Icon name="circle-play" className="text-base" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-brand-dark">{item.title}</span>
-                  {item.prompt && (
-                    <span className="mt-0.5 block text-xs text-gray-500">{item.prompt}</span>
-                  )}
-                  {item.description && (
-                    <span className="mt-1.5 block text-sm text-gray-600">{item.description}</span>
-                  )}
-                  {item.provider && (
-                    <span className="mt-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                      {item.provider}
-                    </span>
-                  )}
-                </span>
-              </a>
+              <MediaCard item={item} />
             </li>
           ))}
         </ul>
