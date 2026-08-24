@@ -53,6 +53,12 @@ const SECTION_META = {
   visibility: { nav: 'Publish & Visibility', title: 'Publish & Visibility', icon: 'eye' },
 };
 
+/**
+ * Ties the section form to its submit button, which lives outside the form in the footer bar.
+ * One id is enough: only ever one question section is mounted at a time.
+ */
+const SECTION_FORM_ID = 'builder-section-form';
+
 /** The reference's sidebar order. Anything the server adds later is appended after these. */
 const SECTION_ORDER = [
   'professional_identity',
@@ -298,6 +304,26 @@ export function ProfileBuilderPage() {
   }
 
   /**
+   * The navigation half, on its own.
+   *
+   * Split out from `goToSection` because a caller that has JUST saved must not save again. React
+   * has not re-rendered by then, so `draft` still reads as dirty in this closure — routing the
+   * primary action through `goToSection` fired a second, identical PATCH for the same section.
+   */
+  function moveToSection(key) {
+    if (key === activeSection?.key) return;
+
+    setSearchParams({ section: key });
+    setDraft({});
+    setErrors({});
+    setSaveState('idle');
+    setSaveMessage(null);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // Move focus to the new section so keyboard and screen-reader users follow the change.
+    requestAnimationFrame(() => headingRef.current?.focus());
+  }
+
+  /**
    * Switching sections persists any pending edits first.
    *
    * Silently discarding them would lose the candidate's work — PRD §19 asks for recoverable
@@ -313,14 +339,7 @@ export function ProfileBuilderPage() {
       if (!saved) return;
     }
 
-    setSearchParams({ section: key });
-    setDraft({});
-    setErrors({});
-    setSaveState('idle');
-    setSaveMessage(null);
-    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    // Move focus to the new section so keyboard and screen-reader users follow the change.
-    requestAnimationFrame(() => headingRef.current?.focus());
+    moveToSection(key);
   }
 
   if (loadError) {
@@ -365,7 +384,23 @@ export function ProfileBuilderPage() {
     onChange: handleChange,
   });
 
-  /** Bottom-of-pane navigation, shared by every section shape: Back on the left, Next on the right. */
+  /**
+   * The section's ONE primary action: validate, save, then advance — in that order, and only in
+   * that order. A failed save (validation `details` from the API, or a network error) returns
+   * false and leaves us here, with `saveMessage` and the per-question errors already on screen,
+   * because being carried to the next section is exactly how a candidate loses track of what went
+   * wrong. `save()` is also the sole writer: it guards on `inFlight`, so a second click while the
+   * request is open is a no-op rather than a duplicate PATCH.
+   */
+  async function saveAndAdvance() {
+    if (!(await save())) return;
+    if (nextSection) moveToSection(nextSection.key);
+  }
+
+  /* Only question sections hold an unsaved draft; entries and visibility write as you edit. */
+  const savesDraft = activeSection.kind === 'questions';
+
+  /** Bottom-of-pane navigation, shared by every section shape: Back on the left, forward on the right. */
   const footerNav = (
     <div className="mt-8 flex items-center justify-between gap-3">
       {previousSection ? (
@@ -380,23 +415,39 @@ export function ProfileBuilderPage() {
         <span />
       )}
 
-      {nextSection && (
+      {savesDraft ? (
+        /*
+         * Submits the section form rather than carrying its own handler, so the button and the
+         * Enter key are one path with one save between them. `form=` is what lets it sit out
+         * here in the footer, where the reference puts it, while belonging to the form above.
+         */
         <Button
-          type="button"
+          type="submit"
+          form={SECTION_FORM_ID}
           variant="primary"
           size="md"
           radius="lg"
           disabled={isSaving}
           className="!bg-brand-dark !px-7 !py-3 hover:!bg-black"
-          onClick={async () => {
-            // Only advance if the save succeeded — otherwise the user would be carried away
-            // from validation errors they cannot see. Non-question sections save themselves.
-            if (await save()) await goToSection(nextSection.key);
-          }}
         >
-          Next: {SECTION_META[nextSection.key]?.title ?? nextSection.title}
-          <Icon name="arrow-right" className="text-xs" />
+          {isSaving ? 'Saving…' : nextSection ? 'Save and Next' : 'Save section'}
+          {!isSaving && <Icon name="arrow-right" className="text-xs" />}
         </Button>
+      ) : (
+        /* Nothing to save here, so it stays a plain move — calling it "Save" would be a lie. */
+        nextSection && (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            radius="lg"
+            className="!bg-brand-dark !px-7 !py-3 hover:!bg-black"
+            onClick={() => goToSection(nextSection.key)}
+          >
+            Next: {SECTION_META[nextSection.key]?.title ?? nextSection.title}
+            <Icon name="arrow-right" className="text-xs" />
+          </Button>
+        )
       )}
     </div>
   );
@@ -680,11 +731,17 @@ export function ProfileBuilderPage() {
                   <CredentialsSection entries={activeSection.entries} onChanged={reload} />
                 )
               ) : (
+                /*
+                  The submit button for this form is "Save and Next", down in `footerNav` — the
+                  section used to carry both a "Save section" button here AND a "Next" button
+                  below, which made saving and moving on look like two decisions when it is one.
+                */
                 <form
+                  id={SECTION_FORM_ID}
                   noValidate
                   onSubmit={(e) => {
                     e.preventDefault();
-                    save();
+                    saveAndAdvance();
                   }}
                 >
                   {renderQuestionSection(activeSection, layout, user)}
@@ -697,19 +754,6 @@ export function ProfileBuilderPage() {
                       {saveMessage}
                     </StatusRegion>
                   )}
-
-                  <div className="mt-6 flex justify-end">
-                    <Button
-                      type="submit"
-                      variant="outlineDark"
-                      size="md"
-                      radius="lg"
-                      className="!border-gray-300 !bg-white !text-brand-dark hover:!bg-gray-50"
-                      disabled={isSaving}
-                    >
-                      {isSaving ? 'Saving…' : 'Save section'}
-                    </Button>
-                  </div>
                 </form>
               )}
 

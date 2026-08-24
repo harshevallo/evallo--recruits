@@ -1,6 +1,6 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-12 (production-readiness hardening pass)
+**Last updated:** 2026-08-23 (CAN-02 country combobox + consolidated Save and Next)
 **Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
 **Overall:** 36 of 45 screens complete, 4 partial, 4 pending, 1 post-MVP
 
@@ -64,6 +64,7 @@
 | **Candidate IA** | 2026-08-21 | Rail regrouped DAILY / MY PROFILE / ACCOUNT; Profile vs Portfolio made distinct |
 | **Workspace switcher** | 2026-08-21 | Candidate ↔ recruiter from the account menu and mobile drawer, on every authenticated screen |
 | **Footer removed from the app** | 2026-08-21 | `MarketingLayout footer={false}` for the signed-in block; public pages keep the full footer |
+| **CAN-02 — searchable Country + one forward button** | 2026-08-23 | New `ComboboxInput` primitive (ARIA 1.2 combobox); `[ Save and Next ]` replaces the "Save section" + "Next" pair. Fixed: every Next was sending the section **twice** |
 
 ### 🔄 In Progress
 **The candidate journey is complete through CAN-09, and the recruiter loop runs end to end**

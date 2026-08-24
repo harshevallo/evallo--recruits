@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react';
-import { FormField, TextInput, Textarea, SelectInput, Checkbox } from '@/components/form';
+import {
+  FormField,
+  TextInput,
+  Textarea,
+  SelectInput,
+  ComboboxInput,
+  Checkbox,
+} from '@/components/form';
 import { Icon } from '@/components/ui';
 
 /**
@@ -320,6 +327,11 @@ function ChipPicker({ field, options, selected, disabled, onToggle, onReplace })
  *                                     the field's own label would repeat it. Still rendered for
  *                                     assistive tech — hidden visually, never removed.
  * @param {string}  [props.className]  Spacing override, for sections that group fields in a grid.
+ * @param {boolean} [props.searchable] Draw a `single_select` as a searchable box instead of a
+ *                                     native select. A LAYOUT concern, like `icon`: it changes
+ *                                     nothing about which options are valid or what is stored,
+ *                                     so it does not belong in the bank alongside `presentation`.
+ * @param {string}  [props.searchNoun] What the search box says it searches, e.g. "countries".
  */
 export function BuilderQuestion({
   question,
@@ -330,6 +342,8 @@ export function BuilderQuestion({
   hideLabel = false,
   className = 'mb-6',
   icon = null,
+  searchable = false,
+  searchNoun = 'options',
 }) {
   const { key, label, help, placeholder, type, options, maxLength, presentation } = question;
 
@@ -441,6 +455,27 @@ export function BuilderQuestion({
             );
 
           case 'single_select':
+            /*
+             * Same answer, same vocabulary, different way in: a searchable box for lists long
+             * enough that FINDING the option is the work. `onChange` still emits an option value
+             * or null, so nothing downstream can tell which control produced it.
+             */
+            if (searchable) {
+              return (
+                <ComboboxInput
+                  {...field}
+                  options={options ?? []}
+                  listboxLabel={label}
+                  value={value ?? ''}
+                  placeholder="Select…"
+                  searchPlaceholder={`Search ${searchNoun}…`}
+                  emptyMessage={`No ${searchNoun} match that search.`}
+                  disabled={disabled}
+                  onChange={(next) => onChange(key, next || null)}
+                />
+              );
+            }
+
             return (
               <SelectInput
                 {...field}

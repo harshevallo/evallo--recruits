@@ -52,7 +52,12 @@ export function IdentitySection({ layout, user }) {
       <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
         {layout.render('fullName')}
         {layout.render('pronouns')}
-        {layout.render('country')}
+        {/*
+          Country is the one select here long enough to be worth typing at: the list runs well
+          past a screen, and a candidate already knows the answer before they open it. The
+          options are still the bank's, so this is how the field is DRAWN, not what it accepts.
+        */}
+        {layout.render('country', { searchable: true, searchNoun: 'countries' })}
         {layout.render('region', { icon: 'location-dot' })}
         {layout.render('timezone')}
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS, TIMEZONE_OPTIONS } from '@evallo/shared';
 import { Avatar, Badge, Button } from '@/components/ui';
-import { FormField, TextInput, SelectInput } from '@/components/form';
+import { FormField, TextInput, SelectInput, ComboboxInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { useAuth } from '@/context/AuthContext';
 import { updateCurrentUser } from '@/services';
@@ -182,14 +182,18 @@ export function SettingsAccountPage() {
             )}
           </FormField>
 
+          {/* Same field, same vocabulary as the builder's — so the same searchable control. */}
           <FormField label="Country" name="country" error={errors.location} className="mb-5">
             {({ hasError: _h, ...control }) => (
-              <SelectInput
+              <ComboboxInput
                 {...control}
-                options={[{ value: '', label: 'Select…' }, ...COUNTRY_OPTIONS]}
+                options={COUNTRY_OPTIONS}
+                listboxLabel="Country"
+                searchPlaceholder="Search countries…"
+                emptyMessage="No countries match that search."
                 value={form.country}
                 disabled={busy}
-                onChange={(e) => set('country', e.target.value)}
+                onChange={(next) => set('country', next)}
               />
             )}
           </FormField>

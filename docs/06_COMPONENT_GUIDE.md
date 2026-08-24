@@ -13,7 +13,7 @@
 | Location | Components |
 |---|---|
 | `components/ui/` | `Avatar` `Badge` `Button` `Container` `Icon` `Logo` `Modal` `Pagination` `Section` `SectionHeading` |
-| `components/form/` | `Checkbox` `FormField` `PasswordInput` `SelectInput` `TextInput` `Textarea` |
+| `components/form/` | `Checkbox` `ComboboxInput` `FormField` `PasswordInput` `SelectInput` `TextInput` `Textarea` |
 | `components/feedback/` | `EmptyState` `Skeleton` `StatusRegion` |
 | `features/auth/components/` | `AuthCard` `FirstActionChoice` `GoogleButton` |
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
@@ -161,6 +161,7 @@ are not built yet.
 | `TextInput` *(built; not floating-label)* | Top-aligned label, per the founder HTML | **Must** use a real `<label htmlFor>`. A placeholder-only visual label is inaccessible — and this component appears on nearly every screen |
 | `PasswordInput` | Password with strength feedback and show/hide | AUTH-03, AUTH-12 |
 | `SelectInput` *(built; single-select only)* | Taxonomy selection | Keyboard navigable; used heavily by search filters |
+| `ComboboxInput` *(built; single-select)* | Taxonomy selection where the list is long enough that **finding** the option is the work | Same vocabulary, same stored value as `SelectInput` — only the way in differs. See §4.1 |
 | `Textarea` | Long-form input with counter | |
 | `Checkbox` / `RadioGroup` | | Grouped with `fieldset` + `legend` |
 | `Modal` | Focus-trapped dialog | Returns focus to the trigger on close |
@@ -208,6 +209,7 @@ checked rather than assumed.
 | `FormField` | `components/form/FormField.jsx` | UI |
 | `TextInput` | `components/form/TextInput.jsx` | UI |
 | `SelectInput` | `components/form/SelectInput.jsx` | UI |
+| `ComboboxInput` | `components/form/ComboboxInput.jsx` | UI |
 | `StatusRegion` | `components/feedback/StatusRegion.jsx` | UI |
 | `MarketingLayout` | `layouts/MarketingLayout.jsx` | Layout |
 | `MarketingNavbar` | `layouts/partials/MarketingNavbar.jsx` | Layout |
@@ -260,7 +262,8 @@ auth screens and company pages inherit them for free.
 | `Avatar` | UI | Photo or initials | `src`, `initials`, `size`, `shape` | Initials fallback required (PRD §7.3 — logos optional) |
 | `FormField` | UI | Label + control + error + hint | `label`, `name`, `error`, `hint`, `required` | Owns `htmlFor`/`id` wiring and `aria-describedby`/`aria-invalid`. **The HTML's labels are unassociated — this component is the fix** |
 | `TextInput` | UI | Text/email input | standard input props | Floating label per PRD §19.1 — see the open question below |
-| `SelectInput` | UI | Native select | `options` | Keyboard-native; do not replace with a custom listbox without an a11y budget |
+| `SelectInput` | UI | Native select | `options` | Keyboard-native; **still the default**. Do not replace with a custom listbox without an a11y budget — see `ComboboxInput` below, which paid one |
+| `ComboboxInput` | UI | Searchable single-select | `options`, `value`, `onChange`, `listboxLabel`, `searchPlaceholder`, `emptyMessage` | ARIA 1.2 combobox with list autocomplete. `onChange` receives the **value**, not an event. Emits only option values, so free text can never reach the answer |
 | `MarketingFooter` | Layout | Public footer | `columns` | Shared by MKT-01, PUB-01, PUB-02 |
 | `MobileNavDrawer` | Layout | Mobile menu | `open`, `onClose`, `items` | Focus trap, Escape to close, focus restore — none present in the HTML |
 
@@ -391,6 +394,33 @@ to its own collection, so nothing about the API or the data changes shape.
 **Profile strength** is derived from the same `publishBlockers` the publish gate uses, so the meter
 cannot disagree with whether the profile can actually be published. `unanswered` is reported
 separately so an optional-answer nudge is never conflated with the publish gate.
+
+### One primary action per question step
+
+A question step offers **`[ Back ]` … `[ Save and Next ]`** and nothing else. It used to carry two
+forward controls — a "Save section" button inside the form and a "Next: <step>" button below it —
+which presented saving and moving on as two decisions when the builder only ever treats them as
+one. The order is fixed and it does not skip: **validate → save → advance**, and a rejected save
+(field `details` from the API, or a transport error) leaves the candidate on the step with the
+inline errors and the summary already rendered.
+
+Three properties hold it together, and each is load-bearing:
+
+- **One writer.** `save()` is the only function that PATCHes a section. `saveAndAdvance()` calls it
+  once and then calls `moveToSection()` — the *navigation half* of `goToSection()`, split out for
+  exactly this reason. Going through `goToSection()` re-entered `save()`, because React has not
+  re-rendered when the handler resumes and `draft` still reads dirty in that closure, so every
+  "Next" sent **two identical PATCHes**.
+- **One entry point.** The button lives in the footer but is `type="submit" form="…"`, so the
+  button and the Enter key are the same path with one save between them.
+- **One in-flight request.** `save()` guards on an `inFlight` ref set synchronously, so a
+  double-click is a no-op rather than a second write; the button also disables and reads "Saving…".
+
+Steps that are not `kind: 'questions'` keep a plain **`Next: <step>`** — entries and visibility
+write as they are edited, so there is no draft to save and calling the control "Save" would be a
+lie. The final step (Publish & Visibility) has no next step and is given no forward control; the
+"no next section" branch on a question step falls back to plain **`Save section`** rather than
+inventing a finish action the product does not have.
 
 ---
 

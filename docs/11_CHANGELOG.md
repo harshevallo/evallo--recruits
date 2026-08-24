@@ -9,6 +9,39 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Changed
+- **2026-08-23 — Country is searchable, and a question step has one forward button instead of
+  two.** Two CAN-02 usability changes, plus a duplicate-write bug the second one exposed.
+
+  **Country.** The field was a native `<select>` over the 18-entry `COUNTRY_OPTIONS` pilot list;
+  it is now a searchable box, so a candidate types "ind" instead of scanning. New
+  `components/form/ComboboxInput.jsx` — the ARIA 1.2 combobox pattern with list autocomplete: the
+  text box holds the selected label when closed and the query when open, options are announced via
+  `aria-activedescendant` so focus never leaves the box, and Arrow keys, Enter, Escape, outside
+  click and Tab all behave. **Nothing about the data changed**: the options are still the question
+  bank's (`optionSet: 'countries'` → `COUNTRY_OPTIONS`), the value emitted is still the ISO
+  alpha-2 code the API validates and `users.location.country` stores, and the field is still
+  `requiredForPublish` and still savable empty as a draft. It is drawn from the *layout*
+  (`layout.render('country', { searchable: true })`), not from the bank's `presentation` enum,
+  because it changes neither what is stored nor which options are valid — so it needs no bank
+  revision. `SelectInput` remains the default for short lists. Applied to both surfaces that write
+  this field: the builder's Identity step and Settings → Account.
+
+  **Save and Next.** A question step showed a "Save section" button inside the form *and* a
+  "Next: <step>" button below it. They are now one primary action, `[ Save and Next ]`, which
+  validates, saves, and only then advances; a failed save keeps the candidate on the step with the
+  existing errors. It is `type="submit" form="…"`, so the button and the Enter key are one path.
+  Steps with no draft to save (entries, visibility) keep their plain `Next: <step>` — calling that
+  "Save" would be a lie — and the final step is still given no forward control.
+
+### Fixed
+- **2026-08-23 — Every "Next" in the profile builder sent the section twice.** The forward button
+  called `save()` and then `goToSection()`, which saves again when `draft` is non-empty. React has
+  not re-rendered when the handler resumes, so `setDraft({})` from the first save is not yet
+  visible in that closure and the dirty check passed — two identical PATCHes per step, every time.
+  `goToSection()` is now split, and the primary action calls the navigation half (`moveToSection`)
+  directly.
+
 ### Added
 - **2026-08-21 — Candidate portfolio, and a share link that respects the visibility model
   (ADR-019).** Two product changes shipped together, plus one bug they exposed.
