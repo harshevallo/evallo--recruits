@@ -22,6 +22,14 @@ export const RATE_LIMITS = Object.freeze({
    * is 256 bits, so this is defence in depth against traffic cost, not against guessing.
    */
   SHARE_LINK: { windowMs: 15 * 60 * 1000, max: 60 },
+  /*
+   * Media uploads (ADR-020).
+   *
+   * Tighter than any other authenticated write, because this is the only endpoint where one
+   * request costs megabytes of database storage rather than bytes. Twenty in fifteen minutes is
+   * far more than choosing a profile photo needs and far less than a script would want.
+   */
+  MEDIA_UPLOAD: { windowMs: 15 * 60 * 1000, max: 20 },
 });
 
 export const PAGINATION = Object.freeze({

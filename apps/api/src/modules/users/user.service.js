@@ -21,13 +21,19 @@ export async function updateUserProfile(userId, updates) {
    * accepted the value, and this loop then dropped it — the field looked editable and silently
    * saved nothing. Verified by calling this function directly: `name` persisted, `phone` came back
    * `undefined`.
+   *
+   * `profilePicture` was REMOVED from this list on 2026-08-24, when upload shipped (ADR-020).
+   * It is now written in exactly two places — `auth.service` on Google sign-in, and
+   * `media.service` on upload — both of which set a URL this system controls. While it sat here, a
+   * client could PATCH it to any URL that parsed, and that value is rendered as an `<img src>` on
+   * recruiter screens: an arbitrary third-party fetch from another user's browser, logging their IP
+   * on request. No client ever sent the field, so removing it changes no behaviour.
    */
   const allowed = [
     'name',
     'headline',
     'phone',
     'phoneCountry',
-    'profilePicture',
     'location',
     'languages',
     'accountLanguages',

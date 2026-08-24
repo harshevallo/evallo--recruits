@@ -1041,3 +1041,113 @@ New: `shareToken`, `shareEnabled`, `shareTokenCreatedAt` on `candidateProfiles` 
 index on `shareToken`); `apps/api/src/modules/portfolio/`; `share.service.js`; `/p/:token`;
 `apps/web/public/robots.txt`. Covered by 18 integration tests in `candidatePortfolio.test.js`, of
 which 13 are privacy assertions.
+
+---
+
+## ADR-020 — Profile photos: bytes in MongoDB now, object storage later
+
+**Status:** ⚠️ **Proposed — awaiting CTO approval.** Implemented behind the decision below;
+**supersedes the storage guidance in I-15** and should be revisited before the pilot scales.
+
+### Context
+
+The profile builder has shown a "Profile photo" block since CAN-02 shipped, and it has never
+worked. Both it and Settings → Account rendered whatever `users.profilePicture` held — which was
+populated in exactly one place, `auth.service.js`, from the Google OAuth payload. A candidate who
+signed up with an email address therefore had no way to ever have a photo, and the copy said so:
+*"Photo upload is not available yet."*
+
+That was honest, and it was also a real gap. A headshot is the single strongest signal on a
+candidate card, and every recruiter-facing surface has a hole where one should be: the pipeline, the
+talent search results, the messages list, the portfolio hero, the candidate detail page.
+
+`12_KNOWN_ISSUES.md` I-15 anticipated this and set a condition on it:
+
+> *"Whenever storage is chosen it must be object storage with pre-signed URLs; serving uploads
+> through the API process is the one choice that would undo the scaling profile described in I-10
+> and I-11."*
+
+That guidance is correct, and following it today means provisioning an R2 or S3 bucket, adding
+credentials to every environment, and writing a pre-signed-URL handshake — before a single candidate
+can pick a file.
+
+### Decision
+
+**Store the bytes in MongoDB, in a dedicated `mediaAssets` collection, served by the API.**
+
+The CTO was given both options with this trade-off stated plainly, and chose to ship. The
+constraint accepted alongside it is that this is explicitly an interim measure, and the design pays
+for the right to be interim:
+
+1. **The stored value is a URL, exactly as before.** `users.profilePicture` still holds an absolute
+   URL — it always did, because Google supplied one. Twelve surfaces read it into an `<img src>` and
+   **not one of them knows where the bytes live.** Moving to a bucket changes what new URLs point at
+   and leaves every existing URL working, because `GET /api/media/:id` can keep serving from the
+   collection for as long as rows remain. There is no migration of consumers, and no flag day.
+
+2. **The collection grows with PEOPLE, not with uploads.** A unique index on
+   `{ ownerUserId, kind }` makes an upload an upsert, so replacing a photo six times leaves one
+   document. This is the assumption the whole decision rests on, so it is asserted by a test
+   (*"replacing leaves exactly one document"*) rather than left as an intention.
+
+3. **The client downscales before uploading.** The browser centre-crops to a square, scales the
+   longest edge to 512px and re-encodes as WebP. A 900×600 PNG measured **1,250 bytes** stored.
+   A phone camera original would have been several megabytes, to be displayed at 40px in a sidebar.
+   Doing this server-side would mean `sharp` — a native dependency — on a request that currently
+   costs no CPU at all.
+
+4. **`data` is `select: false`.** Ownership checks, the deletion purge and any future listing work on
+   metadata alone. Only the streaming route asks for the bytes.
+
+### What was rejected, and why
+
+- **Object storage now (I-15 as written).** Correct destination, wrong week. It blocks a visible
+  broken feature behind infrastructure procurement. Revisit when photo volume or egress shows up in
+  the numbers — points 1–4 exist so that day is a configuration change, not a rewrite.
+- **Base64 on the user document.** Simplest possible change, and the worst. `users` is read on
+  virtually every authenticated request; inlining a 100 KB string would put it in the working set of
+  every one of them.
+- **GridFS.** Built for files over the 16 MB document limit. A 512px WebP is three orders of
+  magnitude under it, so GridFS adds chunk bookkeeping to solve a problem this data does not have.
+- **Multipart upload.** A photo upload carries one file and no fields. `multipart/form-data` would
+  add boundary parsing — and boundary-parsing attack surface — to encode nothing. The `Blob` is the
+  request body.
+
+### Security consequences, stated deliberately
+
+- **The declared `Content-Type` is never trusted.** It costs an attacker nothing to send. The format
+  is decided by sniffing magic bytes, and the stored `contentType` is what the *sniff* returned —
+  which is also what the file is later served as. An ELF binary sent as `image/png` is refused; a
+  real JPEG mislabelled as PNG is stored, correctly, as JPEG. Both are tested.
+- **`GET /api/media/:id` is unauthenticated, and this is a considered trade.** An `<img src>` cannot
+  send an Authorization header, and the twelve consuming surfaces span six authorization contexts
+  including a share link opened by a stranger with no account. It is acceptable *only* because of
+  what the asset is: the picture a person chose to represent themselves to employers. Nothing is
+  reachable from the URL but the image — no name, no location, no identifiers. The id is a 96-bit
+  ObjectId, so the space cannot be swept, and the URL is only ever disclosed inside a response that
+  already passed an authorization check. Responses carry `X-Robots-Tag: noindex` and
+  `Cache-Control: private` so an asset is exactly as visible as the URL it came in, and no more.
+- **`profilePicture` was removed from the `PATCH /api/me` allowlist.** While it sat there, any client
+  could set it to any URL that parsed — and that value is rendered as an `<img src>` in *other*
+  users' browsers, making it an arbitrary third-party fetch that logs a recruiter's IP on request.
+  It is now written in exactly two places, both server-side: Google sign-in, and upload. No client
+  ever sent the field, so this removes an attack surface without removing a behaviour.
+- **Uploads are rate limited** (`MEDIA_UPLOAD`, 20 per 15 minutes) — the only authenticated write
+  whose cost is measured in megabytes of storage rather than bytes.
+- **The deletion purge deletes the asset.** The tombstone step already `$unset` the pointer; on its
+  own that would have left a photograph of a face in the database indefinitely, reachable by anyone
+  who still held the URL.
+
+### Impact
+
+New: `mediaAssets` collection; `apps/api/src/modules/media/`; `POST`/`DELETE /api/me/photo`;
+`GET /api/media/:id`; `mediaUploadLimiter`; `apps/web/src/utils/imageResize.js`;
+`apps/web/src/features/account/ProfilePhotoUploader.jsx`.
+
+Changed: `user.service.js` (allowlist), `user.validation.js`, `errorHandler.js` (`entity.too.large`
+now reads as a validation error rather than a 500), `accountDeletion.job.js` (purge),
+`IdentitySection.jsx` and `SettingsAccountPage.jsx` (both stale "not available yet" blocks replaced
+by the shared uploader), `Icon.jsx` (`camera`).
+
+Covered by 19 integration tests in `profilePhoto.test.js`, of which 5 assert that the declared
+content type is disregarded.

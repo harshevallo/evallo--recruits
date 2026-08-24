@@ -17,6 +17,7 @@ import { Router } from 'express';
 import healthRoutes from './modules/health/health.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
 import portfolioRoutes from './modules/portfolio/portfolio.routes.js';
+import mediaRoutes from './modules/media/media.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/user.routes.js';
 import companyRoutes from './modules/companies/company.routes.js';
@@ -36,6 +37,15 @@ router.use('/public', publicRoutes);
  * query a candidate collection, and that invariant is more useful kept true than reused.
  */
 router.use('/portfolio', portfolioRoutes);
+
+/*
+ * ADR-020 — uploaded bytes, addressed by opaque id.
+ *
+ * Unauthenticated for the reason an `<img src>` cannot carry an Authorization header, and placed
+ * outside `/public` on the same grounds as `/portfolio` above. `media.controller.js` documents why
+ * a profile photo is the one asset class for which that trade is acceptable.
+ */
+router.use('/media', mediaRoutes);
 
 // Authentication — public (issues our own JWTs).
 router.use('/auth', authRoutes);

@@ -195,6 +195,9 @@ logs. Check it first after any deployment.
 | `POST` | `/api/auth/restore-account` | Restore token | cancels a pending deletion |
 | `GET` | `/api/me` | Bearer | HOME-01 |
 | `PATCH` | `/api/me` | Bearer | AUTH-04 |
+| `POST` | `/api/me/photo` | Bearer | ADR-020 — raw image body |
+| `DELETE` | `/api/me/photo` | Bearer | ADR-020 |
+| `GET` | `/api/media/:assetId` | — | ADR-020 — serves uploaded bytes |
 | `POST` | `/api/me/complete-onboarding` | Bearer | AUTH-05 |
 | `GET` | `/api/me/candidate-profile` | Bearer | CAN-01 |
 | `POST` | `/api/me/candidate-profile` | Bearer | HOME-01 |
@@ -506,10 +509,62 @@ HOME-01 in full, including the context switcher.
 
 **Purpose** — AUTH-04 and later personal profile edits.
 
-**Request** — any of `name`, `headline`, `profilePicture`, `location`, `languages`.
+**Request** — any of `name`, `headline`, `phone`, `phoneCountry`, `location`, `languages`,
+`accountLanguages`.
 
 **Notes** — Allowlisted. `email`, `password`, `provider`, `platformRole`, `status`, and
 `onboardingCompletedAt` are **not** settable here.
+
+`profilePicture` was **removed** from this list on 2026-08-24 (ADR-020). It is now written only by
+the server — Google sign-in, or `POST /api/me/photo` — because the value is rendered as an
+`<img src>` in *other* users' browsers, so an arbitrary URL here was an arbitrary third-party fetch
+that logged a recruiter's IP. Sending it is not an error; it is ignored.
+
+---
+
+### `POST /api/me/photo`
+
+**Purpose** — ADR-020. Uploads or replaces the signed-in user's profile photo.
+
+**Authentication** — Bearer. Rate limited (`MEDIA_UPLOAD` — 20 per 15 minutes).
+
+**Request** — **the raw image is the body.** Not `multipart/form-data`: this carries one file and no
+fields, so a multipart envelope would add boundary parsing to encode nothing. Send
+`Content-Type: image/png` (or `image/jpeg`, `image/webp`, `application/octet-stream`) with the bytes.
+Max 2 MB.
+
+**Response — `200`** — the same envelope as `GET /api/me`, with `user.profilePicture` pointing at the
+new asset. Returning the whole envelope is deliberate: the client pushes it into auth state and every
+avatar on screen updates in one hop.
+
+**Notes**
+- **The `Content-Type` you send is not trusted.** The format is decided by sniffing magic bytes, and
+  the stored type is what the sniff returned. A non-image is refused with `400 VALIDATION_ERROR`
+  regardless of what the header claimed; a real JPEG labelled `image/png` is accepted and stored as
+  JPEG.
+- **Replaces rather than accumulates.** A unique index on `{ownerUserId, kind}` makes this an upsert,
+  so a user has at most one photo document.
+- The returned URL carries `?v=<timestamp>`. The asset id is stable across replacement, so without
+  the suffix a browser would keep showing the previous photo.
+- Clients are expected to downscale first — `apps/web` centre-crops to a square, caps the longest
+  edge at 512px and re-encodes to WebP, which lands around 1–2 KB. The server does not resize and
+  does not assume the client did.
+- A body over the limit returns a `400` naming the `photo` field, not a `500`.
+
+---
+
+### `DELETE /api/me/photo`
+
+**Purpose** — ADR-020. Removes the uploaded photo.
+
+**Response — `200`** — the `GET /api/me` envelope with `profilePicture` cleared.
+
+**Notes**
+- **Idempotent.** Deleting when there is nothing to delete is a `200`.
+- Deletes the bytes, not just the pointer.
+- **Leaves an external picture alone.** A Google avatar is not ours to remove, and clearing it would
+  discard the only photo an account that never uploaded one has. Only a URL into `/api/media/` is
+  cleared.
 
 ---
 
@@ -1262,6 +1317,41 @@ rather than re-implementing it.
 
 > ⚠️ **No integration test covers any `/api/me/settings/*` endpoint.** Recorded in
 > `12_KNOWN_ISSUES.md`.
+
+---
+
+## 7i. Endpoint — uploaded media (ADR-020)
+
+### `GET /api/media/:assetId`
+
+**Purpose** — serves the bytes of an uploaded asset. Today that means profile photos.
+
+**Authentication** — **none.** An `<img src>` cannot send an `Authorization` header, and the twelve
+surfaces that render `profilePicture` span six authorization contexts, including a share link opened
+by someone with no account.
+
+**Response — `200`** — the image, with the `Content-Type` recorded at upload (from a byte sniff, not
+from any client header). `404` for a missing or malformed id — the two are indistinguishable, so the
+id space cannot be probed.
+
+**Headers**
+
+| Header | Value | Why |
+|---|---|---|
+| `Cache-Control` | `private, max-age=604800` | A recruiter's pipeline renders dozens at once, so caching matters; `private` keeps them out of shared proxies. Safe to cache for a week because replacement changes the `?v=` in the stored URL |
+| `X-Robots-Tag` | `noindex, nofollow, noarchive` | It must never become a search result |
+| `X-Content-Type-Options` | `nosniff` | The type is already established server-side; the browser must not re-guess |
+| `ETag` | `"<id>-<updatedAt>"` | A repeat visit comes back `304` with no body |
+
+**Notes**
+- **Why unauthenticated is acceptable here, and would not be for a document.** The asset is the
+  picture a person chose to represent themselves to employers. Nothing else is reachable from the
+  URL — no name, no location, no identifier. The id is a 96-bit ObjectId, so the space cannot be
+  swept, and the URL is only ever disclosed inside a response that already passed an authorization
+  check. See ADR-020; the reasoning does **not** transfer to CVs or message attachments.
+- Mounted at `/api/media`, deliberately **outside** `/api/public`, on the same grounds as
+  `/api/portfolio`: that module declares it may never query a candidate collection, and the
+  invariant is worth more kept true than reused.
 
 ---
 

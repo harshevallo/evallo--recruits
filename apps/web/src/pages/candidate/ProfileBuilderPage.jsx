@@ -13,7 +13,6 @@ import { ExpertiseSection } from '@/features/candidate/sections/ExpertiseSection
 import { PracticeSection } from '@/features/candidate/sections/PracticeSection';
 import { PortfolioSection } from '@/features/candidate/sections/PortfolioSection';
 import { CredentialsSection } from '@/features/candidate/sections/CredentialsSection';
-import { useAuth } from '@/context/AuthContext';
 import { fetchProfileBuilder, saveProfileSection } from '@/services';
 import { PATHS } from '@/router/paths';
 
@@ -89,10 +88,10 @@ const ENTRY_GROUP_TITLES = { experience: 'Work Experience', education: 'Educatio
  * panel. A section the map does not know still renders — as its questions in order — so a bank
  * revision that adds a section is never a blank screen.
  */
-function renderQuestionSection(section, layout, user) {
+function renderQuestionSection(section, layout) {
   switch (section.key) {
     case 'professional_identity':
-      return <IdentitySection layout={layout} user={user} />;
+      return <IdentitySection layout={layout} />;
     case 'role_preferences':
       return <PreferencesSection layout={layout} />;
     case 'teaching_expertise':
@@ -190,7 +189,6 @@ function readinessOf(builder) {
 export function ProfileBuilderPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
 
   const [builder, setBuilder] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -809,7 +807,7 @@ export function ProfileBuilderPage() {
                     saveAndAdvance();
                   }}
                 >
-                  {renderQuestionSection(activeSection, layout, user)}
+                  {renderQuestionSection(activeSection, layout)}
 
                   {saveMessage && (
                     <StatusRegion

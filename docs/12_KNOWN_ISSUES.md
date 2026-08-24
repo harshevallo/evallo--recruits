@@ -233,11 +233,18 @@ screen. None of that automation is committed, so none of it will run again for t
 regression is silent — the permission-filtered rail, the route guards, and the builder's section
 switching.
 
-### I-15 — File upload and object storage do not exist
-**Severity:** Low, by design · **Found:** 2026-08-10 documentation audit
+### I-15 — File upload exists only for profile photos; there is still no object storage
+**Severity:** Low, by design · **Found:** 2026-08-10 documentation audit ·
+**Partially resolved:** 2026-08-24 (ADR-020)
 
-There is no upload endpoint, no multipart handling and no blob store anywhere in the codebase.
-Consequently:
+**What changed.** Profile photos can now be uploaded (`POST /api/me/photo`), and the bytes are
+stored in a `mediaAssets` collection in MongoDB and served by the API process — which is precisely
+the arrangement the original wording of this issue warned against. ADR-020 supersedes that guidance
+with the trade-off argued in full: the alternative was leaving a visible, long-broken feature broken
+behind bucket procurement. Read it before extending uploads to anything else.
+
+**What has NOT changed.** There is still no object storage, no pre-signed URLs, and no multipart
+handling. The remaining reserved fields are unaffected:
 
 - `credentials.documentUrl` accepts a **link the candidate already hosts**; the UI says so rather than
   showing a "PDF uploaded" badge that would be a lie.
@@ -245,10 +252,15 @@ Consequently:
 - `messages.attachments` exists on the model and every serializer emits `[]`, but the field is
   **reserved, not implemented**.
 
-Deliberate — file storage is undecided (TRD §14 Q2, D-02). Recorded so the reserved fields are not
-mistaken for working features. Whenever storage is chosen it must be object storage with pre-signed
-URLs; serving uploads through the API process is the one choice that would undo the scaling profile
-described in I-10 and I-11.
+**Why photos were safe to make an exception for, and documents are not.** A profile photo is bounded
+in a way the others are not: one per person (unique index on `{ownerUserId, kind}`), downscaled
+client-side to a 512px WebP measured at roughly 1–2 KB, and not confidential — it is the picture
+someone chose to show employers, which is why `GET /api/media/:id` can be unauthenticated. None of
+that holds for a CV or a message attachment. Those are multi-megabyte, unbounded in count, and
+genuinely private, so serving them from the API process would undo the scaling profile in I-10 and
+I-11 exactly as this issue originally said. **Do not reuse `mediaAssets` for documents.** Object
+storage with pre-signed URLs remains the requirement for everything except the profile photo, and
+ADR-020 point 1 is what keeps the photo's own migration to it cheap.
 ### I-17 — Account deletion never purges anything; the retention policy is undecided
 **Severity:** High (compliance) · **Found:** 2026-08-12 production-readiness pass
 

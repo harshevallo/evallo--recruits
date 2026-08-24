@@ -42,6 +42,19 @@ function normalise(error) {
     return ApiError.notFound('Not found.');
   }
 
+  /*
+   * A body that exceeded the parser's limit — `express.json` at 100 kB, or `express.raw` at 2 MB on
+   * the photo route (ADR-020). body-parser raises this before a handler ever runs, so without this
+   * branch it fell through to the generic 500 and told a user who picked a large photo that
+   * something had gone wrong on our side. It had not: the request was too big, which is their
+   * fault to fix and ours to say clearly.
+   */
+  if (error?.type === 'entity.too.large') {
+    return ApiError.validation('That file is too large.', {
+      photo: 'Choose a smaller image, or crop it before uploading.',
+    });
+  }
+
   // Duplicate key. The message deliberately does not name the value — for a unique email that
   // would turn any create endpoint into an account-enumeration oracle (PRD §16.1).
   if (error?.code === 11000) {

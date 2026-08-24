@@ -46,6 +46,7 @@ import { Session } from '../modules/auth/session.model.js';
 import { VerificationToken } from '../modules/auth/verificationToken.model.js';
 import { EarlyAccessRequest } from '../modules/public/earlyAccessRequest.model.js';
 import { AuditEvent } from '../modules/audit/auditEvent.model.js';
+import { removeAssetsForUser } from '../modules/media/media.service.js';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 
@@ -148,7 +149,10 @@ export async function purgeAccount(user) {
   const deleted = {};
   const anonymised = {};
   const count = (bucket, key, result) => {
-    bucket[key] = (bucket[key] ?? 0) + (result?.deletedCount ?? result?.modifiedCount ?? 0);
+    /* Accepts a driver result or a plain count, so a service that already reduced one fits. */
+    const n =
+      typeof result === 'number' ? result : (result?.deletedCount ?? result?.modifiedCount ?? 0);
+    bucket[key] = (bucket[key] ?? 0) + n;
   };
 
   /* 1 ── the person's own content. Nothing else references these rows. */
@@ -164,7 +168,15 @@ export async function purgeAccount(user) {
     count(deleted, 'accessGrants', await AccessGrant.deleteMany({ candidateId }));
   }
 
-  /* 2 ── credentials and pending requests. */
+  /*
+   * 2 ── credentials, pending requests, and uploaded bytes.
+   *
+   * `mediaAssets` is deleted rather than anonymised (ADR-020). The tombstone step below `$unset`s
+   * `profilePicture`, which removes the POINTER — on its own that would leave the image itself in
+   * the database indefinitely, reachable by anyone who still had the URL. A photograph of a face is
+   * about as personal as this product stores, so it goes.
+   */
+  count(deleted, 'mediaAssets', await removeAssetsForUser(userId));
   count(deleted, 'authSessions', await Session.deleteMany({ userId }));
   count(deleted, 'verificationTokens', await VerificationToken.deleteMany({ userId }));
   count(

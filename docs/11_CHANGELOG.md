@@ -9,6 +9,88 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Added
+- **2026-08-24 — Candidates can actually upload a profile photo.** The builder has shown a
+  "Profile photo" block since CAN-02 and it has never worked: `users.profilePicture` was populated
+  in exactly one place, `auth.service.js`, from the Google OAuth payload. Anyone who signed up with
+  an email address could never have a photo, and both the builder and Settings → Account said so
+  — *"Photo upload is not available yet."* Honest, and a real hole in every recruiter-facing
+  surface: the pipeline, talent search, the messages list, the portfolio hero.
+
+  Now: browse or drag a file, see it immediately, replace it, remove it. Accepts PNG, JPEG, WebP,
+  GIF, AVIF and HEIC from the picker — anything the browser can decode — and always stores a still
+  WebP.
+
+  **Storage is MongoDB, and that is an explicit interim decision (ADR-020).** `12_KNOWN_ISSUES.md`
+  I-15 said any upload feature must use object storage with pre-signed URLs, and it was right; doing
+  that today meant provisioning a bucket before a single candidate could pick a file. The trade-off
+  was put to the CTO with both options and the cost stated. What buys the right to be interim:
+  `users.profilePicture` still holds a URL, exactly as it did when Google was the only source, so
+  **none of the twelve surfaces that read it knows where the bytes live** — moving to a bucket
+  changes what new URLs point at and leaves every old one working. A unique index on
+  `{ownerUserId, kind}` makes an upload an upsert, so the collection grows with *people*, not with
+  uploads (asserted by a test, not assumed). I-15 has been rewritten to record the exception and to
+  say plainly that it does **not** extend to CVs or message attachments.
+
+  **The client shrinks the image, the server never resizes.** The browser centre-crops to a square,
+  caps the longest edge at 512px and re-encodes to WebP. A 900×600 PNG measured **1,250 bytes**
+  stored. Server-side resizing would have meant `sharp` — a native dependency — on a request that
+  currently costs no CPU. Cropping in the browser also means the candidate's own preview shows the
+  square a recruiter will see, instead of CSS quietly cutting the top of their head off later.
+
+  One component, `ProfilePhotoUploader`, serves both surfaces (`compact` on Settings). The click
+  target is a `<label>` bound to the file input, so it opens the picker from the keyboard natively
+  rather than reimplementing Enter and Space on a `div`. The in-flight guard is a `useRef`, not
+  state — the third time this codebase has needed that distinction: three changes fired in one tick
+  produce **one** upload, verified in the browser. Remove is offered only for a photo we store; a
+  Google avatar is not ours to delete, and a button that pretended to would be a lie.
+
+### Security
+- **2026-08-24 — `profilePicture` can no longer be set through `PATCH /api/me`.** It was on the
+  update allowlist, so any client could point it at any URL that parsed — and that value renders as
+  an `<img src>` in *other* users' browsers, making it an arbitrary third-party fetch that logs a
+  recruiter's IP on request. It is now written in two server-side places only: Google sign-in, and
+  upload. No client ever sent the field, so this removes an attack surface without removing a
+  behaviour.
+- **2026-08-24 — Uploads never trust the declared content type.** The format is decided by sniffing
+  magic bytes and the stored `contentType` is what the *sniff* returned — which is also what the
+  file is later served as, with `nosniff`. An ELF binary sent as `image/png` is refused; a real JPEG
+  mislabelled as PNG is stored, correctly, as JPEG. Five of the nineteen new integration tests exist
+  to prove the header is disregarded.
+- **2026-08-24 — Account deletion now deletes uploaded photos.** The purge already `$unset` the
+  pointer; on its own that would have left a photograph of a face in the database indefinitely,
+  reachable by anyone still holding the URL.
+
+### Fixed
+- **2026-08-24 — Vercel: `No entrypoint found in output directory "dist"`.** A different fault from
+  the earlier `No Output Directory named "dist"`, and it needed reading carefully: "no output
+  directory" means the build ran and produced nothing where Vercel looked, while "no **entrypoint**"
+  means Vercel accepted the directory and found no `index.html` — i.e. **the build never ran**.
+
+  Cause: `"framework": null` in the root `vercel.json`. That value does not stay in the file —
+  Vercel writes it into the project's *Framework Preset* as "Other", where it persists across
+  deploys. With the preset on "Other" no build runs unless a `buildCommand` says so, and
+  `apps/web/vercel.json` declared neither a framework nor a build command.
+
+  Both config files now state `framework`, `installCommand`, `buildCommand` and `outputDirectory`
+  outright, so nothing depends on detection or on a dashboard field a past deploy may have changed.
+  `apps/web/vercel.json` installs with `cd ../.. && npm install`, because run from `apps/web` a plain
+  `npm install` goes to the public registry looking for `@evallo/shared` — declared `"*"` and
+  resolvable only from the workspace root. Both paths were simulated locally and both emit
+  `dist/index.html` with matching asset hashes. Also added long-lived caching for the hashed
+  `/assets/*` and explicit no-cache for `index.html`, whose URL is stable while its contents change
+  every deploy.
+
+  Comment keys were tried and removed: `vercel.json` is schema-validated and **rejects** unknown
+  properties, so a `"//"` entry fails the deploy rather than being ignored. The reasoning now lives
+  in `09_DEPLOYMENT_GUIDE.md`, which also records how to read the error next time — the directory
+  Vercel names tells you which directory it thinks is the root.
+- **2026-08-24 — An over-sized request body returned a 500.** `express.json` (100 kB) and the photo
+  route's `express.raw` (2 MB) both raise `entity.too.large` in body-parser, before any handler runs.
+  `errorHandler` did not recognise it, so it fell through to the generic 500 and told a user who
+  picked a large photo that something had gone wrong on our side. It had not — the request was too
+  big, which is theirs to fix and ours to say clearly.
+
 ### Changed
 - **2026-08-23 — Country is searchable, and a question step has one forward button instead of
   two.** Two CAN-02 usability changes, plus a duplicate-write bug the second one exposed.

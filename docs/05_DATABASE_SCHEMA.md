@@ -772,6 +772,46 @@ describe. See **ADR-014** for why this is deliberately not the `users` collectio
 
 ---
 
+## 10b. `mediaAssets` — uploaded binary (ADR-020)
+
+Profile photo bytes. **Not in PRD §14.1** — this collection exists because photo upload had to ship
+before object storage was procured. **Read ADR-020 before extending it**, and in particular before
+putting a document or a message attachment in it: the case for keeping bytes in MongoDB rests on
+properties a profile photo has and a CV does not.
+
+| Field | Type | Req | Notes |
+|---|---|:--:|---|
+| `ownerUserId` | ObjectId → users | ✅ | The person. Not a candidate id — recruiters have photos too |
+| `kind` | String | ✅ | `profile_photo`. One value today; the field exists so a second needs no migration |
+| `contentType` | String | ✅ | `image/webp \| image/jpeg \| image/png`. **Set from a magic-byte sniff, never from the request header** |
+| `byteLength` | Number | ✅ | Max 2 MB (`MEDIA_MAX_BYTES`) |
+| `data` | Buffer | ✅ | The bytes. **`select: false`** — only the streaming route asks for them |
+
+**Indexes**
+```js
+{ ownerUserId: 1 }                        // the purge, and any per-user lookup
+{ ownerUserId: 1, kind: 1 }  // unique — what bounds the collection's growth
+```
+
+**Constraints**
+- `{ ownerUserId, kind }` unique. This is load-bearing, not hygiene: it makes an upload an
+  **upsert**, so replacing a photo six times leaves one document. The entire argument for storing
+  bytes here is that the collection grows with people rather than with uploads, and this index is
+  what enforces it. Asserted by `profilePhoto.test.js` → *"replacing leaves exactly one document"*.
+- `contentType` is whatever `sniffImageType()` returned. A client's `Content-Type` is
+  attacker-controlled and is used only to decide whether to buffer the request at all.
+- Typical stored size is **1–2 KB**: the browser centre-crops to a square, caps the longest edge at
+  512px and re-encodes to WebP before uploading. The 2 MB cap is headroom, not the expectation.
+
+**Lifecycle**
+- Written by `media.service.js` (`storeProfilePhoto`) and by nothing else.
+- `users.profilePicture` holds `‹api›/api/media/<id>?v=<updatedAt>`. The `?v=` is required: the id is
+  stable across replacement, so without it a browser keeps showing the previous photo.
+- Deleted outright by the account-deletion purge. The tombstone step `$unset`s the pointer; deleting
+  the row is what removes the photograph itself.
+
+---
+
 ## 11. Transactions
 
 MongoDB multi-document transactions (requiring a replica set — **a deployment constraint worth

@@ -62,3 +62,15 @@ export const shareLinkLimiter = buildLimiter({
   ...RATE_LIMITS.SHARE_LINK,
   message: 'Too many requests. Please try again shortly.',
 });
+
+/**
+ * Photo uploads (ADR-020).
+ *
+ * The one authenticated write where a single request costs the database megabytes instead of
+ * bytes, which is why it is throttled while the rest of `/api/me` is not. Successful requests
+ * count too — unlike `authLimiter`, the cost here is incurred by success, not by failure.
+ */
+export const mediaUploadLimiter = buildLimiter({
+  ...RATE_LIMITS.MEDIA_UPLOAD,
+  message: 'Too many uploads. Please try again in a few minutes.',
+});

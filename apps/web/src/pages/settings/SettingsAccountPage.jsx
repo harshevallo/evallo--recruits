@@ -8,9 +8,10 @@ import {
   composePhone,
   splitStoredPhone,
 } from '@evallo/shared';
-import { Avatar, Badge, Button } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 import { FormField, TextInput, SelectInput, ComboboxInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
+import { ProfilePhotoUploader } from '@/features/account/ProfilePhotoUploader';
 import { useAuth } from '@/context/AuthContext';
 import { updateCurrentUser } from '@/services';
 import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
@@ -157,22 +158,16 @@ export function SettingsAccountPage() {
         onSubmit={submit}
         className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
       >
-        {/* Photo comes from the identity provider; there is no upload pipeline yet, and the copy
-            says so rather than offering a button that cannot work. */}
-        <div className="mb-6 flex items-center gap-4">
-          <Avatar
-            src={user?.profilePicture ?? undefined}
-            initials={(user?.name ?? user?.email ?? '?').slice(0, 1).toUpperCase()}
-            size="lg"
-            alt=""
-          />
-          <div>
-            <p className="text-sm font-semibold text-gray-700">Profile photo</p>
-            <p className="text-xs text-gray-500">
-              Taken from the account you sign in with. Uploads are not available yet.
-            </p>
-          </div>
-        </div>
+        {/*
+          Photo (ADR-020). `compact` because this sits above a dense form and does not need the
+          builder's full-size target.
+
+          Deliberately OUTSIDE this page's form state: the uploader saves on its own, immediately,
+          while the fields below save on submit. Folding an image into `form` would mean an
+          unsaved photo could be lost by navigating away, and a failed name validation could
+          block a photo that uploaded fine.
+        */}
+        <ProfilePhotoUploader compact />
 
         <hr className="mb-6 border-gray-100" />
 

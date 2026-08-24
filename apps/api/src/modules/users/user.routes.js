@@ -6,8 +6,12 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
 import { asyncHandler } from '../../lib/asyncHandler.js';
 import { authenticate } from '../../middleware/authenticate.js';
+import { mediaUploadLimiter } from '../../middleware/rateLimit.js';
+import { uploadPhoto, deletePhoto } from '../media/media.controller.js';
+import { MEDIA_MAX_BYTES } from '../media/mediaAsset.model.js';
 import { ApiError } from '../../lib/ApiError.js';
 import { validate } from '../../middleware/validate.js';
 import * as profileEntries from '../candidates/profileEntry.controller.js';
@@ -78,6 +82,36 @@ router.patch('/', validate(updateProfileValidation), asyncHandler(updateMe));
 
 // AUTH-05 — dismisses the first-action router. Navigation state only; grants nothing.
 router.post('/complete-onboarding', asyncHandler(completeOnboardingHandler));
+
+/*
+ * Profile photo (ADR-020).
+ *
+ * ── Why the body parser is here and not in app.js ────────────────────────────────────────────
+ *
+ * `app.js` parses JSON at a 100 kB limit, which is the right ceiling for every other route in this
+ * API and far too small for an image. Rather than raise a global limit for one endpoint, the raw
+ * parser is attached to this route alone with its own 2 MB ceiling. Two things follow:
+ *
+ *   · The global 100 kB limit still protects every JSON route. Nothing else got more permissive.
+ *   · `express.raw` matches on Content-Type, so a request declaring `application/json` never
+ *     reaches this parser — it is caught by the global one and rejected at 100 kB.
+ *
+ * The `type` list is what the parser will BUFFER, and is deliberately broader than what the service
+ * will STORE. It has to be: the declared type is attacker-controlled, so it cannot be the thing
+ * that decides the format. `storeProfilePhoto` sniffs the magic bytes and rejects anything that is
+ * not genuinely a PNG, JPEG or WebP — a `.exe` sent as `image/png` is buffered here and refused
+ * there, which is the correct division: parsers decide shape, services decide truth.
+ *
+ * `mediaUploadLimiter` throttles it because this is the only authenticated write whose cost is
+ * measured in megabytes of storage.
+ */
+router.post(
+  '/photo',
+  mediaUploadLimiter,
+  express.raw({ type: ['image/*', 'application/octet-stream'], limit: MEDIA_MAX_BYTES }),
+  asyncHandler(uploadPhoto),
+);
+router.delete('/photo', asyncHandler(deletePhoto));
 
 // The candidate capability. Creating this makes the user a candidate — nothing else does.
 router.get('/candidate-profile', asyncHandler(candidate.getCandidateProfile));

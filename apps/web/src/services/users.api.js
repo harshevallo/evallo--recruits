@@ -17,6 +17,39 @@ export async function updateCurrentUser(updates) {
   return unwrap(response);
 }
 
+/* ── Profile photo (ADR-020) ─────────────────────────────────────────────────── */
+
+/**
+ * Uploads a prepared image. The Blob IS the body — not multipart.
+ *
+ * A photo upload carries one file and no fields, so `FormData` would add boundary encoding to
+ * express nothing. `Content-Type` is overridden per-request because the shared client defaults to
+ * `application/json`, which would send the wrong header for binary. The server does not trust this
+ * value regardless — it sniffs the bytes — but sending an honest one keeps the parser happy.
+ *
+ * @param {Blob} blob            from `prepareProfilePhoto`
+ * @param {(percent:number)=>void} [onProgress]
+ * @returns {Promise<{user: object, capabilities: object}>} the standard /me envelope
+ */
+export async function uploadProfilePhoto(blob, onProgress) {
+  const response = await apiClient.post('/me/photo', blob, {
+    headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+    /* Generous: the default 20s can be tight for a large photo on a slow mobile uplink. */
+    timeout: 60_000,
+    onUploadProgress: (event) => {
+      if (!onProgress || !event.total) return;
+      onProgress(Math.round((event.loaded / event.total) * 100));
+    },
+  });
+  return unwrap(response);
+}
+
+/** Removes the uploaded photo. Idempotent, and leaves an external (Google) picture alone. */
+export async function deleteProfilePhoto() {
+  const response = await apiClient.delete('/me/photo');
+  return unwrap(response);
+}
+
 /**
  * AUTH-05 — records that the first-action router has been seen, so it never shows again.
  * Creates nothing; the user's choice is a redirect, not a role.

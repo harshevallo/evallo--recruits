@@ -27,7 +27,6 @@ export const updateProfileValidation = {
       */
     phone: z.string().trim().max(40).optional(),
     phoneCountry: diallableCountry.optional(),
-    profilePicture: z.string().trim().url().max(2048).optional(),
     location: z
       .object({
         country: common.countryCode.optional(),

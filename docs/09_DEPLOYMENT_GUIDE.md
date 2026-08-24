@@ -132,6 +132,33 @@ never read the root `vercel.json` that points at `apps/web/dist`.
 Read the error the same way next time: **which directory Vercel names tells you which directory it
 thinks is the root.**
 
+**The second failure, and why both files now state everything explicitly**
+
+> `No entrypoint found in output directory: "dist". Searched for:`
+
+A different fault with a similar shape. "No Output Directory found" means the build ran and put
+nothing where Vercel looked. "No **entrypoint** found" means Vercel looked in a directory it
+accepted and found no `index.html` — which here meant **the build never ran at all**.
+
+The cause was `"framework": null` in the root file. That value does not stay in the file: Vercel
+writes it into the project's *Framework Preset* as "Other", and it persists there across deploys.
+With the preset on "Other", Vercel runs no build unless a `buildCommand` says so — and
+`apps/web/vercel.json` at the time declared neither a framework nor a build command, so it inherited
+"Other", skipped the build, and then went looking for an entrypoint nobody had generated.
+
+Both files now declare `framework`, `installCommand`, `buildCommand` and `outputDirectory`
+outright. Nothing is left to detection, and nothing depends on a dashboard field that a past deploy
+may have set to something else. Two consequences worth knowing:
+
+* `apps/web/vercel.json` installs with `cd ../.. && npm install`. Run from `apps/web`, a plain
+  `npm install` sends npm to the public registry for `@evallo/shared` — declared at version `"*"`
+  and resolvable only from the workspace root — and fails.
+* `vercel.json` keeps `framework: null`, which is correct there: the repo root genuinely is not a
+  Vite project. Its explicit `buildCommand` is what makes the build run regardless.
+
+`vercel.json` accepts **no comment keys.** The schema rejects unknown properties, so a `"//"` entry
+fails the deploy outright rather than being ignored. Reasoning about these files belongs here.
+
 **Preferred configuration:** Root Directory blank (the repo root). It is the correct shape for an
 npm-workspaces monorepo — one config file, and the install covers every workspace, which matters
 because `apps/web` imports `@evallo/shared` and Vite aliases `@shared` to `packages/shared/src`.
