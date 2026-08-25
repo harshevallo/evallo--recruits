@@ -6,7 +6,23 @@ function formatLocation(location) {
   return [location.city, location.region, location.country].filter(Boolean).join(', ');
 }
 
-/** Hero block — PRD §7.4 (logo, name, tagline, location, type, website, hiring state). */
+/**
+ * Hero block — PRD §7.4 (logo, name, tagline, location, type, website, hiring state).
+ *
+ * ── The hero is LIGHT, and this block used to assume it was dark ──────────────────────────────
+ *
+ * `.hero-pattern` paints `colors.white` with two 6–8% blue radials over it. Every text colour here
+ * was chosen for a dark hero, so on that white surface the company name rendered `text-white` on
+ * `rgb(255,255,255)` — a contrast ratio of **1.00:1**, invisible rather than merely low. The
+ * tagline and the meta row were `text-gray-400`, measured at 2.54:1, under the 4.5:1 AA floor.
+ *
+ * The colours below are the ones `CandidateCompanyPage` already uses to render this same content
+ * on a light surface — `text-brand-dark` for the name, `text-gray-600` for the tagline, and the
+ * `!border-gray-300 !text-brand-dark` override on `outlineDark`. Nothing new was invented and the
+ * gradient was not touched; this block was simply brought onto the background it actually sits on.
+ *
+ * If the hero is ever made dark again, these are what have to change back — together.
+ */
 export function CompanyProfileHeader({ company, onExpressInterest }) {
   const location = formatLocation(company.location);
 
@@ -26,7 +42,12 @@ export function CompanyProfileHeader({ company, onExpressInterest }) {
 
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
+                {/*
+                  `break-words` because a company name is user-supplied and unbounded. Without it a
+                  single long unbroken word (a domain-style name) overflows the flex row instead of
+                  wrapping, and the fix for contrast would just expose a different defect.
+                */}
+                <h1 className="text-3xl font-bold tracking-tight text-brand-dark break-words md:text-4xl">
                   {company.name}
                 </h1>
                 {company.isVerified && (
@@ -37,10 +58,17 @@ export function CompanyProfileHeader({ company, onExpressInterest }) {
               </div>
 
               {company.tagline && (
-                <p className="mb-3 text-lg text-gray-400">{company.tagline}</p>
+                <p className="mb-3 text-lg text-gray-600">{company.tagline}</p>
               )}
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-400">
+              {/*
+                gray-600, not gray-500. Against flat white gray-500 measures 4.83:1 and looks
+                safe — but the background is not flat white. Where the radials are strongest the
+                pixel is rgb(235,244,253), and gray-500 falls to 4.35:1 there, under the 4.5 AA
+                floor. gray-600 holds 6.8:1 at that same worst point. Hierarchy is carried by
+                size instead: this row is `text-sm` against the tagline's `text-lg`.
+              */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                 <span>
                   {ORGANIZATION_TYPE_LABELS[company.organizationType] ??
                     company.organizationType}
@@ -78,7 +106,9 @@ export function CompanyProfileHeader({ company, onExpressInterest }) {
                 href={company.website}
                 variant="outlineDark"
                 size="sm"
-                className="justify-center"
+                /* `outlineDark` is white-on-transparent — also invisible here. Same override the
+                   candidate-facing company page uses for this variant on a light surface. */
+                className="justify-center !border-gray-300 !text-brand-dark hover:!bg-gray-50"
               >
                 Visit website
               </Button>

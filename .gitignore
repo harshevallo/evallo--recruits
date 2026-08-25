@@ -38,3 +38,6 @@ Thumbs.db
 
 # Ad-hoc maintenance scripts must never be committed (08_SETUP_GUIDE.md)
 apps/api/tmp-*.mjs
+
+# Compiled from apps/web by companyRequiredFields.test.js; deleted in `after()`, ignored in case a run is killed.
+apps/api/tests/integration/__*.generated.mjs

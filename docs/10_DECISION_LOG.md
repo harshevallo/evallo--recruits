@@ -1132,6 +1132,14 @@ for the right to be interim:
   users' browsers, making it an arbitrary third-party fetch that logs a recruiter's IP on request.
   It is now written in exactly two places, both server-side: Google sign-in, and upload. No client
   ever sent the field, so this removes an attack surface without removing a behaviour.
+- **`GET /api/media/:id` overrides the global `Cross-Origin-Resource-Policy`.** `helmet` sets
+  `same-site` for the whole API, which is right for JSON and wrong for the one route that exists to
+  be embedded from another origin: the web app is on `*.vercel.app` and the API on `onrender.com`,
+  different registrable domains, so `same-site` makes the browser refuse to render the image while
+  the request still returns 200. `cross-origin` is scoped to this route only, and is safe for the
+  same reason the route is unauthenticated. **This is invisible in local development** —
+  `localhost:3001` and `localhost:8081` differ only by port, which CORP does not consider — so it is
+  pinned by a test rather than left to manual checking.
 - **Uploads are rate limited** (`MEDIA_UPLOAD`, 20 per 15 minutes) — the only authenticated write
   whose cost is measured in megabytes of storage rather than bytes.
 - **The deletion purge deletes the asset.** The tombstone step already `$unset` the pointer; on its
@@ -1149,5 +1157,5 @@ now reads as a validation error rather than a 500), `accountDeletion.job.js` (pu
 `IdentitySection.jsx` and `SettingsAccountPage.jsx` (both stale "not available yet" blocks replaced
 by the shared uploader), `Icon.jsx` (`camera`).
 
-Covered by 19 integration tests in `profilePhoto.test.js`, of which 5 assert that the declared
-content type is disregarded.
+Covered by 17 integration tests in `profilePhoto.test.js`, of which 5 assert that the declared
+content type is disregarded and one pins the `Cross-Origin-Resource-Policy` header below.

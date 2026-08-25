@@ -55,6 +55,26 @@ export async function serveAsset(req, res) {
   res.set('Cache-Control', 'private, max-age=604800');
   res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
+  /*
+   * Cross-Origin-Resource-Policy — the one header this route MUST override.
+   *
+   * `helmetMiddleware` sets `same-site` globally, which is the right default for a JSON API: it
+   * stops another site embedding our responses. But this route exists precisely to be embedded
+   * cross-site. In production the web app is on `*.vercel.app` and this API is on
+   * `onrender.com` — different registrable domains, so `same-site` makes the browser **refuse to
+   * render the image** while the request itself still returns 200. The symptom is a broken-image
+   * glyph and a completely healthy-looking server log.
+   *
+   * This does not show up in local development, and that is worth stating: `localhost:3001` and
+   * `localhost:8081` differ by PORT, which CORP does not consider — they are the same site, so the
+   * image loads and the bug stays invisible until the first real deployment.
+   *
+   * `cross-origin` is safe for exactly the reason the route is unauthenticated at all: the asset is
+   * a photo someone chose to show employers, addressed by an unguessable id, carrying nothing else.
+   * It is scoped to this route — every other response keeps `same-site`.
+   */
+  res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+
   /* ETag lets a repeat visit come back 304 with no body at all. */
   res.set('ETag', `"${asset._id}-${new Date(asset.updatedAt).getTime()}"`);
 

@@ -161,6 +161,23 @@ describe('photo upload — the happy path', () => {
     assert.match(response.headers.get('x-robots-tag'), /noindex/);
     assert.match(response.headers.get('cache-control'), /private/);
 
+    /*
+     * The header that broke production.
+     *
+     * `helmet` sets `same-site` globally. The web app and this API are on different registrable
+     * domains (`*.vercel.app` and `onrender.com`), so `same-site` made the browser refuse to render
+     * the image while the request still returned 200 — a broken-image glyph with a clean server log.
+     *
+     * This assertion has to be here rather than left to manual checking, because the failure is
+     * invisible locally: `localhost:3001` and `localhost:8081` differ only by port, which CORP does
+     * not consider, so they are the same site and the image loads either way.
+     */
+    assert.equal(
+      response.headers.get('cross-origin-resource-policy'),
+      'cross-origin',
+      'must override the global same-site policy, or the image cannot render cross-site',
+    );
+
     const served = Buffer.from(await response.arrayBuffer());
     assert.ok(served.equals(PNG));
   });

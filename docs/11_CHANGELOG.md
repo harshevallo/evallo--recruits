@@ -62,6 +62,27 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
   reachable by anyone still holding the URL.
 
 ### Fixed
+- **2026-08-24 — An uploaded profile photo rendered as a broken image in production.** The upload
+  succeeded, the bytes were valid, and `GET /api/media/:id` returned `200 image/webp` — to `curl`.
+  In a browser it showed a broken-image glyph, because `helmet` sets
+  `Cross-Origin-Resource-Policy: same-site` for the whole API and the web app (`*.vercel.app`) and
+  the API (`onrender.com`) are different registrable domains. The browser fetched the image and then
+  refused to render it. Nothing in the server log looked wrong.
+
+  `GET /api/media/:id` now sets `cross-origin`, scoped to that route; every other response keeps
+  `same-site`.
+
+  **Local development could not have caught this**, which is the part worth remembering:
+  `localhost:3001` and `localhost:8081` differ only by port, and CORP does not consider ports — they
+  are the same site, so the image loads locally either way. It is now pinned by an assertion in
+  `profilePhoto.test.js`.
+- **2026-08-24 — The uploader's avatar depended on Tailwind's emit order.** `Avatar` hard-codes
+  `w-16 h-16` for `size="lg"`, and `cn()` is a plain join with no tailwind-merge, so passing
+  `h-24 w-24` left both pairs on the element and let stylesheet order pick the winner. It rendered
+  correctly, which is worse than failing visibly. The uploader now renders its own `<img>` filling
+  the label (`h-full w-full object-cover`), which is also what it actually wanted — and it falls
+  back to the empty state on an `onError`, so a photo the browser cannot render offers the control
+  that replaces it instead of a glyph.
 - **2026-08-24 — Vercel: `No entrypoint found in output directory "dist"`.** A different fault from
   the earlier `No Output Directory named "dist"`, and it needed reading carefully: "no output
   directory" means the build ran and produced nothing where Vercel looked, while "no **entrypoint**"

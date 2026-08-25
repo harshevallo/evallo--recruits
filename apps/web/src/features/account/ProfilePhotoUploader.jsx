@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Avatar, Icon } from '@/components/ui';
+import { Icon } from '@/components/ui';
 import { uploadProfilePhoto, deleteProfilePhoto } from '@/services/users.api.js';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { prepareProfilePhoto, ImagePrepError, ACCEPTED_IMAGE_TYPES } from '@/utils/imageResize.js';
@@ -44,6 +44,16 @@ export function ProfilePhotoUploader({ compact = false }) {
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
 
+  /*
+   * Did the image fail to LOAD, as opposed to fail to upload?
+   *
+   * These are different failures with the same appearance. A stored photo whose bytes the browser
+   * refuses to render — blocked by a resource policy, a dead host, a revoked object URL — leaves a
+   * broken-image glyph inside the circle and no explanation anywhere. Falling back to the empty
+   * state at least offers the action that fixes it.
+   */
+  const [loadFailed, setLoadFailed] = useState(false);
+
   /**
    * The locally-generated preview, shown between "file chosen" and "server confirmed".
    *
@@ -58,6 +68,8 @@ export function ProfilePhotoUploader({ compact = false }) {
     if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     previewRef.current = url;
     setPreview(url);
+    /* A new source has not failed yet — clearing this is what lets a retry actually retry. */
+    setLoadFailed(false);
   }, []);
 
   /* Revoke on unmount. An object URL held after the component goes away is a leaked Blob. */
@@ -146,7 +158,8 @@ export function ProfilePhotoUploader({ compact = false }) {
   );
 
   /* An upload in flight shows its own preview; otherwise whatever the account currently has. */
-  const shown = preview ?? user?.profilePicture ?? null;
+  const source = preview ?? user?.profilePicture ?? null;
+  const shown = loadFailed ? null : source;
   const hasUploaded = Boolean(user?.profilePicture?.includes('/api/media/'));
 
   const size = compact ? 'h-16 w-16' : 'h-24 w-24';
@@ -178,7 +191,27 @@ export function ProfilePhotoUploader({ compact = false }) {
           .join(' ')}
       >
         {shown ? (
-          <Avatar src={shown} alt="" size="lg" className={`${size} object-cover`} />
+          /*
+            A plain <img>, not <Avatar>.
+            
+            `Avatar` hard-codes a size (`lg` = `w-16 h-16`) and `cn()` is a plain join with no
+            tailwind-merge, so passing `h-24 w-24` left BOTH pairs on the element and let stylesheet
+            order decide which won. That happened to render correctly, which is worse than failing —
+            it is a layout that depends on the order Tailwind emits utilities in.
+
+            This element also wants something Avatar cannot express: fill the label exactly,
+            whatever size the label is. `h-full w-full` does that, `object-cover` keeps the aspect
+            ratio, and the initials fallback Avatar exists to provide is already handled here by the
+            camera empty state.
+          */
+          <img
+            src={shown}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+            /* A blocked or broken image must not sit there as a glyph pretending to be a photo. */
+            onError={() => setLoadFailed(true)}
+            onLoad={() => setLoadFailed(false)}
+          />
         ) : (
           <span className="flex flex-col items-center text-gray-400">
             <Icon name="camera" className={compact ? 'text-base' : 'mb-1 text-xl'} />

@@ -11,6 +11,7 @@ import { FormField, TextInput, Textarea, SelectInput, ComboboxInput, Checkbox } 
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchCompanyEditor, saveCompanyStep } from '@/services';
+import { missingRequiredFields } from '@/features/companies/requiredFields';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -35,6 +36,8 @@ export function CompanySetupPage() {
   const [draft, setDraft] = useState({});
   const [saveState, setSaveState] = useState('idle');
   const [message, setMessage] = useState(null);
+  /** Field-keyed, exactly like every other form in the app: `{ tagline: 'Tagline is required.' }`. */
+  const [errors, setErrors] = useState({});
   const inFlight = useRef(false);
   const headingRef = useRef(null);
 
@@ -58,6 +61,21 @@ export function CompanySetupPage() {
   const setField = useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
     setSaveState('idle');
+
+    /*
+     * Clear this field's error as soon as it is edited.
+     *
+     * Leaving it until the next submit means a field the user has just fixed keeps its red border
+     * and its message while they type — the form accusing them of a problem they have already
+     * solved. `country` is written through the `location` object, so it clears under its own name.
+     */
+    setErrors((current) => {
+      const key = field === 'location' ? 'country' : field;
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   }, []);
 
   function valueFor(field) {
@@ -65,11 +83,64 @@ export function CompanySetupPage() {
     return state.company?.[field];
   }
 
-  async function save() {
+  /**
+   * Saves the active step.
+   *
+   * ── The required-field gate ───────────────────────────────────────────────────────────────
+   *
+   * Every control marked with a `*` is checked BEFORE the request goes out. Until 2026-08-25 it
+   * was not: the asterisks came from `required` on `FormField`, which draws the marker and sets
+   * `aria-required`, while `<form noValidate>` disabled the browser's native enforcement and
+   * nothing replaced it. So "Short description *" could be blank and Save still reported "Saved."
+   * — truthfully, because the server accepts a partial step by design. The marker was the thing
+   * that was wrong, and it was wrong on every step, not just this field.
+   *
+   * ── `enforceRequired`, and why navigation opts out ────────────────────────────────────────
+   *
+   * `goToStep` also calls this, to persist pending edits before moving away. That path passes
+   * `false`. Blocking it would leave someone who typed a tagline but no description unable to
+   * save AND unable to leave without losing the tagline — a trap, and a silent data loss nobody
+   * asked for. Clicking Save is an assertion that the step is done; clicking another step in the
+   * sidebar is not.
+   *
+   * PRD §7.2 draft-first is unchanged on the server: `saveCompanyStep` still accepts a partial
+   * step, so nothing about publish validation or the API contract moved.
+   */
+  async function save({ enforceRequired = true } = {}) {
     if (!activeStep || inFlight.current) return false;
+
+    if (enforceRequired) {
+      const { errors: missing, labels } = missingRequiredFields({
+        checklistItems: state.checklist?.items,
+        stepKey: activeStep.key,
+        valueFor,
+      });
+      const fields = Object.keys(missing);
+
+      if (fields.length > 0) {
+        setErrors(missing);
+        setSaveState('error');
+        /* Mirrors the preview screen's phrasing, built from the same server labels. */
+        setMessage(`Still needed before you can save this step: ${labels.join(', ')}.`);
+
+        /*
+         * Move focus to the first offender. Without this a keyboard or screen-reader user is told
+         * something is wrong and left at the bottom of the form to hunt for it. `FormField` owns
+         * the id scheme, so this is the id it generated.
+         */
+        requestAnimationFrame(() => {
+          document.getElementById(`field-${fields[0]}`)?.focus();
+        });
+
+        /* No request is sent, and the caller sees a failure — so it does not navigate onward. */
+        return false;
+      }
+    }
+
     inFlight.current = true;
     setSaveState('saving');
     setMessage(null);
+    setErrors({});
 
     try {
       const next = await saveCompanyStep(companySlug, activeStep.key, draft);
@@ -90,12 +161,14 @@ export function CompanySetupPage() {
   /** Switching steps persists pending edits first, so nothing typed is silently discarded. */
   async function goToStep(key) {
     if (key === activeStep?.key) return;
-    if (Object.keys(draft).length > 0 && !(await save())) return;
+    if (Object.keys(draft).length > 0 && !(await save({ enforceRequired: false }))) return;
 
     setSearchParams({ step: key });
     setDraft({});
     setSaveState('idle');
     setMessage(null);
+    /* Errors belong to the step that produced them. */
+    setErrors({});
     requestAnimationFrame(() => headingRef.current?.focus());
   }
 
@@ -243,7 +316,7 @@ export function CompanySetupPage() {
           >
             {activeStep.key === 'basics' && (
               <>
-                <FormField label="Company name" name="name" required className="mb-5">
+                <FormField label="Company name" name="name" required error={errors.name} className="mb-5">
                   {(f) => (
                     <TextInput
                       {...f}
@@ -253,7 +326,13 @@ export function CompanySetupPage() {
                     />
                   )}
                 </FormField>
-                <FormField label="Organization type" name="organizationType" required className="mb-5">
+                <FormField
+                  label="Organization type"
+                  name="organizationType"
+                  required
+                  error={errors.organizationType}
+                  className="mb-5"
+                >
                   {(f) => (
                     <SelectInput
                       {...f}
@@ -276,7 +355,13 @@ export function CompanySetupPage() {
                     />
                   )}
                 </FormField>
-                <FormField label="Primary country" name="country" required className="mb-5">
+                <FormField
+                  label="Primary country"
+                  name="country"
+                  required
+                  error={errors.country}
+                  className="mb-5"
+                >
                   {(f) => (
                     /*
                       Searchable, not a native select. The country vocabulary is all 249 ISO
@@ -314,8 +399,14 @@ export function CompanySetupPage() {
 
             {activeStep.key === 'brand' && (
               <>
-                <FormField label="Tagline" name="tagline" required className="mb-5"
-                  hint="One line candidates see first.">
+                <FormField
+                  label="Tagline"
+                  name="tagline"
+                  required
+                  error={errors.tagline}
+                  className="mb-5"
+                  hint="One line candidates see first."
+                >
                   {(f) => (
                     <TextInput
                       {...f}
@@ -326,7 +417,13 @@ export function CompanySetupPage() {
                     />
                   )}
                 </FormField>
-                <FormField label="Short description" name="descriptionShort" required className="mb-5">
+                <FormField
+                  label="Short description"
+                  name="descriptionShort"
+                  required
+                  error={errors.descriptionShort}
+                  className="mb-5"
+                >
                   {(f) => (
                     <Textarea
                       {...f}
@@ -370,11 +467,22 @@ export function CompanySetupPage() {
                   label={field === 'educationServices' ? 'Education services' : 'Delivery modes'}
                   name={field}
                   required={field === 'educationServices'}
+                  error={errors[field]}
                   className="mb-6"
                 >
-                  {({ hasError: _hasError, ...f }) => (
-                    // `hasError` is for inputs, not a DOM attribute — never spread it on a fieldset.
-                    <fieldset {...f} className="rounded-lg border border-gray-200 p-4">
+                  {({ hasError, ...f }) => (
+                    /*
+                      `hasError` is a styling signal, not a DOM attribute — it is read here and
+                      never spread, because React would emit it as an unknown attribute on the
+                      fieldset. It has to be read: this is the one required control whose error
+                      would otherwise be a message with nothing highlighted above it.
+                    */
+                    <fieldset
+                      {...f}
+                      className={`rounded-lg border p-4 ${
+                        hasError ? 'border-red-500' : 'border-gray-200'
+                      }`}
+                    >
                       <legend className="sr-only">
                         {field === 'educationServices' ? 'Education services' : 'Delivery modes'}
                       </legend>
