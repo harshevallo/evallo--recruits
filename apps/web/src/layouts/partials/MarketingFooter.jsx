@@ -33,13 +33,35 @@ const FOOTER_COLUMNS = [
 ];
 
 /**
- * Social profile URLs are external and not yet available.
- * Replace `url` with the real profile when the accounts exist.
+ * These are EVALLO's accounts, not Evallo Recruit's own — the labels say so, because an accessible
+ * name that promises a product-specific feed the link does not lead to is a small lie told to
+ * exactly the people who cannot see where they are going.
+ *
+ * The Instagram URL is deliberately stored WITHOUT the `?igsh=…` parameter it was copied with.
+ * That is a share-attribution token generated for one share event, not part of the profile
+ * address; it adds nothing for a visitor and hands Instagram a referral identifier on every
+ * footer render.
+ *
+ * Every entry links somewhere real. A network Evallo has no account on is left OFF this list
+ * rather than rendered as a greyed-out placeholder, so nothing here promises a feed that does not
+ * exist. Add the entry when the account does.
  */
 const SOCIAL_LINKS = [
-  { icon: 'twitter', label: 'Evallo Recruit on Twitter', url: null },
-  { icon: 'linkedin', label: 'Evallo Recruit on LinkedIn', url: null },
-  { icon: 'facebook', label: 'Evallo Recruit on Facebook', url: null },
+  {
+    icon: 'linkedin',
+    label: 'Evallo on LinkedIn',
+    url: 'https://www.linkedin.com/company/evallo-digital-products/',
+  },
+  {
+    icon: 'instagram',
+    label: 'Evallo on Instagram',
+    url: 'https://www.instagram.com/evallo.official',
+  },
+  {
+    icon: 'facebook',
+    label: 'Evallo on Facebook',
+    url: 'https://www.facebook.com/app.evallo.org/',
+  },
 ];
 
 /*
@@ -71,25 +93,18 @@ export function MarketingFooter() {
             </p>
 
             <ul className="flex space-x-4">
-              {SOCIAL_LINKS.map((social) =>
-                social.url ? (
-                  <li key={social.icon}>
-                    <a
-                      href={social.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-500 transition-colors hover:text-brand-dark"
-                    >
-                      <Icon name={social.icon} label={social.label} />
-                    </a>
-                  </li>
-                ) : (
-                  // Rendered non-interactive rather than as a dead link.
-                  <li key={social.icon} className="text-gray-400" title="Coming soon">
-                    <Icon name={social.icon} label={`${social.label} — coming soon`} />
-                  </li>
-                ),
-              )}
+              {SOCIAL_LINKS.map((social) => (
+                <li key={social.icon}>
+                  <a
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-500 transition-colors hover:text-brand-dark"
+                  >
+                    <Icon name={social.icon} label={social.label} />
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 

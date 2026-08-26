@@ -50,7 +50,7 @@ import {
   FaLocationDot,
   FaBookmark,
 } from 'react-icons/fa6';
-import { FaTwitter, FaLinkedinIn, FaFacebookF } from 'react-icons/fa';
+import { FaLinkedinIn, FaFacebookF, FaInstagram } from 'react-icons/fa';
 
 /**
  * Icon registry.
@@ -117,9 +117,9 @@ const REGISTRY = {
   comments: FaComments,
   'layer-group': FaLayerGroup,
   heart: FaHeart,
-  twitter: FaTwitter,
   linkedin: FaLinkedinIn,
   facebook: FaFacebookF,
+  instagram: FaInstagram,
 };
 
 /**
