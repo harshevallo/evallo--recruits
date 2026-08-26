@@ -16,6 +16,15 @@ export async function getPipeline(req, res) {
   );
 }
 
+/**
+ * GET /api/companies/:companyId/hires — REC-14.
+ *
+ * `pipeline:view`, the same permission as the board: this is the same data, asked a different way.
+ */
+export async function getHires(req, res) {
+  return sendSuccess(res, await pipeline.getHires(req.company._id));
+}
+
 /** POST /api/companies/:companyId/pipeline */
 export async function postPipelineEntry(req, res) {
   const entry = await pipeline.addToPipeline(req.company._id, req.user._id, req.body);

@@ -102,6 +102,7 @@ export const PATHS = Object.freeze({
   COMPANY_SEARCH: '/c/:companySlug/search',
   COMPANY_CANDIDATE: '/c/:companySlug/candidates/:candidateId',
   COMPANY_PIPELINE: '/c/:companySlug/pipeline',
+  COMPANY_HIRES: '/c/:companySlug/hires',
   COMPANY_MESSAGES: '/c/:companySlug/messages',
   COMPANY_HIRING: '/c/:companySlug/hiring',
   COMPANY_EDIT: '/c/:companySlug/profile/edit',

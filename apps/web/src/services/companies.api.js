@@ -522,6 +522,19 @@ export async function fetchPipeline(companySlug, { includeClosed = false } = {},
   return unwrap(response);
 }
 
+/**
+ * REC-14 — everyone this company has hired.
+ *
+ * A separate call rather than `fetchPipeline({ includeClosed: true })`, because the board's payload
+ * is stage-shaped and this screen wants a dated list carrying who decided and how long it took.
+ */
+export async function fetchHires(companySlug, options = {}) {
+  const response = await apiClient.get(`/companies/${companySlug}/hires`, {
+    signal: options.signal,
+  });
+  return unwrap(response);
+}
+
 /** Idempotent: a candidate already in an active entry returns that entry rather than duplicating. */
 export async function addToPipeline(companySlug, payload) {
   const response = await apiClient.post(`/companies/${companySlug}/pipeline`, payload);

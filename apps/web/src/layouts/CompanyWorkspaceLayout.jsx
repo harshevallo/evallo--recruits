@@ -46,6 +46,18 @@ const ITEMS = [
     permission: PERMISSIONS.PIPELINE_VIEW,
   },
   {
+    /*
+     * Immediately after Pipeline, because that is where the workflow ends. The board answers "what
+     * needs work?" and correctly drops a hired candidate the moment they stop being work — which
+     * left the hire itself reachable only through a "Show closed" checkbox. This is the record.
+     */
+    key: 'hires',
+    label: 'Hires',
+    icon: 'circle-check',
+    path: PATHS.COMPANY_HIRES,
+    permission: PERMISSIONS.PIPELINE_VIEW,
+  },
+  {
     key: 'messages',
     label: 'Messages',
     icon: 'comments',

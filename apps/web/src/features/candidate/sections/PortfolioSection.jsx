@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { isSupportedVideoUrl } from '@evallo/shared';
-import { VideoLightbox } from '@/features/candidate/portfolio/VideoLightbox';
+import { VideoLightbox } from '@/features/media/VideoLightbox';
 import { Badge, Button, Icon, Modal } from '@/components/ui';
 import { FormField, TextInput, Textarea, SelectInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';

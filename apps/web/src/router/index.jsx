@@ -182,6 +182,9 @@ const CompanyHiringPage = lazy(() =>
 const CompanyPipelinePage = lazy(() =>
   import('@/pages/company/CompanyPipelinePage').then((m) => ({ default: m.CompanyPipelinePage })),
 );
+const CompanyHiresPage = lazy(() =>
+  import('@/pages/company/CompanyHiresPage').then((m) => ({ default: m.CompanyHiresPage })),
+);
 const CompanyMessagesPage = lazy(() =>
   import('@/pages/company/CompanyMessagesPage').then((m) => ({ default: m.CompanyMessagesPage })),
 );
@@ -419,6 +422,7 @@ export const router = createBrowserRouter([
                    */
                   { path: PATHS.COMPANY_HIRING, element: <CompanyHiringPage /> },
                   { path: PATHS.COMPANY_PIPELINE, element: <CompanyPipelinePage /> },
+                  { path: PATHS.COMPANY_HIRES, element: <CompanyHiresPage /> },
                   { path: PATHS.COMPANY_MESSAGES, element: <CompanyMessagesPage /> },
                   { path: PATHS.COMPANY_SETTINGS, element: <CompanySettingsPage /> },
 

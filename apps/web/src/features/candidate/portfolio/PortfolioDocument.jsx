@@ -12,8 +12,8 @@ import {
 } from '@evallo/shared';
 import { useState } from 'react';
 import { Avatar, Badge, Icon } from '@/components/ui';
-import { embedFor } from './videoEmbed';
-import { VideoLightbox } from './VideoLightbox';
+import { embedFor } from '@/features/media/videoEmbed';
+import { VideoLightbox } from '@/features/media/VideoLightbox';
 
 /**
  * The portfolio renderer — one presentation layer over the candidate data, for every audience.

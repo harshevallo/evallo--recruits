@@ -96,6 +96,7 @@ import {
   getSavedCandidates,
   postSavedCandidate,
   deleteSavedCandidate,
+  getHires,
 } from '../pipeline/pipeline.controller.js';
 import {
   pipelineListValidation,
@@ -106,6 +107,7 @@ import {
   entryDetailsValidation,
   savedCandidateValidation,
   savedCandidateParamValidation,
+  hiresListValidation,
 } from '../pipeline/pipeline.validation.js';
 import {
   getNotes,
@@ -402,6 +404,22 @@ router.get(
   resolveCompanyContext(),
   requirePermission(PERMISSIONS.PIPELINE_VIEW),
   asyncHandler(getPipeline),
+);
+
+/*
+ * The hires record.
+ *
+ * Deliberately NOT `/pipeline?stage=hired`. The board's contract is "live work", which is why it
+ * defaults to `active: true`; a hire is the opposite of live work and wants a different shape — a
+ * dated list carrying who decided and how long it took. Same permission, because it is the same
+ * underlying data.
+ */
+router.get(
+  '/:companyId/hires',
+  validate(hiresListValidation),
+  resolveCompanyContext(),
+  requirePermission(PERMISSIONS.PIPELINE_VIEW),
+  asyncHandler(getHires),
 );
 
 router.post(

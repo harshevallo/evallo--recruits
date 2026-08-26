@@ -17,6 +17,15 @@ const objectId = z
 
 const companyParams = z.object({ companyId: z.string().trim().min(1).max(80) });
 
+/**
+ * The hires list takes no options.
+ *
+ * No `includeClosed` — a hire IS closed, that is the point. No paging either: a pilot company's
+ * hire count is small enough that a page control would be furniture. If that stops being true,
+ * add paging here rather than filtering in the client.
+ */
+export const hiresListValidation = { params: companyParams };
+
 export const pipelineListValidation = {
   params: companyParams,
   query: z.object({

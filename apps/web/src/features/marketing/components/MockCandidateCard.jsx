@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import { VideoLightbox } from '@/features/media/VideoLightbox';
+import { embedFor } from '@/features/media/videoEmbed';
+import { marketingSampleVideoUrl } from '@/config/marketing';
 import { Avatar, Badge, Icon } from '@/components/ui';
 
 /**
@@ -5,6 +9,87 @@ import { Avatar, Badge, Icon } from '@/components/ui';
  *
  * Decorative and aria-hidden. The person and credentials are examples, not a real user.
  */
+const SAMPLE_TITLE = 'Explaining Polynomials';
+
+/**
+ * The "Teaching Sample" frame.
+ *
+ * ── It used to promise something it could not do ─────────────────────────────────────
+ *
+ * This was a `<div>` with `cursor-pointer`, a play glyph and a hover animation — and no handler,
+ * no video and no URL anywhere in the codebase. It read as a player to everyone who clicked it.
+ *
+ * There are now two honest states, and which one renders depends on configuration rather than on
+ * anything in this file:
+ *
+ *   · **Configured** — a real `<button>` that opens the same `VideoLightbox` the candidate
+ *     portfolio uses. Enter and Space work because it is a button, not a div pretending to be one.
+ *   · **Not configured** — a plain illustration. No pointer cursor, no hover lift, not focusable.
+ *     It still shows the frame and the caption, so the card looks the same in a screenshot; it
+ *     simply stops claiming to be interactive.
+ *
+ * ── Why the lightbox is a SIBLING of the button ────────────────────────────────────
+ *
+ * Not a child. React events bubble through the REACT tree, not the DOM tree, so a dialog rendered
+ * inside the button sends its own Close click back up to the button's `onClick` and reopens
+ * instantly. That exact bug cost real time in the portfolio section; it is avoided here by
+ * construction.
+ */
+function TeachingSampleFrame() {
+  const [open, setOpen] = useState(false);
+
+  /*
+   * `embedFor` decides, not the presence of a string. A URL the allow-list cannot resolve — a typo,
+   * or a host that is not YouTube or Vimeo — would otherwise render a play button over a lightbox
+   * that returns null, which is the original bug with extra steps.
+   */
+  const playable = Boolean(marketingSampleVideoUrl && embedFor(marketingSampleVideoUrl));
+
+  const frame = (
+    <>
+      <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
+      <Icon
+        name="play"
+        className={`text-3xl text-white opacity-90 transition-all ${
+          playable ? 'group-hover:scale-110 group-hover:opacity-100' : ''
+        }`}
+      />
+      <span className="absolute bottom-3 left-4 text-xs font-medium text-white">
+        &quot;{SAMPLE_TITLE}&quot;
+      </span>
+    </>
+  );
+
+  const shell = 'group relative flex h-40 w-full items-center justify-center overflow-hidden rounded-xl bg-gray-900';
+
+  if (!playable) {
+    /* No handler, no pointer, not in the tab order. An illustration, and it looks like one. */
+    return <div className={shell}>{frame}</div>;
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Play the teaching sample: ${SAMPLE_TITLE}`}
+        className={`${shell} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:ring-offset-2`}
+      >
+        {frame}
+      </button>
+
+      {/* Mounted only while open, so the homepage makes no request to the video host until asked. */}
+      <VideoLightbox
+        open={open}
+        onClose={() => setOpen(false)}
+        url={marketingSampleVideoUrl}
+        title={SAMPLE_TITLE}
+        subtitle="Teaching sample"
+      />
+    </>
+  );
+}
+
 export function MockCandidateCard() {
   return (
     <div className="relative w-full overflow-x-clip lg:w-1/2" aria-hidden="true">
@@ -52,16 +137,7 @@ export function MockCandidateCard() {
             Teaching Sample
           </p>
           {/* A video frame is legitimately dark — its own text stays light for that reason. */}
-          <div className="group relative flex h-40 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-gray-900">
-            <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
-            <Icon
-              name="play"
-              className="text-3xl text-white opacity-90 transition-all group-hover:scale-110 group-hover:opacity-100"
-            />
-            <span className="absolute bottom-3 left-4 text-xs font-medium text-white">
-              &quot;Explaining Polynomials&quot;
-            </span>
-          </div>
+          <TeachingSampleFrame />
         </div>
       </div>
     </div>

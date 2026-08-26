@@ -161,6 +161,78 @@ export async function getPipeline(companyId, { includeClosed = false } = {}) {
   };
 }
 
+/**
+ * REC-14 — everyone this company has hired.
+ *
+ * ── Why this is its own read and not a board filter ─────────────────────────────────────
+ *
+ * `getPipeline` answers "what needs work?", so it defaults to `active: true` and a hired candidate
+ * correctly drops out of it — they are not work any more. That left the hire itself reachable only
+ * by ticking "Show closed" on the board, which is a filter on live work, not a record of outcomes.
+ * The two questions want different shapes: the board wants columns, this wants a dated list with
+ * the facts a hire is reported on.
+ *
+ * Everything here is derived from what the board already stores. No new field was added to the
+ * model: `outcome.roleTitle` and `outcome.startDate` are captured when the stage is set, and
+ * `stageHistory` already records the actor and the timestamp of every move.
+ *
+ * ── Where `hiredAt` and `hiredBy` come from ─────────────────────────────────────────
+ *
+ * From the LAST `to: 'hired'` row in `stageHistory`, not from `closedAt` or `updatedAt`. Both of
+ * those move for reasons that are not the hire — an owner reassignment or an edited next action
+ * bumps `updatedAt`, and an entry moved out of `hired` and back again would have a `closedAt` from
+ * the wrong moment. The history row is the only record of when the decision was actually made.
+ */
+export async function getHires(companyId) {
+  const entries = await PipelineEntry.find({
+    companyId,
+    stage: PIPELINE_STAGES.HIRED,
+  }).sort({ closedAt: -1 });
+
+  /* Same hydration as the board, so a candidate who has gone private disappears here too. */
+  const rows = await hydrate(entries, companyId);
+
+  /** The moment of hire, and who recorded it. */
+  const decisionFor = (row) => {
+    const hires = (row.stageHistory ?? []).filter((step) => step.to === PIPELINE_STAGES.HIRED);
+    return hires.length > 0 ? hires[hires.length - 1] : null;
+  };
+
+  /* One query for every actor name, rather than one per row. */
+  const actorIds = [...new Set(rows.map((row) => decisionFor(row)?.actorUserId).filter(Boolean))];
+  const actors = actorIds.length
+    ? await User.find({ _id: { $in: actorIds } }).select('name').lean()
+    : [];
+  const actorsById = new Map(actors.map((actor) => [String(actor._id), actor.name ?? null]));
+
+  const hires = rows.map((row) => {
+    const decision = decisionFor(row);
+    return {
+      id: row.id,
+      candidate: row.candidate,
+      roleTitle: row.outcome.roleTitle,
+      startDate: row.outcome.startDate,
+      /* Null only for data written before stage history existed — the client renders a dash. */
+      hiredAt: decision?.at ?? row.closedAt ?? null,
+      hiredBy: decision?.actorUserId
+        ? { id: decision.actorUserId, name: actorsById.get(decision.actorUserId) ?? null }
+        : null,
+      owner: row.owner,
+      source: row.source,
+      /* How long the whole process took, for the one metric a pilot actually reports on. */
+      daysToHire:
+        decision?.at && row.createdAt
+          ? Math.max(0, Math.round((new Date(decision.at) - new Date(row.createdAt)) / 86_400_000))
+          : null,
+    };
+  });
+
+  /* Newest first. Sorted on the derived date, since `closedAt` only approximates it. */
+  hires.sort((a, b) => new Date(b.hiredAt ?? 0) - new Date(a.hiredAt ?? 0));
+
+  return { hires, total: hires.length };
+}
+
 export async function getPipelineEntry(companyId, entryId) {
   const entry = await PipelineEntry.findOne({ _id: entryId, companyId });
   if (!entry) throw ApiError.notFound('That pipeline entry does not exist.');
