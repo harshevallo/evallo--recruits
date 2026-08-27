@@ -297,6 +297,9 @@ logs. Check it first after any deployment.
 | `GET` | `/api/public/companies/facets` | None | PUB-01 |
 | `GET` | `/api/public/companies/:slug` | None | PUB-02 |
 | `POST` | `/api/public/companies/:slug/interest` | None | PUB-02 |
+| `GET` | `/api/public/roles` | None | CAN-05b |
+| `GET` | `/api/public/roles/facets` | None | CAN-05b |
+| `GET` | `/api/public/roles/:roleId` | None | CAN-05b |
 
 `authLimiter` rate-limits every `/api/auth` write. All limiters are skipped when `NODE_ENV=test`.
 
@@ -912,10 +915,26 @@ Creating invitations is REC-07, documented below.
 REC-02 wizard. Returns the editable company, per-step progress, and the publish checklist. Accepts
 an id **or a slug**.
 
-Steps are `basics`, `brand`, `footprint` — covering exactly the fields PRD §7.3 marks required for
-publication. **A step may only write its own fields**, so a crafted body cannot reach another
-step's data. A partial step is a valid save: the wizard is draft-first (§7.2), and requirements
-are enforced at publish time.
+Steps are `basics`, `brand`, `footprint`, `culture`. The first three cover exactly the fields
+PRD §7.3 marks required for publication; `culture` is **optional enrichment only** — nothing in it
+appears on the publish checklist, so a company can publish a credible page without ever opening it.
+**A step may only write its own fields**, so a crafted body cannot reach another step's data. A
+partial step is a valid save: the wizard is draft-first (§7.2), and requirements are enforced at
+publish time.
+
+Each step owns one SECTION of the public profile, which is what REC-06's per-section "Edit" links
+address (`?step=<key>`):
+
+| Step | Public section | Notable fields |
+|---|---|---|
+| `basics` | Company details panel | `name`, `organizationType`, `website`, `location` |
+| `brand` | Header + Company overview | `logoUrl`, `coverImageUrl`, `tagline`, `description.short/full`, `foundingYear`, `sizeRange`, `metrics` |
+| `footprint` | Education footprint | `educationServices`, `subjects`, `deliveryModes`, `serviceRegions`, `learnerSegments` |
+| `culture` | Life at *company* | `description.philosophy`, `description.culture`, `pullQuote`, `perks` |
+
+Free-text collections are bounded server-side on write (`COMPANY_CONTENT_LIMITS`): `metrics` to 4
+rows — a row missing either half is dropped, not stored — and `perks` to 12 entries of 80
+characters. Empty and whitespace-only entries are removed.
 
 ### `GET /api/companies/:companyId/preview`
 
@@ -1359,9 +1378,25 @@ id space cannot be probed.
 
 `GET /api/public/companies` (directory, filtered/paginated) · `GET /api/public/companies/facets`
 (filter counts) · `GET /api/public/companies/:slug` (published profile) ·
-`POST /api/public/companies/:slug/interest` (expression of interest).
+`POST /api/public/companies/:slug/interest` (expression of interest) ·
+`GET /api/public/roles` (role search) · `GET /api/public/roles/facets` (filter counts) ·
+`GET /api/public/roles/:roleId` (one role).
 
 **These serve published company data only and can never reach a candidate collection** (PRD §21.2).
+Hiring intents are company data, which is why role search lives here.
+
+### `GET /api/public/roles/:roleId`
+
+One active role, for the role detail page. Uses the SAME `serialiseRole` the search uses, so the
+result card and the page cannot disagree about a field.
+
+**404 covers four different situations, deliberately indistinguishable:** no such id, the intent is
+not `active`, its company is not published, or its company is moderation-restricted. Search hides a
+role by not returning it; a direct link asks for one by id, so every rule search applies is
+re-proved here — otherwise the detail URL is the way around them, and a 404 that meant "withdrawn"
+rather than "never existed" would let anyone enumerate closed roles. A malformed id is a 400.
+
+`/roles/facets` is declared before `/roles/:roleId` so the literal segment is matched first.
 
 ---
 

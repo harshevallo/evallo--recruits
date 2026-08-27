@@ -213,7 +213,7 @@ Public, indexable organisation profile (PRD §7.4, §13).
 | `organizationType` | String | ✅ | Taxonomy-linked |
 | `status` | String | ✅ | `draft \| published \| paused \| archived` (PRD §14.2) |
 | `moderationStatus` | String | | Overlays `status`; independent (PRD §9.3) |
-| `website`, `foundingYear`, `sizeRange` | mixed | | |
+| `website`, `foundingYear`, `sizeRange` | mixed | | `sizeRange` is a display band from `COMPANY_SIZE_OPTIONS`; deliberately **not** an enum on the model — nothing queries it, and an enum would fail any pre-existing value on its next save |
 | `verifiedDomains` | [Object] | | `{ domain, verifiedAt, method }` (PRD §16.2) |
 | `logoUrl`, `coverImageUrl`, `tagline` | String | | Logo or generated initials required to publish |
 | `description` | Object | | `{ short, full, mission, values, culture, philosophy }` |
@@ -222,6 +222,10 @@ Public, indexable organisation profile (PRD §7.4, §13).
 | `serviceRegions`, `deliveryModes` | [String] | | |
 | `educationServices` | [String] | ✅ | ≥ 1 required to publish (PRD §7.3) |
 | `subjects`, `tests`, `curricula`, `gradeBands`, `learnerPopulations` | [String] | | Taxonomy-linked, drives discovery |
+| `learnerSegments` | [String] | | **Enum** `LEARNER_SEGMENT_VALUES` — the same vocabulary `candidateProfiles.learnerSegments` uses, so "teaches SEN learners" is matchable across both sides rather than being two unrelated strings |
+| `metrics` | [Object] | | `{ value, label }`, max 4. Self-reported trust figures rendered on the profile. Both halves free text — a tutoring business measures score uplift, a school measures ratio, and an enum here would produce blanks or lies. **Unverified: they feed no search, ranking, or facet** |
+| `pullQuote` | Object | | `{ text, attribution }`. Clearing `text` clears the whole object — an attribution with no quote is not a quote |
+| `perks` | [String] | | Max 12, each ≤ 80 chars. What the company offers educators |
 | `isCurrentlyHiring` | Boolean | | Hiring activation event (PRD §3.3) |
 | `acceptsGeneralInterest` | Boolean | | Allows interest with no active intent (PRD §9.3) |
 | `seo` | Object | | `{ title, description, ogImageUrl, canonicalUrl }` (PRD §17) |
@@ -241,6 +245,9 @@ Public, indexable organisation profile (PRD §7.4, §13).
 **Constraints**
 - Publishing requires: name, slug, organizationType, location, logo-or-initials, tagline,
   short description, ≥ 1 education service (PRD §7.3).
+- `metrics`, `perks`, `pullQuote` are free text with **no** taxonomy behind them, so their bounds
+  are applied on write in `saveCompanyStep` (`COMPANY_CONTENT_LIMITS`) rather than by the schema.
+  A limit that exists only in the wizard's own controls is not a limit.
 - `isCurrentlyHiring: true` requires ≥ 1 `active` hiring intent (PRD §7.3, §21.2).
 - Only `status: 'published'` documents are readable by `modules/public` or appear in
   `/sitemap.xml` (PRD §9.3, §17).

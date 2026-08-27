@@ -14,8 +14,21 @@ import { fetchConsentDisclosure } from '@/services';
  * fetched from the server, built from the candidate's own visibility settings, rather than being
  * hard-coded copy that could quietly drift from what actually happens.
  */
-export function CandidateInterestModal({ open, onClose, company, roles = [], onSubmitted }) {
-  const [hiringIntentId, setHiringIntentId] = useState('');
+/**
+ * @param {string} [defaultIntentId]
+ *   Pre-selects a role. Set by the role detail page, where the candidate is already looking at one
+ *   specific role — opening on "General interest" there would silently discard the thing they
+ *   clicked Apply on.
+ */
+export function CandidateInterestModal({
+  open,
+  onClose,
+  company,
+  roles = [],
+  defaultIntentId = '',
+  onSubmitted,
+}) {
+  const [hiringIntentId, setHiringIntentId] = useState(defaultIntentId);
   const [message, setMessage] = useState('');
   const [consent, setConsent] = useState(false);
   const [disclosure, setDisclosure] = useState(null);
@@ -33,14 +46,19 @@ export function CandidateInterestModal({ open, onClose, company, roles = [], onS
     return () => controller.abort();
   }, [open]);
 
-  // Reset between openings so a previous attempt never leaks into the next.
+  /*
+   * Reset between openings so a previous attempt never leaks into the next.
+   *
+   * Back to `defaultIntentId`, not to `''` — on the role page the default IS the selection, and
+   * resetting past it would clear the role every time the dialog was dismissed and reopened.
+   */
   useEffect(() => {
     if (open) return;
-    setHiringIntentId('');
+    setHiringIntentId(defaultIntentId);
     setMessage('');
     setConsent(false);
     setError(null);
-  }, [open]);
+  }, [open, defaultIntentId]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -110,7 +128,10 @@ export function CandidateInterestModal({ open, onClose, company, roles = [], onS
                   onChange={() => setHiringIntentId(role.id)}
                   className="mt-0.5 h-4 w-4 text-brand-blue focus:ring-brand-blue"
                 />
-                <span className="font-medium text-brand-dark">{role.title}</span>
+                <span className="font-medium text-brand-dark">
+                  {/* `title` is optional by design (PRD §7.5) — never render a blank option. */}
+                  {role.title?.trim() || 'This role'}
+                </span>
               </label>
             ))}
           </div>

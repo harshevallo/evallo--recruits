@@ -49,6 +49,9 @@ import {
   FaBolt,
   FaLocationDot,
   FaBookmark,
+  FaQuoteLeft,
+  FaUsers,
+  FaGlobe,
 } from 'react-icons/fa6';
 import { FaLinkedinIn, FaFacebookF, FaInstagram } from 'react-icons/fa';
 
@@ -102,6 +105,9 @@ const REGISTRY = {
   brain: FaBrain,
   bolt: FaBolt,
   'location-dot': FaLocationDot,
+  quote: FaQuoteLeft,
+  users: FaUsers,
+  globe: FaGlobe,
   'building-columns': FaBuildingColumns,
   star: FaStar,
   /*

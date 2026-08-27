@@ -255,8 +255,17 @@ describe('REC-02 setup wizard', () => {
     assert.equal(res.status, 200);
     assert.deepEqual(
       data.steps.map((s) => s.key),
-      ['basics', 'brand', 'footprint'],
+      ['basics', 'brand', 'footprint', 'culture'],
     );
+
+    /*
+     * `culture` carries no publish requirement (PRD §7.3 names none of its fields), so it reports
+     * complete from the moment the company exists. That is the draft-first promise in §7.2 made
+     * checkable: adding an enrichment step must never move `canPublish`.
+     */
+    const culture = data.steps.find((s) => s.key === 'culture');
+    assert.equal(culture.requiredTotal, 0);
+    assert.equal(culture.complete, true);
     assert.equal(data.company.name, 'Rec Test Academy');
     assert.equal(data.checklist.canPublish, false);
     assert.ok(data.checklist.blockers.includes('Tagline'));
@@ -294,6 +303,102 @@ describe('REC-02 setup wizard', () => {
     const stored = await Company.findById(company.id);
     assert.ok(!stored.tagline, 'field outside the step was not written');
     assert.deepEqual([...stored.educationServices], ['academic_tutoring']);
+  });
+
+  test('the culture step stores philosophy, quote and perks — and blocks nothing', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const { body: company } = await createCompany(accessToken);
+
+    const res = await authPatch(`/api/companies/${company.slug}/steps/culture`, accessToken, {
+      values: {
+        descriptionPhilosophy: 'Diagnose before you teach.',
+        descriptionCulture: 'Two protected planning periods a day.',
+        pullQuote: { text: 'We build independent thinkers.', attribution: 'Founding team' },
+        perks: ['  Annual training budget  ', '', 'Flexible remote hours'],
+      },
+    });
+    const data = (await res.json()).data;
+
+    assert.equal(res.status, 200);
+    assert.equal(data.company.descriptionPhilosophy, 'Diagnose before you teach.');
+    assert.equal(data.company.pullQuote.text, 'We build independent thinkers.');
+    assert.equal(data.company.pullQuote.attribution, 'Founding team');
+    /* Trimmed and de-blanked on write, so the public page never renders an empty chip. */
+    assert.deepEqual(data.company.perks, ['Annual training budget', 'Flexible remote hours']);
+
+    /* Nothing here is a §7.3 requirement — the checklist must be untouched by it. */
+    assert.equal(
+      data.checklist.items.some((item) => item.step === 'culture'),
+      false,
+    );
+  });
+
+  test('clearing the quote text removes the whole quote', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const { body: company } = await createCompany(accessToken);
+
+    await authPatch(`/api/companies/${company.slug}/steps/culture`, accessToken, {
+      values: { pullQuote: { text: 'A quote', attribution: 'Someone' } },
+    });
+    await authPatch(`/api/companies/${company.slug}/steps/culture`, accessToken, {
+      values: { pullQuote: { text: '', attribution: 'Someone' } },
+    });
+
+    const stored = await Company.findById(company.id);
+    /* An attribution with no quote is not a quote — it must not survive on its own. */
+    assert.ok(!stored.pullQuote?.text);
+    assert.ok(!stored.pullQuote?.attribution);
+  });
+
+  test('metrics drop half-filled rows and cap at four', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const { body: company } = await createCompany(accessToken);
+
+    await authPatch(`/api/companies/${company.slug}/steps/brand`, accessToken, {
+      values: {
+        metrics: [
+          { value: '4,200+', label: 'Students taught' },
+          { value: '180 pts', label: '' },
+          { value: '', label: 'Orphan label' },
+          { value: '91%', label: 'Instructor retention' },
+          { value: '1', label: 'One' },
+          { value: '2', label: 'Two' },
+          { value: '3', label: 'Three' },
+        ],
+      },
+    });
+
+    const stored = await Company.findById(company.id);
+    const metrics = stored.metrics.map((m) => [m.value, m.label]);
+
+    assert.equal(metrics.length, 4, 'capped at the four tiles the profile draws');
+    assert.deepEqual(metrics[0], ['4,200+', 'Students taught']);
+    /* Both halves are required to render a tile, so the two partial rows never reached storage. */
+    assert.deepEqual(metrics[1], ['91%', 'Instructor retention']);
+  });
+
+  test('learner segments are constrained to the shared taxonomy', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const { body: company } = await createCompany(accessToken);
+
+    const ok = await authPatch(`/api/companies/${company.slug}/steps/footprint`, accessToken, {
+      values: { learnerSegments: ['high_school', 'undergraduate'] },
+    });
+    assert.equal(ok.status, 200);
+    assert.deepEqual((await ok.json()).data.company.learnerSegments, [
+      'high_school',
+      'undergraduate',
+    ]);
+
+    /*
+     * The enum is what keeps a company's "who we teach" answerable in the same vocabulary an
+     * educator uses. A value outside it must fail loudly rather than be stored and be permanently
+     * unmatchable.
+     */
+    const bad = await authPatch(`/api/companies/${company.slug}/steps/footprint`, accessToken, {
+      values: { learnerSegments: ['pre_school'] },
+    });
+    assert.notEqual(bad.status, 200);
   });
 
   test('rejects an unknown step', async () => {

@@ -16,11 +16,20 @@ import {
   ROLE_CATEGORIES as RC,
   EMPLOYMENT_TYPES as ET,
   DELIVERY_MODES as DM,
+  LEARNER_SEGMENTS as LS,
 } from '@evallo/shared';
 import { connectDatabase, disconnectDatabase } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { Company } from '../modules/companies/company.model.js';
 import { HiringIntent } from '../modules/hiring-intents/hiringIntent.model.js';
+
+/*
+ * Cover images point at Unsplash. They are DEV FIXTURE data only — the same illustrative photos the
+ * approved PUB-02 reference used — and exist so the cover band renders as something other than an
+ * empty slate panel while working on the page. No production path fetches them: a real company's
+ * `coverImageUrl` is whatever it enters in the REC-03 step.
+ */
+const COVER = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=70`;
 
 const COMPANIES = [
   {
@@ -32,15 +41,33 @@ const COMPANIES = [
     educationServices: [ES.TEST_PREPARATION, ES.ACADEMIC_TUTORING],
     subjects: ['Mathematics', 'Physics', 'SAT', 'ACT'],
     deliveryModes: [DM.HYBRID, DM.REMOTE],
+    learnerSegments: [LS.HIGH_SCHOOL, LS.MIDDLE_SCHOOL, LS.UNDERGRADUATE],
     website: 'https://sevensquare.example',
+    coverImageUrl: COVER('1522071820081-009f0129c71c'),
     foundingYear: 2016,
     sizeRange: '11-50',
     publicContact: { email: 'careers@sevensquare.example' },
+    metrics: [
+      { value: '4,200+', label: 'Students taught' },
+      { value: '180 pts', label: 'Median SAT gain' },
+      { value: '91%', label: 'Instructor retention' },
+    ],
+    pullQuote: {
+      text: 'We teach to a documented starting score and a target. Everything else is detail.',
+      attribution: 'Founding instructor team',
+    },
+    perks: [
+      'Annual subject training budget',
+      'Exam registration reimbursed',
+      'Six-student cohort cap',
+      'Flexible remote hours',
+    ],
     description: {
       short: 'Small-group and one-to-one SAT/ACT preparation with measured score outcomes.',
       full: 'Seven Square Learning runs test-preparation programmes for high-school students across the Midwest. We combine diagnostic assessment, individualised study plans, and weekly progress reporting to families. Our instructors teach small cohorts of no more than six students, and every programme is built around a documented starting score and a target.',
       mission: 'Make high-quality test preparation measurable and accountable.',
       culture: 'Instructors set their own teaching approach within a shared assessment framework. We fund exam registration and annual subject training for every tutor.',
+      philosophy: 'Diagnose before you teach. Every programme opens with a full-length diagnostic, and no study plan is written until we can name which question types are actually costing the student points.',
     },
     isCurrentlyHiring: true,
     intents: [
@@ -57,13 +84,26 @@ const COMPANIES = [
     educationServices: [ES.STEM_ENRICHMENT, ES.ACADEMIC_TUTORING, ES.CAREER_COUNSELING],
     subjects: ['Biology', 'Chemistry', 'English Literature'],
     deliveryModes: [DM.ON_SITE],
+    learnerSegments: [LS.MIDDLE_SCHOOL, LS.HIGH_SCHOOL],
     website: 'https://northgate.example',
+    coverImageUrl: COVER('1523050854058-8df90110c9f1'),
     foundingYear: 1974,
     sizeRange: '51-200',
+    metrics: [
+      { value: '620', label: 'Students enrolled' },
+      { value: '1974', label: 'Founded' },
+      { value: '9:1', label: 'Student–teacher ratio' },
+    ],
+    perks: [
+      'Two protected planning periods daily',
+      'Departmental materials budget',
+      'Tuition remission for staff children',
+    ],
     description: {
       short: 'A college-preparatory school focused on inquiry-led science teaching.',
       full: 'Northgate Academy is an independent day school serving roughly 620 students in grades 6 through 12. Our science and mathematics departments run a laboratory-first curriculum, and every student completes an independent research project before graduating.',
       culture: 'Teachers are given two protected planning periods a day and a departmental budget for classroom materials.',
+      philosophy: 'Laboratory first. Students meet a phenomenon before they meet the equation that explains it, and every year ends with work they designed themselves.',
     },
     isCurrentlyHiring: true,
     intents: [
@@ -80,15 +120,26 @@ const COMPANIES = [
     educationServices: [ES.ADMISSIONS_COUNSELING, ES.CAREER_COUNSELING],
     subjects: ['Essay Writing', 'Interview Preparation'],
     deliveryModes: [DM.REMOTE],
+    learnerSegments: [LS.HIGH_SCHOOL, LS.UNDERGRADUATE],
     website: 'https://meridian-admissions.example',
+    coverImageUrl: COVER('1497633762265-9d179a990aa6'),
     foundingYear: 2019,
     sizeRange: '11-50',
+    metrics: [
+      { value: '18', label: 'Students per counsellor' },
+      { value: '2019', label: 'Founded' },
+    ],
+    pullQuote: {
+      text: 'Students write their own essays. We coach, question, and edit — we do not ghostwrite.',
+    },
+    perks: ['Capped admissions caseload', 'Fully remote team', 'Annual counsellor conference'],
     publicContact: { email: 'hello@meridian-admissions.example', phone: '+91 80 4000 0000' },
     acceptsGeneralInterest: true,
     description: {
       short: 'Application strategy and essay mentoring for US and UK undergraduate admissions.',
       full: 'Meridian Admissions supports students applying to universities in the United States, United Kingdom, and Canada. Counsellors carry a maximum of eighteen students per admissions cycle so that every application receives sustained attention.',
       values: 'Students write their own essays. We coach, question, and edit — we do not ghostwrite.',
+      philosophy: 'Fit before rank. We start from what a student actually wants out of four years, and the list follows from that rather than the other way round.',
     },
     isCurrentlyHiring: true,
     intents: [

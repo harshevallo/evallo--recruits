@@ -45,7 +45,14 @@ before(async () => {
     foundingYear: 2015,
     location: { country: 'US', city: 'Denver' },
     educationServices: ['academic_tutoring'],
+    subjects: ['Digital SAT'],
     deliveryModes: ['remote'],
+    learnerSegments: ['high_school', 'undergraduate'],
+    coverImageUrl: 'https://cdn.example/cover.jpg',
+    metrics: [{ value: '180 pts', label: 'Median SAT gain' }],
+    pullQuote: { text: 'Independent thinkers.', attribution: 'Founding team' },
+    perks: ['Annual training budget'],
+    description: { short: 'Short.', philosophy: 'Diagnose before you teach.' },
     isCurrentlyHiring: true,
     publicContact: { email: 'jobs@pub02.example' },
   });
@@ -99,6 +106,24 @@ describe('GET /api/public/companies/:slug', () => {
     assert.equal(body.data.sizeRange, '11-50');
     assert.equal(body.data.publicContact.email, 'jobs@pub02.example');
     assert.equal(body.data.isCurrentlyHiring, true);
+  });
+
+  /*
+   * Every one of these is on the profile that PUB-02 renders. `PUBLIC_PROFILE_FIELDS` is a
+   * hand-maintained projection string, so a field added to the model and to the page but forgotten
+   * there fails silently — the page simply renders nothing, which is exactly how `coverImageUrl`
+   * went unrendered for as long as it did. This is the test that catches the next one.
+   */
+  test('serves the profile-body fields the page renders', async () => {
+    const { body } = await get('/api/public/companies/pub02-company');
+    const data = body.data;
+
+    assert.equal(data.coverImageUrl, 'https://cdn.example/cover.jpg');
+    assert.deepEqual(data.learnerSegments, ['high_school', 'undergraduate']);
+    assert.deepEqual(data.metrics, [{ value: '180 pts', label: 'Median SAT gain' }]);
+    assert.equal(data.pullQuote.text, 'Independent thinkers.');
+    assert.deepEqual(data.perks, ['Annual training budget']);
+    assert.equal(data.description.philosophy, 'Diagnose before you teach.');
   });
 
   test('includes ONLY active hiring intents', async () => {

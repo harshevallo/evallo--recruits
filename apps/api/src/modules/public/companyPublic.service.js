@@ -170,7 +170,8 @@ async function attachActiveRoles(companies) {
 /** Every field the full public profile renders. Shared so a preview selects exactly the same set. */
 export const PUBLIC_PROFILE_FIELDS =
   'name slug organizationType tagline logoUrl coverImageUrl website foundingYear sizeRange ' +
-  'location locations serviceRegions deliveryModes educationServices subjects ' +
+  'location locations serviceRegions deliveryModes educationServices subjects learnerSegments ' +
+  'metrics pullQuote perks ' +
   'description isCurrentlyHiring acceptsGeneralInterest publicContact verifiedDomains ' +
   'seo status moderationStatus publishedAt createdAt updatedAt';
 

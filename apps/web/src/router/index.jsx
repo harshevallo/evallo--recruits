@@ -134,6 +134,9 @@ const SavedCompaniesPage = lazy(() =>
 const RoleSearchPage = lazy(() =>
   import('@/pages/candidate/RoleSearchPage').then((m) => ({ default: m.RoleSearchPage })),
 );
+const RoleDetailPage = lazy(() =>
+  import('@/pages/candidate/RoleDetailPage').then((m) => ({ default: m.RoleDetailPage })),
+);
 const VisibilitySettingsPage = lazy(() =>
   import('@/pages/candidate/VisibilitySettingsPage').then((m) => ({
     default: m.VisibilitySettingsPage,
@@ -365,6 +368,12 @@ export const router = createBrowserRouter([
                    * the server, different result unit, different card.
                    */
                   { path: PATHS.CANDIDATE_ROLES, element: <RoleSearchPage /> },
+                  /*
+                   * A role has its own page. Declared after the search it is reached from; the two
+                   * paths do not overlap (`/me/roles` vs `/me/roles/:roleId`), so order is for
+                   * reading rather than for matching.
+                   */
+                  { path: PATHS.CANDIDATE_ROLE_DETAIL, element: <RoleDetailPage /> },
                   {
                     path: PATHS.CANDIDATE_COMPANIES,
                     element: (

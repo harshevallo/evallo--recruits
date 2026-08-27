@@ -3,8 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Badge, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
-import { CompanyOverview } from '@/features/companies/components/CompanyOverview';
-import { OpenRoleCard } from '@/features/companies/components/OpenRoleCard';
+import { CompanyProfileView } from '@/features/companies/components/CompanyProfileView';
 import { fetchCompanyPreview, publishCompany, unpublishCompany } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
 
@@ -12,8 +11,12 @@ import { PATHS, buildPath } from '@/router/paths';
  * REC-06 — preview and publish (PRD §7.2, §9.3).
  *
  * The preview is rendered from `serialisePublicCompany` — the SAME server serialiser PUB-02 uses —
- * and drawn with the SAME components (`CompanyOverview`, `OpenRoleCard`). Neither the data nor
- * the rendering is duplicated, so what a recruiter reviews here is what the public gets.
+ * and drawn by the SAME `CompanyProfileView` that PUB-02 and CAN-06 draw. Neither the data nor the
+ * rendering is duplicated, so what a recruiter reviews here is what the public gets.
+ *
+ * That claim used to be only half true. The body was shared but the surrounding panel was built by
+ * hand here — its own cover band, its own name-and-tagline header, its own roles heading — so the
+ * moment the public page changed, the "preview" was previewing something else.
  *
  * Publishing is the only transition that makes the page anonymously readable; unpublishing
  * returns it to draft and withdraws it from the directory (§9.3).
@@ -91,7 +94,14 @@ export function CompanyPreviewPage() {
 
   const { preview, publish, status, publicUrl } = state;
   const isPublished = status === 'published';
-  const openRoles = preview.openRoles ?? [];
+
+  /*
+   * Each section of the preview links to the wizard step that owns it. The wizard reads `?step=`
+   * from the query string, and `COMPANY_WIZARD_STEPS` on the server is what decides which fields
+   * a step can write — so these keys are the server's, not a second list maintained here.
+   */
+  const stepHref = (stepKey) =>
+    `${buildPath(PATHS.COMPANY_SETUP, { companySlug })}?step=${stepKey}`;
 
   return (
     <Container className="py-32">
@@ -218,51 +228,27 @@ export function CompanyPreviewPage() {
         </div>
       </section>
 
-      {/* The public rendering itself — same components PUB-02 uses. */}
-      <article className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Public view
-        </p>
+      {/*
+        The public rendering itself — the SAME `CompanyProfileView` PUB-02 and CAN-06 draw, not a
+        third arrangement of the same children.
 
-        <header className="mb-6 border-b border-gray-100 pb-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-bold text-brand-dark">{preview.name}</h2>
-            {preview.isCurrentlyHiring && (
-              <Badge tone="successLight" size="sm" radius="full">
-                Hiring now
-              </Badge>
-            )}
-          </div>
-          {preview.tagline ? (
-            <p className="mt-1 text-gray-600">{preview.tagline}</p>
-          ) : (
-            <p className="mt-1 text-sm italic text-gray-400">No tagline yet</p>
-          )}
-        </header>
+        It used to be a hand-built panel here: its own cover band, its own name-and-tagline header,
+        its own roles heading. That is how a "preview" ends up not matching what publishes — and it
+        did, the moment the public page was rebuilt. The only additions now are the ones a preview
+        legitimately has: the per-section Edit links, and no interest affordance, since a recruiter
+        cannot apply to their own roles.
+      */}
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Public view
+      </p>
 
-        <CompanyOverview company={preview} />
-
-        <section className="mt-8">
-          <h3 className="mb-4 text-lg font-bold text-brand-dark">
-            Open roles
-            {openRoles.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-gray-500">({openRoles.length})</span>
-            )}
-          </h3>
-
-          {openRoles.length === 0 ? (
-            <p className="text-sm text-gray-600">
-              No roles listed. You can publish without them and add hiring intent later.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {openRoles.map((role) => (
-                <OpenRoleCard key={role.id} role={role} onExpressInterest={() => {}} />
-              ))}
-            </div>
-          )}
-        </section>
-      </article>
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <CompanyProfileView
+          company={preview}
+          topSpacing="none"
+          editStepHref={stepHref}
+        />
+      </div>
 
       <div className="mt-8">
         <Button

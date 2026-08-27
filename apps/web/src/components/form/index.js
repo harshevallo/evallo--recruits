@@ -5,3 +5,5 @@ export { ComboboxInput } from './ComboboxInput';
 export { Textarea } from './Textarea';
 export { PasswordInput } from './PasswordInput';
 export { Checkbox } from './Checkbox';
+export { CheckCardGroup } from './CheckCardGroup';
+export { TagInput } from './TagInput';

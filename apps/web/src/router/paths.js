@@ -77,6 +77,20 @@ export const PATHS = Object.freeze({
    * card, different facets.
    */
   CANDIDATE_ROLES: '/me/roles',
+  /*
+   * A role has its OWN page. It used to have none: a result card linked to the company profile
+   * anchored at `#open-roles`, on the argument that the interest flow already lived there and a
+   * second consented-disclosure implementation would be a liability.
+   *
+   * That reasoning held for the flow and not for the destination. The effect was that "Search for
+   * Roles" and "Search for Companies" landed on the SAME screen, which made one of the two
+   * searches pointless — you could not open a role, only the organisation behind it, and the role
+   * you clicked was one card among several once you arrived.
+   *
+   * The liability is avoided by reusing `CandidateInterestModal` rather than rebuilding it, so
+   * there is still exactly one consent implementation with two places to open it from.
+   */
+  CANDIDATE_ROLE_DETAIL: '/me/roles/:roleId',
   CANDIDATE_COMPANIES: '/me/companies',
   CANDIDATE_COMPANY_PROFILE: '/me/companies/:slug',
   CANDIDATE_INTERESTS: '/me/interests',

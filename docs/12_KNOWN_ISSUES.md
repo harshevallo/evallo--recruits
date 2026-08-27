@@ -10,8 +10,47 @@
 
 ## 1. Current issues
 
-### I-01 — ~~Integration suites cannot run concurrently~~ RESOLVED 2026-08-10
-**Severity:** — · **Resolution:** fixtures namespaced per suite
+### I-01 — Integration suites cannot run concurrently · **REOPENED 2026-08-27**
+**Severity:** High — the suite cannot currently be trusted as a pass/fail gate
+
+**The 2026-08-10 resolution below no longer holds.** The suite has grown from 20 files / 365 tests
+to 28 files / 531 tests, and the failure class it fixed has returned. Three consecutive full
+`node --test` runs on identical code, changing nothing between them:
+
+| Run | Failures |
+|---|---|
+| A | `companySetup` — *a real failure, since fixed* |
+| B | **5** — `auth` login, `verification`, REC-13 privacy, REC-10 pending actions, REC-11 privacy |
+| C | **1** — `joinRequests` "one person cannot withdraw another person's request" |
+
+**Every one of those suites passes in isolation**, verified individually: `auth` 46/46,
+`verification` 11/11, `candidateViewer` 20/20, `companyDashboard` 11/11, `interestInbox` 20/20,
+`joinRequests` 17/17. The failing set is different on each run and no suite fails twice, which is
+what rules out a real regression and points at shared state.
+
+The caveat recorded in the original resolution is the likely cause and was written as a prediction:
+*"the suites still share one `evallo-recruit` database with development data… A new suite that
+reuses another's email will resurrect this class of failure."* Eight suites have been added since.
+
+**Why this matters more than a flaky test normally would.** ADR-002 chose JavaScript and made
+integration tests the explicit substitute for a compiler (L-01). A suite whose failures are
+non-deterministic cannot serve that purpose: a genuine regression is indistinguishable from the
+noise, and the rational response to a red run becomes "run it again", which is exactly how a real
+failure gets waved through.
+
+**Prescribed fix — a database per worker, not a namespace per suite.** Namespacing fixtures was the
+right first fix and it postponed the problem by eight suites; it does not scale, because it depends
+on every future suite author knowing the convention and no two suites ever colliding. Give each
+test file its own database (`evallo-recruit-test-${process.pid}`), dropped on teardown, so isolation
+is structural rather than conventional. `--test-concurrency=1` would also make it pass and is the
+wrong answer: it turns an 8-minute suite into a much longer one and leaves the shared-state defect
+in place for the first person who runs the files in parallel.
+
+**Until then:** a full-suite failure must be re-checked by running that file alone before it is
+treated as a regression.
+
+<details>
+<summary>Original 2026-08-10 resolution, retained for context</summary>
 
 The prescribed fix was taken: each suite now cleans up only its **own** fixture addresses rather than
 issuing an unscoped `deleteMany({})`. Two earlier variants are called out in the suites' own comments
@@ -25,6 +64,8 @@ fixtures and orphaned their candidate profiles mid-run).
 One caveat remains: the suites still share one `evallo-recruit` database with development data, so
 fixture addresses must stay unique per suite. A new suite that reuses another's email will resurrect
 this class of failure.
+
+</details>
 
 ### I-02 — ~~Google sign-in does not work on localhost~~ RESOLVED 2026-08-04
 **Severity:** — · **Resolution:** fixed in `GoogleButton.jsx`

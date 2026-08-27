@@ -43,6 +43,17 @@ export async function fetchPublicRoles(params, options = {}) {
   return unwrapWithMeta(response);
 }
 
+/**
+ * One role, by id — the role detail page.
+ *
+ * 404 covers "no such role", "closed" and "company unpublished" alike, so the page shows one
+ * "no longer available" state rather than trying to explain which of the three happened.
+ */
+export async function fetchPublicRole(roleId, options = {}) {
+  const response = await apiClient.get(`/public/roles/${roleId}`, { signal: options.signal });
+  return unwrap(response);
+}
+
 /** Facet counts for the role filter panel. */
 export async function fetchRoleFacets(options = {}) {
   const response = await apiClient.get('/public/roles/facets', { signal: options.signal });

@@ -9,7 +9,146 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Changed
+- **2026-08-27 — REC-12 talent search rebuilt to the approved reference.** The keyword box, sort
+  control, result count and active filters now live in one white search bar instead of a row of
+  separate labelled fields; the filter rail gets the reference's treatment ("Filters" with a quiet
+  "Clear all", bold uppercase group headings, a rule under each); and the results become rich
+  two-column cards — photo with a recency dot, name, headline, an icon meta row, a heart, subject
+  chips, the candidate's own introduction, and a footer of real actions.
+
+  **New and working:** removable filter chips beside the result count. The rail is where filters
+  are set; this is where a recruiter sees what is narrowing their results without hunting a panel
+  for the one box to untick. The loading skeleton now matches the real grid, so nothing jumps.
+
+  **Fixed on the way past:** the message composer's title read `composing?.card.name`, a field a
+  search card has never had — every first-contact dialog said "Message this candidate" instead of
+  the person's name. It reads `header.name` now.
+
+  **Two blocks in the reference were deliberately not built, and neither is a styling shortcut.**
+
+  *"Platform Verified Credentials"* — chips reading "1590 (Official)", "M.Ed. Harvard",
+  "Background Cleared". **Nothing in this product verifies any of that.** Evidence verification
+  labels are B-04 and unbuilt, so no field anywhere distinguishes a checked background from a
+  claimed one. Rendering those badges would assert a verification we have never performed, about a
+  real person, to someone deciding whether to hire them. The slot is kept and filled with something
+  true — **why this person matched the search**, which PRD §21.4 requires be shown anyway, in the
+  same two-tone chip treatment.
+
+  *The teaching-sample video* — `evidence.media` exists, but on the full profile (REC-13).
+  `toSearchCard` drops the evidence block on purpose, and says why: a card is "a reason to open a
+  profile, not a substitute for opening one". Putting evidence on a search result is a §21.4
+  decision, not a layout one. The candidate's own introduction fills that panel instead.
+
+  The reference's "Must Have" toggles (Video Intro / Official Score Report / Background Check)
+  filter on that same non-existent verification, so they are not in the rail either. The slide-over
+  profile is not built as a modal: REC-13 is a real page that already renders the full profile with
+  its own access logging, and a second copy is what this codebase has already paid for twice —
+  "View full profile" links to it.
+
+- **2026-08-27 — REC-02 rebuilt to the approved setup-wizard reference.** The step title moves out
+  of the panel and becomes the page heading, with the fields alone in one white card beneath it;
+  the footer becomes Back / Save and continue; and the header carries a **real** save indicator —
+  it says "Draft saved", "Saving…" or **"Not saved"**, because a permanently-green chip is exactly
+  wrong in the one moment that matters.
+
+  **Two new form controls, both real:**
+  - `TagInput` replaces the comma-separated line for subjects, service regions and perks. Type and
+    press Enter (or comma) for a chip; Backspace on an empty box removes the last; **blur commits
+    whatever is pending**, so typing "AP Calculus" and clicking Save no longer discards it — the
+    single most common failure of every chip input.
+  - `CheckCardGroup` replaces the plain checkbox grids. Delivery model renders as pills, learner
+    segments as tiles, education services as a two-column list — layout follows vocabulary size.
+    The control underneath is still a real `<input type="checkbox">` inside a `<label>`, never a
+    `<div>` with an onClick, so keyboard and screen-reader behaviour is unchanged. It takes an `id`
+    because the wizard focuses `field-<name>` on a missing required field and a `<fieldset>` is not
+    focusable.
+
+  **The rail now shows all seven stages**, not four. Hiring intent, Invite team and Publish are
+  links to REC-05, REC-07 and REC-06 — the screens that already own them — rather than three more
+  copies rebuilt inside this form. Every one of those links saves pending edits first, and a failed
+  save cancels the navigation, so clicking away never loses what is on screen. "Save and exit" does
+  the same.
+
+  **Two things in the reference were deliberately not copied.** The logo "Browse files" picker has
+  no backend — `mediaAssets` is keyed by `ownerUserId` with its write route at `/api/me/photo`, a
+  personal asset, and object storage is D-02 — so the logo block keeps its shape with a live
+  preview and a URL field instead of a dialog that would drop the file. And the editable slug is
+  shown read-only: changing it would break every link already shared, and the 301 handling from
+  `slugHistory` is B-11 and unbuilt.
+
 ### Added
+- **2026-08-27 — A role has its own page.** "Search for Roles" could find a role but never show you
+  one: `RoleResultCard` linked to `/me/companies/<slug>#open-roles`, so opening a result landed on
+  the company profile — the same destination "Search for Companies" leads to. Two searches, one
+  screen, and the role you clicked arrived as one card among several on someone else's page.
+
+  New `GET /api/public/roles/:roleId` and `/me/roles/:roleId` (`RoleDetailPage`). The role is the
+  subject — heading, summary panel, apply action — and the company is context with a real link to
+  its profile, so that visit is now a choice rather than somewhere you were sent.
+
+  **The original decision was right about the flow and wrong about the destination.** It was taken
+  to avoid a second consented-disclosure implementation, which PRD §8.7 step 6 makes a privacy
+  guarantee rather than a form. That is avoided by REUSING `CandidateInterestModal` — one consent
+  implementation, now openable from two places — with a new `defaultIntentId` so applying from a
+  role page does not silently submit as general interest.
+
+  **Visibility is re-proved, not inherited.** Search hides a role by not returning it; a direct
+  link asks for one by id, so the detail endpoint re-checks every rule. Closed intent, draft
+  company, restricted company and unknown id all return an identical 404 — a 404 that meant
+  "withdrawn" would let anyone enumerate closed roles. Six tests pin exactly that.
+
+### Changed
+- **2026-08-27 — There is now ONE company profile, not three.** A company page was reachable at
+  `/companies/:slug` (PUB-02), `/me/companies/:slug` (CAN-06) and inside `/c/:slug/preview`
+  (REC-06), and each had its own header, width, section rhythm, roles heading and empty state.
+  Only the two inner cards were shared. So when PUB-02 was rebuilt to the approved reference, the
+  other two kept the old layout, and which company page you saw depended on whether you followed a
+  link or browsed while signed in.
+
+  The layout now lives once, in `CompanyProfileView`. The pages supply only what genuinely differs:
+  `actions` (anonymous gets "Express interest"; signed-in gets Save, Block and interest state),
+  `banner` (signed-in status messages) and `backTo`. Everything else is not a prop, so it cannot
+  diverge again. REC-06's file had claimed "what a recruiter reviews is what the public gets" — it
+  now is.
+- **2026-08-27 — The public company profile is rebuilt to the approved reference, and four fields
+  that were rendered nowhere now have somewhere to come from.** PUB-02 was a hero band, a prose
+  block, a details panel and a role list. It is now the reference's section rhythm: a **cover image
+  band** with the logo overlapping it, Company overview with trust-metric tiles, Education
+  footprint as two chip cards, *Life at …* with a pull quote, teaching philosophy and educator
+  perks, then Currently hiring.
+
+  **`coverImageUrl` is the headline of this change.** It has been on the model, in
+  `PUBLIC_PROFILE_FIELDS` and in the `brand` wizard step's writable list since REC-02 — with **no
+  control anywhere in the product to set it and no component that drew it**. `foundingYear` and
+  `sizeRange` were in the same state: writable by the API, invisible in the wizard. All three now
+  have controls and all three render. A new integration test asserts the profile body fields reach
+  the public payload, because a projection string is exactly the kind of hand-maintained list where
+  this failure is silent.
+
+  New company fields, with authoring in a new **`culture`** wizard step (`brand` gained `metrics`):
+  `learnerSegments` (enum, shared with `candidateProfiles` so the two sides are matchable),
+  `metrics`, `pullQuote`, `perks`. None of them touches the publish checklist — PRD §7.3 requires
+  none of it, and the wizard stays draft-first.
+
+  **REC-06 gained per-section "Edit" links** rather than the reference's admin-mode toggle. The
+  reference puts a Public/Admin switch on the page itself; `/companies/:slug` is anonymous and
+  prerender-targeted, so reading auth state there would reverse a standing decision to solve a
+  problem the preview already owns. Each link deep-links to the wizard step that owns that section
+  (`?step=<key>`), and the mapping is one-to-one by construction. The links are **always visible,
+  not hover-revealed** — the reference's `:hover` reveal is unreachable by touch and by keyboard.
+
+  Also on the preview: the cover band is drawn so a recruiter can see what they set, and
+  `OpenRoleCard`'s Apply button is now **omitted** there instead of being wired to `() => {}`,
+  which drew a working-looking control that silently did nothing.
+
+  **Three parts of the reference were deliberately not built**, and none of them is a styling
+  decision: the media gallery needs file storage (**D-02**, still an open decision, and ADR-020's
+  interim exception explicitly does not extend to it); educator testimonials need employment
+  verification and a moderation path (PRD §16.3) before anything can be published as a real
+  person's words about a real employer; and the reference's multi-select role checkboxes would
+  change what an expression of interest *is*, from `hiringIntentId` through to REC-11's inbox — so
+  the modal uses radio cards, which is what the single-value contract can actually express.
 - **2026-08-24 — Candidates can actually upload a profile photo.** The builder has shown a
   "Profile photo" block since CAN-02 and it has never worked: `users.profilePicture` was populated
   in exactly one place, `auth.service.js`, from the Google OAuth payload. Anyone who signed up with

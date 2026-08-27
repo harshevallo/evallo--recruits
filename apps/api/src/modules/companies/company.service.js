@@ -163,15 +163,65 @@ export const COMPANY_WIZARD_STEPS = Object.freeze([
       'descriptionFull',
       'foundingYear',
       'sizeRange',
+      /*
+         Metrics sit with the description, not with culture, so that each SECTION of the public
+         profile maps to exactly one wizard step — the preview's per-section edit links depend on
+         that being true, and the tiles render inside the overview block.
+      */
+      'metrics',
     ],
   },
   {
     key: 'footprint',
     title: 'Education footprint',
-    description: 'The services you offer and how you deliver them.',
-    fields: ['educationServices', 'subjects', 'deliveryModes', 'serviceRegions'],
+    description: 'The services you offer, who you teach, and how you deliver.',
+    fields: [
+      'educationServices',
+      'subjects',
+      'deliveryModes',
+      'serviceRegions',
+      'learnerSegments',
+    ],
+  },
+  /*
+   * Culture is optional enrichment and therefore LAST. Nothing in it appears on the publish
+   * checklist (PRD §7.3 requires none of it), so a company can publish a credible page without
+   * ever opening this step — which is the draft-first promise in §7.2. It exists because the
+   * public profile has a culture block with no way to author it otherwise.
+   */
+  {
+    key: 'culture',
+    title: 'Life and culture',
+    description: 'How you teach, what you offer educators, and the numbers you stand behind.',
+    fields: ['descriptionPhilosophy', 'descriptionCulture', 'pullQuote', 'perks'],
   },
 ]);
+
+/** Upper bounds on the free-text collections, applied on write. See `sanitiseList`. */
+export const COMPANY_CONTENT_LIMITS = Object.freeze({
+  metrics: 4,
+  perks: 12,
+  metricValue: 24,
+  metricLabel: 60,
+  perk: 80,
+  quoteText: 280,
+  quoteAttribution: 120,
+});
+
+/**
+ * Trims a free-text list to its cap and drops the empties.
+ *
+ * These fields are arrays of user-supplied strings with no enum behind them, so without a bound
+ * here a single step save could store an unbounded document — the wizard's own controls limit
+ * what a person can add, and a limit that only exists in the browser is not a limit.
+ */
+function sanitiseList(value, { max, maxLength }) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => String(entry ?? '').trim().slice(0, maxLength))
+    .filter(Boolean)
+    .slice(0, max);
+}
 
 /**
  * PRD §7.3 publication requirements, named rather than scored.
@@ -266,6 +316,19 @@ export function toEditorView(company) {
     subjects: company.subjects ?? [],
     deliveryModes: company.deliveryModes ?? [],
     serviceRegions: company.serviceRegions ?? [],
+    learnerSegments: company.learnerSegments ?? [],
+    descriptionPhilosophy: company.description?.philosophy ?? '',
+    descriptionCulture: company.description?.culture ?? '',
+    /* Flattened for the form, which draws two inputs rather than one object. */
+    pullQuote: {
+      text: company.pullQuote?.text ?? '',
+      attribution: company.pullQuote?.attribution ?? '',
+    },
+    perks: company.perks ?? [],
+    metrics: (company.metrics ?? []).map((metric) => ({
+      value: metric.value ?? '',
+      label: metric.label ?? '',
+    })),
   };
 }
 
@@ -353,6 +416,48 @@ export async function saveCompanyStep(companyIdOrSlug, stepKey, values = {}) {
   });
   set('serviceRegions', (v) => {
     company.serviceRegions = v;
+  });
+  set('learnerSegments', (v) => {
+    company.learnerSegments = v;
+  });
+
+  /*
+   * `description` is a nested object, so each of these has to merge rather than assign — the
+   * existing pattern above (`descriptionShort`, `descriptionFull`) for the same reason.
+   */
+  set('descriptionPhilosophy', (v) => {
+    company.description = { ...company.description?.toObject?.(), philosophy: v };
+  });
+  set('descriptionCulture', (v) => {
+    company.description = { ...company.description?.toObject?.(), culture: v };
+  });
+
+  set('pullQuote', (v) => {
+    const text = String(v?.text ?? '').trim().slice(0, COMPANY_CONTENT_LIMITS.quoteText);
+    const attribution = String(v?.attribution ?? '')
+      .trim()
+      .slice(0, COMPANY_CONTENT_LIMITS.quoteAttribution);
+
+    /* An attribution with no quote is not a quote — clearing the text clears the whole block. */
+    company.pullQuote = text ? { text, attribution: attribution || undefined } : undefined;
+  });
+
+  set('perks', (v) => {
+    company.perks = sanitiseList(v, {
+      max: COMPANY_CONTENT_LIMITS.perks,
+      maxLength: COMPANY_CONTENT_LIMITS.perk,
+    });
+  });
+
+  set('metrics', (v) => {
+    company.metrics = (Array.isArray(v) ? v : [])
+      .map((metric) => ({
+        value: String(metric?.value ?? '').trim().slice(0, COMPANY_CONTENT_LIMITS.metricValue),
+        label: String(metric?.label ?? '').trim().slice(0, COMPANY_CONTENT_LIMITS.metricLabel),
+      }))
+      /* Both halves are required to render a tile, so a half-filled row is dropped, not stored. */
+      .filter((metric) => metric.value && metric.label)
+      .slice(0, COMPANY_CONTENT_LIMITS.metrics);
   });
 
   await company.save();

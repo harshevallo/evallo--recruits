@@ -25,6 +25,7 @@
  * can return an intent whose company was not first proved visible.
  */
 
+import mongoose from 'mongoose';
 import { HIRING_INTENT_STATUS } from '@evallo/shared';
 import { Company, companyInitials } from '../companies/company.model.js';
 import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
@@ -192,6 +193,39 @@ export async function listPublicRoles(query) {
       hasMore: query.page * query.limit < total,
     },
   };
+}
+
+/**
+ * ONE role, by id — the role detail page.
+ *
+ * Returns null when the intent does not exist, is not `active`, or belongs to a company that is
+ * not publicly visible. All three collapse to the same answer so a 404 cannot be used to probe for
+ * closed roles or unpublished companies (the rule PUB-02 already applies to draft companies).
+ *
+ * Visibility is proved the same way the search does it and in the same order — company first, then
+ * the intent within it — so a role can never be reachable by direct link that search would not
+ * have returned. It also uses the SAME `serialiseRole`, so the detail page and the result card can
+ * never disagree about a field.
+ */
+export async function getPublicRoleById(roleId) {
+  if (!mongoose.isValidObjectId(roleId)) return null;
+
+  const intent = await HiringIntent.findOne({
+    _id: roleId,
+    status: HIRING_INTENT_STATUS.ACTIVE,
+  })
+    .select(INTENT_FIELDS)
+    .lean();
+
+  if (!intent) return null;
+
+  const company = await Company.findOne({ ...publiclyVisible(), _id: intent.companyId })
+    .select(COMPANY_CARD_FIELDS)
+    .lean();
+
+  if (!company) return null;
+
+  return serialiseRole(intent, company);
 }
 
 /**

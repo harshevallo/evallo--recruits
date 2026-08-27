@@ -18,6 +18,7 @@ import {
   createCompanyInterest,
   getRoles,
   getRoleSearchFacets,
+  getRole,
 } from './public.controller.js';
 import {
   earlyAccessValidation,
@@ -25,6 +26,7 @@ import {
   companyProfileValidation,
   companyInterestValidation,
   roleSearchValidation,
+  roleDetailValidation,
 } from './public.validation.js';
 
 const router = Router();
@@ -53,6 +55,12 @@ router.get(
  */
 router.get('/roles/facets', asyncHandler(getRoleSearchFacets));
 router.get('/roles', validate(roleSearchValidation), asyncHandler(getRoles));
+
+/*
+ * One role — the role detail page. Declared AFTER `/roles/facets` for the reason above: `:roleId`
+ * would otherwise match the literal `facets` and answer the wrong question.
+ */
+router.get('/roles/:roleId', validate(roleDetailValidation), asyncHandler(getRole));
 
 // PUB-02 — public company profile and expression of interest (PRD §7.4, §8.7).
 router.get(

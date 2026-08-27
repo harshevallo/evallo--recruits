@@ -284,6 +284,88 @@ describe('role search — filters', () => {
   });
 });
 
+/**
+ * `GET /api/public/roles/:roleId` — the role detail page.
+ *
+ * This endpoint is the reason the visibility tests above are not sufficient on their own. Search
+ * hides a role by not returning it; a direct link asks for one BY ID, so every rule search applies
+ * has to be re-proved here or the detail URL becomes the way around it. All four negative cases
+ * must be indistinguishable from each other — a 404 that meant "closed" rather than "never
+ * existed" would let anyone enumerate withdrawn roles.
+ */
+describe('role detail', () => {
+  test('returns one role, in the same shape the search returns', async () => {
+    const company = await makeCompany('rs-published');
+    const intent = await makeIntent(company._id);
+
+    const { status, body } = await get(`/api/public/roles/${intent._id}`);
+
+    assert.equal(status, 200);
+    assert.equal(body.data.id, String(intent._id));
+    assert.equal(body.data.title, 'IB Physics Teacher');
+    assert.equal(body.data.company.slug, 'rs-published');
+    assert.equal(body.data.minYears, 3);
+    /* Same serialiser as the list, so the card and the page cannot disagree about a field. */
+    const fromSearch = (await get('/api/public/roles?q=IB%20Physics')).body.data.find(
+      (role) => role.id === String(intent._id),
+    );
+    assert.deepEqual(body.data, fromSearch);
+  });
+
+  test('404s for a CLOSED intent', async () => {
+    const company = await makeCompany('rs-published');
+    const intent = await makeIntent(company._id, { status: HIRING_INTENT_STATUS.CLOSED });
+
+    const { status } = await get(`/api/public/roles/${intent._id}`);
+    assert.equal(status, 404, 'a withdrawn role must not be reachable by direct link');
+  });
+
+  test('404s for a role at a DRAFT company', async () => {
+    const draft = await makeCompany('rs-draft', { status: COMPANY_STATUS.DRAFT });
+    const intent = await makeIntent(draft._id);
+
+    const { status } = await get(`/api/public/roles/${intent._id}`);
+    assert.equal(status, 404, 'company visibility governs the role, by id as well as by search');
+  });
+
+  test('404s for a role at a MODERATION-RESTRICTED company', async () => {
+    const restricted = await makeCompany('rs-restricted', {
+      moderationStatus: MODERATION_STATUS.RESTRICTED,
+    });
+    const intent = await makeIntent(restricted._id);
+
+    const { status } = await get(`/api/public/roles/${intent._id}`);
+    assert.equal(status, 404);
+  });
+
+  test('404s for an unknown id and 400s for a malformed one', async () => {
+    assert.equal((await get('/api/public/roles/000000000000000000000000')).status, 404);
+    assert.equal((await get('/api/public/roles/not-an-object-id')).status, 400);
+  });
+
+  test('leaks no private company data', async () => {
+    const company = await makeCompany('rs-published', {
+      publicContact: { email: 'private@rs.example' },
+    });
+    const intent = await makeIntent(company._id);
+
+    const { body } = await get(`/api/public/roles/${intent._id}`);
+    const serialised = JSON.stringify(body);
+
+    /* The role card's company block is branding and identity only — never contact details. */
+    assert.ok(!serialised.includes('private@rs.example'));
+    assert.ok(!serialised.includes('moderationStatus'));
+    assert.equal(body.data.company.publicContact, undefined);
+  });
+
+  test('`/roles/facets` still resolves as a literal, not as an id', async () => {
+    const { status, body } = await get('/api/public/roles/facets');
+    assert.equal(status, 200);
+    /* A facets payload, not a role — proves the literal route is matched first. */
+    assert.ok(body.data.roleCategory, 'facets, not a role document');
+  });
+});
+
 describe('role facets', () => {
   test('counts only active intents at visible companies', async () => {
     const published = await makeCompany('rs-published');

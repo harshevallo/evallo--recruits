@@ -11,6 +11,7 @@ import {
   ORGANIZATION_TYPE_VALUES,
   EDUCATION_SERVICE_VALUES,
   DELIVERY_MODE_VALUES,
+  LEARNER_SEGMENT_VALUES,
 } from '@evallo/shared';
 
 const locationSchema = new mongoose.Schema(
@@ -19,6 +20,23 @@ const locationSchema = new mongoose.Schema(
     region: String,
     city: String,
     timezone: String,
+  },
+  { _id: false },
+);
+
+/**
+ * One trust statistic on the public profile — "180pts · Avg SAT increase".
+ *
+ * Free text on BOTH halves, deliberately. A tutoring business measures average score uplift, a
+ * school measures graduation rate, a curriculum publisher measures districts served; an enum here
+ * would force every organisation through one vocabulary and produce either blanks or lies. The
+ * cost is that these numbers are self-reported and unverified, which is why they render as the
+ * company's own claim and never feed search, ranking, or a facet.
+ */
+const metricSchema = new mongoose.Schema(
+  {
+    value: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
   },
   { _id: false },
 );
@@ -70,6 +88,26 @@ const companySchema = new mongoose.Schema(
 
     educationServices: [{ type: String, enum: EDUCATION_SERVICE_VALUES }],
     subjects: [String],
+
+    /**
+     * Who the organisation teaches. The same vocabulary the candidate profile uses
+     * (`LEARNER_SEGMENT_OPTIONS`) — an educator who marks themselves as teaching SEN learners and
+     * a company that says it serves them have to be describable in one language, or the two sides
+     * can never be matched on it.
+     */
+    learnerSegments: [{ type: String, enum: LEARNER_SEGMENT_VALUES }],
+
+    /** Self-reported trust statistics — see `metricSchema`. Capped at four by the write path. */
+    metrics: [metricSchema],
+
+    /** The pull-quote on the culture block. `attribution` is optional — many are institutional. */
+    pullQuote: {
+      text: String,
+      attribution: String,
+    },
+
+    /** What the company offers educators — "Annual learning stipend". Free text, capped on write. */
+    perks: [String],
 
     isCurrentlyHiring: { type: Boolean, default: false },
     acceptsGeneralInterest: { type: Boolean, default: false },

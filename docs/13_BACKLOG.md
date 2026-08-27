@@ -30,6 +30,9 @@ no screen of its own and could otherwise be forgotten.
 | B-12 | Saved companies with hiring-change notifications | §8.2 | M4 | P2 |
 | B-13 | Profile completeness by section and evidence type | §18.3 | M3 | P2 |
 | B-14 | Match explanation on search result cards | §7.8, §10.1 | M5 | P1 |
+| B-15 | **Company media gallery** on the public profile. Designed and specified in the approved PUB-02 reference; the only missing piece is where the bytes live. **Blocked on D-02 (file storage)** — ADR-020's interim MongoDB exception for profile photos explicitly does not extend to this. When D-02 lands: a `media` array on `companies`, a `culture`-step uploader, and a gallery block above the pull quote | §7.4 | M6 | P2 |
+| B-16 | **Educator testimonials** ("Educator voices") on the public profile. In the approved PUB-02 reference and deliberately not built: these are public statements attributed to a named person about a named employer, so they need employment verification, an authorship path, and moderation (§16.3) before a single one can be published. Not a rendering task | §7.4, §16.3 | M6 | P2 |
+| B-17 | **Multi-role expressions of interest.** The PUB-02 reference lets a candidate tick several roles at once; `publicInterestSchema` carries a single optional `hiringIntentId` and one interest record means one intent all the way to REC-11's inbox, the dedupe rule, and CAN-07. The modal ships radio cards — what the contract can express. Changing it is a change to what an interest *is*, across five surfaces | §8.7, §9.2 | M6 | P2 |
 
 ---
 

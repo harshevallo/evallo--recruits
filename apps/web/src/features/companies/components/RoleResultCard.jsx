@@ -27,10 +27,18 @@ import { PATHS, buildPath } from '@/router/paths';
  *
  * ── Where it links ───────────────────────────────────────────────────────────────────────────
  *
- * The company page, anchored at its roles: `/me/companies/<slug>#open-roles`. There is no separate
- * role detail page and no second interest flow — the consent disclosure, the intent selector and
- * the access grant all live on that page already (CAN-06/CAN-07), and a second implementation of a
- * consented disclosure is the last thing this product should have two of.
+ * The ROLE's own page, `/me/roles/<id>`. It used to be the company page anchored at
+ * `#open-roles`, which meant "Search for Roles" and "Search for Companies" shared one destination:
+ * you could find a role but never open one, and the role you clicked arrived as one card among
+ * several on someone else's profile.
+ *
+ * The old reasoning was about the interest flow, and it was right about that — a second
+ * implementation of a consented disclosure (PRD §8.7 step 6) is a privacy liability, not just
+ * duplication. `RoleDetailPage` avoids it by reusing `CandidateInterestModal`, so there is still
+ * exactly ONE consent implementation, now openable from two places.
+ *
+ * The company stays reachable from the card, as its own link rather than as the card's only
+ * destination — see the `z-10` note below.
  */
 
 /**
@@ -83,14 +91,15 @@ export function RoleResultCard({ role }) {
    */
   if (!role.company) return null;
 
-  const companyHref = `${buildPath(PATHS.CANDIDATE_COMPANY_PROFILE, { slug: role.company.slug })}#open-roles`;
+  const roleHref = buildPath(PATHS.CANDIDATE_ROLE_DETAIL, { roleId: role.id });
+  const companyHref = buildPath(PATHS.CANDIDATE_COMPANY_PROFILE, { slug: role.company.slug });
 
   return (
     <article className="group relative h-full rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
       {/* PRIMARY: the role. The whole card is its link, via the stretched pseudo-element. */}
       <h3 className="text-lg font-bold leading-snug text-brand-dark">
         <Link
-          to={companyHref}
+          to={roleHref}
           className="outline-none after:absolute after:inset-0 group-hover:text-brand-blue"
         >
           {heading}
@@ -107,9 +116,18 @@ export function RoleResultCard({ role }) {
           tone="brand"
         />
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-gray-700">
+          {/*
+            `relative z-10` lifts this above the title's stretched `after:inset-0` overlay, which
+            covers the whole card. Without it the company name is drawn but unclickable — the
+            overlay swallows the press and sends you to the role instead, which is the specific
+            confusion this card is meant to end.
+          */}
+          <Link
+            to={companyHref}
+            className="relative z-10 block truncate text-sm font-semibold text-gray-700 hover:text-brand-blue"
+          >
             {role.company.name}
-          </span>
+          </Link>
           {meta.length > 0 && (
             <span className="block truncate text-xs text-gray-500">{meta.join(' · ')}</span>
           )}

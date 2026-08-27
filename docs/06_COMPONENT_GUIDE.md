@@ -13,7 +13,7 @@
 | Location | Components |
 |---|---|
 | `components/ui/` | `Avatar` `Badge` `Button` `Container` `Icon` `Logo` `Modal` `Pagination` `Section` `SectionHeading` |
-| `components/form/` | `Checkbox` `ComboboxInput` `FormField` `PasswordInput` `SelectInput` `TextInput` `Textarea` |
+| `components/form/` | `CheckCardGroup` `Checkbox` `ComboboxInput` `FormField` `PasswordInput` `SelectInput` `TagInput` `TextInput` `Textarea` |
 | `components/feedback/` | `EmptyState` `Skeleton` `StatusRegion` |
 | `features/auth/components/` | `AuthCard` `FirstActionChoice` `GoogleButton` |
 | `features/home/components/` | `ContextSwitcher` `NextActionCard` `CompanyContextCard` |
@@ -264,6 +264,9 @@ auth screens and company pages inherit them for free.
 | `TextInput` | UI | Text/email input | standard input props | Floating label per PRD §19.1 — see the open question below |
 | `SelectInput` | UI | Native select | `options` | Keyboard-native; **still the default**. Do not replace with a custom listbox without an a11y budget — see `ComboboxInput` below, which paid one |
 | `ComboboxInput` | UI | Searchable single-select | `options`, `value`, `onChange`, `listboxLabel`, `searchPlaceholder`, `emptyMessage` | ARIA 1.2 combobox with list autocomplete. `onChange` receives the **value**, not an event. Emits only option values, so free text can never reach the answer |
+| `TagInput` | UI | Free-text list as chips | `value` (array), `onChange`, `maxTags`, `maxLength` | Enter or comma commits; Backspace on an empty box removes the last. **Commits on blur**, so text typed but not entered is never silently discarded. For `[String]` fields with no taxonomy — subjects, service regions, perks |
+| `CheckCardGroup` | UI | Multi-select as selectable cards | `options`, `selected`, `onToggle`, `layout`, `id`, `required` | `layout` is `pill` / `tile` / `grid`, chosen by vocabulary size. A real checkbox in a label underneath, `sr-only` not `hidden`, so it stays focusable; the card shows focus via `peer-focus-visible`. `id` lands on the FIRST input, because a `<fieldset>` cannot receive the error focus the wizard sends |
+| `CandidateResultCard` | Feature | One educator, as a REC-12 search result | `card`, `profileHref`, `isSaved`, `pipelineStage`, `matchReasons`, action callbacks | Draws only what `toSearchCard` returns. **No verified-credential badges** — B-04 verification is unbuilt, so there is no field that could back one; the reference's badge slot carries `matchedOn` instead (PRD §21.4). **No evidence/video** — dropped from the search payload on purpose; that is a §21.4 decision, not a layout one |
 | `MarketingFooter` | Layout | Public footer | `columns` | Shared by MKT-01, PUB-01, PUB-02 |
 | `MobileNavDrawer` | Layout | Mobile menu | `open`, `onClose`, `items` | Focus trap, Escape to close, focus restore — none present in the HTML |
 

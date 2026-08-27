@@ -10,7 +10,7 @@ import {
   getDirectoryFacets,
   getPublicCompanyBySlug,
 } from './companyPublic.service.js';
-import { listPublicRoles, getRoleFacets } from './rolePublic.service.js';
+import { listPublicRoles, getRoleFacets, getPublicRoleById } from './rolePublic.service.js';
 import { submitCompanyInterest } from '../interests/interest.service.js';
 
 /** Attribution derived from the request. Never trusted from the client body. */
@@ -63,6 +63,18 @@ export async function getRoles(req, res) {
 /** Facet counts for the role filter panel. */
 export async function getRoleSearchFacets(_req, res) {
   return sendSuccess(res, await getRoleFacets());
+}
+
+/**
+ * One role, by id.
+ *
+ * 404 covers "no such role", "closed" and "company not published" alike — see
+ * `getPublicRoleById`. Telling them apart would leak which roles were withdrawn.
+ */
+export async function getRole(req, res) {
+  const role = await getPublicRoleById(req.params.roleId);
+  if (!role) throw ApiError.notFound('Role not found.');
+  return sendSuccess(res, role);
 }
 
 /** PUB-02 — public company profile. */

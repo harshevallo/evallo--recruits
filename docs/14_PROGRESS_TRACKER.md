@@ -1,6 +1,6 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-23 (CAN-02 country combobox + consolidated Save and Next)
+**Last updated:** 2026-08-27 (REC-12 talent search + REC-02 wizard rebuilt to reference; one shared company profile; role detail page)
 **Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
 **Overall:** 36 of 45 screens complete, 4 partial, 4 pending, 1 post-MVP
 
@@ -212,11 +212,12 @@ Three suites were added by the 2026-08-12 production-readiness pass:
 | `teamInvitations.test.js` | 22 | REC-07 |
 | `interestInbox.test.js` | 20 | REC-11 |
 | `talentSearch.test.js` | 19 | REC-12 |
-| `companySetup.test.js` | 19 | REC-02/03/04/06 wizard steps + publish |
+| `companySetup.test.js` | 23 | REC-02/03/04/06 wizard steps + publish, incl. the `culture` step |
 | `candidateViewer.test.js` | 17 | REC-13 + audit |
 | `joinRequests.test.js` | 17 | REC-01 join requests + recruiter identity in chat |
 | `profileBuilder.test.js` | 17 | CAN-02 **question-bank sections only** |
-| `companyProfile.test.js` | 16 | PUB-02 |
+| `companyProfile.test.js` | 17 | PUB-02, incl. the profile-body field projection |
+| `roleSearch.test.js` | 22 | CAN-05b role search **and role detail visibility** |
 | `capabilities.test.js` | 14 | ADR-001 capability derivation |
 | `companyDirectory.test.js` | 12 | PUB-01 |
 | `candidateHome.test.js` | 11 | CAN-01 |
@@ -281,7 +282,7 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 | ID | Screen | PRD | Status |
 |---|---|---|---|
 | PUB-01 | Public company directory | §9.1, App. A | ✅ |
-| PUB-02 | Public company profile | §7.4, §9.3 | ✅ |
+| PUB-02 | Public company profile | §7.4, §9.3 | ✅ rebuilt to the approved reference 2026-08-27; media gallery and educator testimonials deliberately excluded (see below) |
 
 ### Authentication
 | ID | Screen | PRD | Status |
@@ -310,6 +311,8 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 | CAN-03 | Profile preview | §8.2, §8.8 | ✅ |
 | CAN-04 | Profile visibility settings | §4.3, §8.2 | ✅ |
 | CAN-05 | Company discovery | §8.2 | ✅ |
+| CAN-05b | Role search | §8.2 | ✅ |
+| CAN-05c | Role detail | §7.5, §8.2 | ✅ added 2026-08-27 — a role result used to open the company page, so the two searches shared one destination |
 | CAN-06 | Company page (signed in) | §8.2 | ✅ |
 | CAN-07 | Interest submission | §8.7 | ✅ |
 | CAN-08 | My interests | §8.2 | ✅ |
@@ -322,11 +325,12 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 | ID | Screen | PRD | Status |
 |---|---|---|---|
 | REC-01 | Create or join company | §7.2 | ✅ |
-| REC-02 | Company basics | §7.2 | ✅ |
-| REC-03 | Brand and overview | §7.2 | ✅ |
-| REC-04 | Education footprint | §7.2 | ✅ |
+| REC-02 | Company basics | §7.2 | ✅ rebuilt to the approved reference 2026-08-27 — tag input, option cards, real save indicator, full seven-stage rail |
+| REC-03 | Brand and overview | §7.2 | ✅ cover image, founding year, company size and trust metrics now authorable |
+| REC-04 | Education footprint | §7.2 | ✅ subjects, service regions and learner segments now authorable |
+| REC-04b | Life and culture | §7.2 | ✅ new `culture` step — philosophy, pull quote, perks. Optional enrichment; blocks no publication |
 | REC-05 | Hiring intent | §7.2, §7.5 | ✅ |
-| REC-06 | Preview and publish | §7.2 | ✅ |
+| REC-06 | Preview and publish | §7.2 | ✅ per-section Edit links into the owning wizard step; cover band shown |
 | REC-07 | Invite team | §7.2 | ✅ |
 
 ### Company / recruiter — workspace
@@ -334,7 +338,7 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 |---|---|---|---|
 | REC-10 | Company home | §7.6 | ✅ |
 | REC-11 | Interest inbox | §7.6 | ✅ |
-| REC-12 | Talent search | §7.6, §7.7, §10 | ✅ |
+| REC-12 | Talent search | §7.6, §7.7, §10 | ✅ rebuilt to the approved reference 2026-08-27 — rich result cards, removable filter chips. Verified-credential badges and the sample video deliberately absent: B-04 verification is unbuilt, and evidence is not a search-card field (§21.4) |
 | REC-13 | Candidate profile viewer | §7.6, §8.8 | ✅ |
 | REC-14 | Pipeline | §7.6, §7.9 | ✅ |
 | REC-15 | Messages | §7.6, §11.2 | ✅ |
@@ -457,7 +461,19 @@ prerequisite for trusting any later refactor of either surface.
 3. **Compound indexes for the real search match+sort shape** (I-09), validated with `explain()`
    against seeded volume rather than guessed.
 
+**Blocking confidence in every future change:**
+- **I-01 has REOPENED** (2026-08-27). Three consecutive full `node --test` runs on identical code
+  produced three different failure sets — 1, then 5, then 1 — and every named suite passes in
+  isolation. The suite has grown from 20 files to 28 since the 2026-08-10 fix, and the caveat that
+  fix recorded has come true. Until each test file gets its own database, a red full-suite run must
+  be re-checked file-by-file before it is believed. See `12_KNOWN_ISSUES.md` I-01.
+
 **Not blocking, but outstanding:**
+- **Three parts of the approved PUB-02 reference are deliberately unbuilt** and are now backlog
+  items rather than loose ends: the media gallery (**B-15**, blocked on D-02 file storage),
+  educator testimonials (**B-16**, needs employment verification and moderation before anything can
+  be published as a real person's words), and multi-role interest (**B-17**, changes what an
+  expression of interest is, from the schema through to REC-11).
 - AUTH-13 (SSO conflict resolution) and AUTH-14 (return-path preservation) close out M1.
 - Terms + Privacy content (D-09) — the live forms already claim consent to both.
 - D-01 / D-02 / D-03 milestone decisions; file storage (D-02) also gates credential upload and

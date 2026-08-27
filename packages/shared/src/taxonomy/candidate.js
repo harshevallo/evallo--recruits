@@ -93,7 +93,24 @@ export const SUBJECT_LABELS = Object.freeze(
   Object.fromEntries(SUBJECT_OPTIONS.map((o) => [o.value, o.label])),
 );
 
-/** Learner segments — PRD §8.5 requires at least one for publication. */
+/**
+ * Learner segments — PRD §8.5 requires at least one for publication.
+ *
+ * Shared with the COMPANY profile (`companies.learnerSegments`), which describes who an
+ * organisation teaches. One vocabulary on both sides is what makes "teaches SEN learners"
+ * matchable between an educator and an employer rather than two unrelated strings.
+ */
+export const LEARNER_SEGMENTS = Object.freeze({
+  EARLY_YEARS: 'early_years',
+  PRIMARY: 'primary',
+  MIDDLE_SCHOOL: 'middle_school',
+  HIGH_SCHOOL: 'high_school',
+  UNDERGRADUATE: 'undergraduate',
+  POSTGRADUATE: 'postgraduate',
+  ADULT_LEARNERS: 'adult_learners',
+  SPECIAL_NEEDS: 'special_needs',
+});
+
 export const LEARNER_SEGMENT_OPTIONS = Object.freeze([
   { value: 'early_years', label: 'Early years (3–5)' },
   { value: 'primary', label: 'Primary (6–10)' },

@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { BackLink, Badge, Button, Container, Icon } from '@/components/ui';
+import { Button, Container, Icon } from '@/components/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
-import { Skeleton } from '@/components/feedback/Skeleton';
-import { CompanyOverview } from '@/features/companies/components/CompanyOverview';
-import { OpenRoleCard } from '@/features/companies/components/OpenRoleCard';
+import { CompanyProfileView } from '@/features/companies/components/CompanyProfileView';
+import { CompanyProfileSkeleton } from '@/features/companies/components/CompanyProfileSkeleton';
 import { CandidateInterestModal } from '@/features/candidate/components/CandidateInterestModal';
 import { BlockCompanyModal } from '@/features/candidate/components/BlockCompanyModal';
 import { useCompanyProfile } from '@/features/companies/hooks/useCompanyProfile';
@@ -22,16 +21,24 @@ import { PATHS } from '@/router/paths';
 /**
  * CAN-06 — company page, signed in (PRD §8.2: "public page; follow/save; express interest").
  *
- * The company CONTENT comes from the same public endpoint PUB-02 uses, so the signed-in and
- * anonymous views can never disagree about the company itself. This page adds only the candidate's
- * own relationship to it: saved or not, interest already expressed or not.
+ * ── This page renders the public page, not a copy of it ───────────────────────────────────────
+ *
+ * The company CONTENT comes from the same public endpoint PUB-02 uses, and since this revision it
+ * is drawn by the same `CompanyProfileView` as well. Before that only the two inner cards were
+ * shared and the surrounding page was written twice — so when PUB-02 was rebuilt to the approved
+ * reference, this URL kept the old layout and the product had two different-looking company pages
+ * at the same time. Which one you saw depended on whether you followed a link or browsed while
+ * signed in.
+ *
+ * What this page adds is ONLY the candidate's own relationship to the company: saved or not,
+ * interest already expressed or not, blocked or not. That is the whole of the difference, and it
+ * arrives through `actions` and `banner` rather than through a second layout.
  *
  * Report is deliberately not here — PRD §16.3 routes company reporting through moderation.
  *
  * Blocking (CAN-04, PRD §4.3) IS here. The setting is still owned by CAN-04 and Privacy settings,
  * which list and reverse it; this page is where the decision is actually made, because it is the
- * only screen where a candidate is looking at a specific company. Before this, the blocked list
- * could not be populated from anywhere in the product.
+ * only screen where a candidate is looking at a specific company.
  */
 export function CandidateCompanyPage() {
   const { slug } = useParams();
@@ -115,17 +122,7 @@ export function CandidateCompanyPage() {
     });
   }
 
-  if (isLoading) {
-    return (
-      <Container className="py-32">
-        <div role="status" aria-live="polite">
-          <span className="sr-only">Loading company…</span>
-          <Skeleton className="h-10 w-72 rounded-lg" />
-          <Skeleton className="mt-8 h-64 w-full rounded-2xl" />
-        </div>
-      </Container>
-    );
-  }
+  if (isLoading) return <CompanyProfileSkeleton topSpacing="workspace" />;
 
   if (isNotFound || isError) {
     return (
@@ -154,100 +151,70 @@ export function CandidateCompanyPage() {
     );
   }
 
-  const openRoles = company.openRoles ?? [];
   const hasInterest = Boolean(relationship?.interest);
   const isBlocked = Boolean(relationship?.blocked);
-  // Nothing can act until the relationship has loaded — companyId is what every action needs.
+  /* Nothing can act until the relationship has loaded — companyId is what every action needs. */
   const relationshipReady = Boolean(relationship?.companyId);
 
-  return (
-    <Container className="py-32">
-      <BackLink to={PATHS.CANDIDATE_COMPANIES} label="All companies" className="mb-6" />
+  /* Shared by the two secondary controls, which are outline buttons on a light surface. */
+  const secondary =
+    'justify-center px-4 py-2 text-sm font-semibold !border-gray-300 !text-brand-dark hover:!bg-gray-50';
 
-      <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-brand-dark">{company.name}</h1>
-            {company.isCurrentlyHiring && (
-              <Badge tone="successLight" size="sm" radius="full">
-                Hiring now
-              </Badge>
-            )}
-          </div>
-          {company.tagline && <p className="max-w-xl text-gray-600">{company.tagline}</p>}
-        </div>
+  const actions = (
+    <div className="flex flex-wrap gap-2 sm:justify-end">
+      <Button
+        variant="outlineDark"
+        size="none"
+        radius="lg"
+        className={secondary}
+        disabled={busy}
+        onClick={toggleSave}
+      >
+        {/*
+          `star` in BOTH states, and the label carries the difference. The rail marks saved
+          companies with `star` and shortlisted ones with `bookmark`, so flipping to `heart` once
+          saved would be a third mark that means nothing anywhere else in the product.
+        */}
+        <Icon name="star" className="text-xs" />
+        {relationship?.saved ? 'Saved' : 'Save'}
+      </Button>
 
-        <div className="flex shrink-0 flex-wrap gap-3">
-          <Button
-            variant="outlineDark"
-            size="md"
-            radius="lg"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-            disabled={busy}
-            onClick={toggleSave}
-          >
-            {/*
-              `star` in BOTH states, and the label carries the difference.
+      {/*
+        CAN-04 — blocking lives here because this is where a candidate actually meets a company.
+        It stays available while blocked, as the reverse action, so the control never disappears
+        and leaves the state unreachable.
+      */}
+      <Button
+        variant="outlineDark"
+        size="none"
+        radius="lg"
+        className={secondary}
+        disabled={busy || !relationshipReady}
+        onClick={isBlocked ? handleUnblock : () => setBlockOpen(true)}
+      >
+        <Icon name="shield-halved" className="text-xs" />
+        {isBlocked ? 'Unblock' : 'Block'}
+      </Button>
 
-              This used to flip to `heart` once saved, which now reads as a third concept: the rail
-              marks saved companies with `star` and shortlisted ones with `bookmark`, so a heart
-              here would be a mark that means nothing anywhere else in the product.
-            */}
-            <Icon name="star" className="text-xs" />
-            {relationship?.saved ? 'Saved' : 'Save'}
-          </Button>
+      <Button
+        variant="primary"
+        size="none"
+        radius="lg"
+        className="justify-center px-5 py-2 text-sm font-semibold"
+        disabled={hasInterest || isBlocked}
+        onClick={() => setInterestOpen(true)}
+      >
+        {hasInterest ? 'Interest submitted' : "I'm interested"}
+      </Button>
+    </div>
+  );
 
-          {/*
-            CAN-04 — blocking lives here because this is where a candidate actually meets a
-            company. It stays available while blocked, as the reverse action, so the control never
-            disappears and leaves the state unreachable.
-          */}
-          {isBlocked ? (
-            <Button
-              variant="outlineDark"
-              size="md"
-              radius="lg"
-              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-              disabled={busy || !relationshipReady}
-              onClick={handleUnblock}
-            >
-              <Icon name="shield-halved" className="text-xs" />
-              Unblock
-            </Button>
-          ) : (
-            <Button
-              variant="outlineDark"
-              size="md"
-              radius="lg"
-              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-              disabled={busy || !relationshipReady}
-              onClick={() => setBlockOpen(true)}
-            >
-              <Icon name="shield-halved" className="text-xs" />
-              Block
-            </Button>
-          )}
-
-          <Button
-            variant="primary"
-            size="md"
-            radius="lg"
-            disabled={hasInterest || isBlocked}
-            onClick={() => setInterestOpen(true)}
-          >
-            {hasInterest ? 'Interest submitted' : "I'm interested"}
-          </Button>
-        </div>
-      </header>
-
-      {feedback && (
-        <StatusRegion tone={feedback.tone} className="mb-6">
-          {feedback.text}
-        </StatusRegion>
-      )}
+  const banner = (feedback || isBlocked || hasInterest) && (
+    <div className="space-y-3">
+      {feedback && <StatusRegion tone={feedback.tone}>{feedback.text}</StatusRegion>}
 
       {isBlocked && (
-        <StatusRegion tone="info" className="mb-6">
+        <StatusRegion tone="info">
           You have blocked this company. They cannot find or open your profile. Manage blocked
           companies in{' '}
           <Link to={PATHS.SETTINGS_PRIVACY} className="font-medium underline">
@@ -258,7 +225,7 @@ export function CandidateCompanyPage() {
       )}
 
       {hasInterest && (
-        <StatusRegion tone="info" className="mb-6">
+        <StatusRegion tone="info">
           You expressed interest on{' '}
           {new Date(relationship.interest.submittedAt).toLocaleDateString()}. Manage it from{' '}
           <Link to={PATHS.CANDIDATE_INTERESTS} className="font-medium underline">
@@ -267,41 +234,30 @@ export function CandidateCompanyPage() {
           .
         </StatusRegion>
       )}
+    </div>
+  );
 
-      <CompanyOverview company={company} />
-
-      <section id="open-roles" className="mt-10">
-        <h2 className="mb-5 text-2xl font-bold text-brand-dark">
-          Open roles
-          {openRoles.length > 0 && (
-            <span className="ml-2 text-base font-normal text-gray-500">({openRoles.length})</span>
-          )}
-        </h2>
-
-        {openRoles.length === 0 ? (
-          <p className="text-sm text-gray-600">
-            No specific roles listed right now.
-            {relationship?.acceptsGeneralInterest &&
-              ' You can still register general interest — they accept it.'}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {openRoles.map((role) => (
-              <OpenRoleCard
-                key={role.id}
-                role={role}
-                onExpressInterest={() => setInterestOpen(true)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+  return (
+    <>
+      <CompanyProfileView
+        company={company}
+        topSpacing="workspace"
+        backTo={PATHS.CANDIDATE_COMPANIES}
+        actions={actions}
+        banner={banner}
+        /*
+          Omitted once interest is in, or the company is blocked, so the role cards drop their
+          Apply button instead of offering an action that is already spent or forbidden. The
+          header button says which of the two it is.
+        */
+        onExpressInterest={hasInterest || isBlocked ? undefined : () => setInterestOpen(true)}
+      />
 
       <CandidateInterestModal
         open={interestOpen}
         onClose={() => setInterestOpen(false)}
         company={company}
-        roles={openRoles}
+        roles={company.openRoles ?? []}
         onSubmitted={handleInterest}
       />
 
@@ -311,6 +267,6 @@ export function CandidateCompanyPage() {
         companyName={company.name}
         onConfirm={confirmBlock}
       />
-    </Container>
+    </>
   );
 }

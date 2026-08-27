@@ -19,8 +19,9 @@ import {
   LANGUAGE_LABELS,
 } from '@evallo/shared';
 import { PIPELINE_STAGE_LABELS } from '@evallo/shared';
-import { Button, Container, Modal, Pagination } from '@/components/ui';
+import { Button, Container, Icon, Modal, Pagination } from '@/components/ui';
 import { SelectInput, TextInput, Checkbox, Textarea } from '@/components/form';
+import { CandidateResultCard } from '@/features/companies/components/CandidateResultCard';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import {
@@ -140,14 +141,54 @@ function humanise(value) {
   return value.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Renders one match reason in the recruiter's own vocabulary (PRD §21.4). */
-function reasonText(reason) {
-  if (reason.facet === 'keyword') return `Keyword in ${reason.values.join(', ')}`;
-  if (reason.facet === 'experience') return reason.values[0];
+/**
+ * One match reason, split into the pair the card draws as a two-tone chip (PRD §21.4).
+ *
+ * `label` is the facet in the recruiter's own vocabulary, `values` what matched inside it. Split
+ * rather than pre-joined into a sentence because the card renders them as two halves of a chip —
+ * the same treatment the reference gave its credential badges, carrying content we can stand
+ * behind.
+ */
+function reasonPair(reason) {
+  if (reason.facet === 'keyword') {
+    return { label: 'Keyword', values: reason.values.join(', ') };
+  }
+  if (reason.facet === 'experience') {
+    return { label: 'Experience', values: reason.values[0] };
+  }
   const facet = FACETS.find((f) => f.key === reason.facet);
   const labels = facet?.labels;
-  const values = reason.values.map((v) => labels?.[v] ?? humanise(String(v)));
-  return `${FACET_LABELS[reason.facet] ?? humanise(reason.facet)}: ${values.join(', ')}`;
+  return {
+    label: FACET_LABELS[reason.facet] ?? humanise(reason.facet),
+    values: reason.values.map((v) => labels?.[v] ?? humanise(String(v))).join(', '),
+  };
+}
+
+/** The chips under the result count — every filter currently narrowing the search. */
+function activeFilterChips(searchParams) {
+  const chips = [];
+
+  for (const facet of FACETS) {
+    for (const value of searchParams.getAll(facet.key)) {
+      chips.push({
+        key: `${facet.key}:${value}`,
+        param: facet.key,
+        value,
+        label: facet.labels?.[value] ?? humanise(String(value)),
+      });
+    }
+  }
+
+  for (const [param, prefix] of [
+    ['region', 'Region'],
+    ['minYears', 'Min'],
+    ['maxYears', 'Max'],
+  ]) {
+    const value = searchParams.get(param);
+    if (value) chips.push({ key: param, param, value: null, label: `${prefix}: ${value}` });
+  }
+
+  return chips;
 }
 
 export function CompanyTalentSearchPage() {
@@ -348,10 +389,24 @@ export function CompanyTalentSearchPage() {
   const results = state.data?.candidates ?? [];
   const meta = state.data?.meta;
 
+  /** Removes one chip: an array facet value, or a scalar filter entirely. */
+  const clearChip = (chip) =>
+    commit((next) => {
+      if (chip.value === null) {
+        next.delete(chip.param);
+        return;
+      }
+      const remaining = next.getAll(chip.param).filter((v) => v !== chip.value);
+      next.delete(chip.param);
+      for (const v of remaining) next.append(chip.param, v);
+    });
+
+  const chips = activeFilterChips(searchParams);
+
   return (
-    <Container className="py-32">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Find candidates</h1>
+    <Container className="py-28">
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Find educators</h1>
         <p className="mt-2 max-w-2xl text-gray-600">
           Educators who have chosen to be discoverable. Results are shaped by what each person
           shared — not by any ranking of who is better.
@@ -365,57 +420,112 @@ export function CompanyTalentSearchPage() {
         </StatusRegion>
       )}
 
-      {/* Keyword. Submitted rather than typed-through, so each keystroke is not a server query. */}
-      <form
-        className="mb-6 flex flex-wrap items-end gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setScalar('q', draftQuery.trim());
-        }}
-      >
-        <div className="min-w-[14rem] flex-1">
-          <label htmlFor="talent-q" className="mb-1 block text-xs font-medium text-gray-600">
-            Search by name, headline, summary or subject
-          </label>
-          <TextInput
-            id="talent-q"
-            name="q"
-            type="search"
-            placeholder="e.g. physics, IB, Priya"
-            value={draftQuery}
-            onChange={(event) => setDraftQuery(event.target.value)}
-          />
+      {/*
+        The reference's search bar: one white panel carrying the keyword box, the sort control, the
+        result count and the active-filter chips. It replaces a row of separate labelled fields —
+        same controls, same behaviour, read as one thing.
+      */}
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* Submitted rather than typed-through, so each keystroke is not a server query. */}
+          <form
+            className="relative w-full max-w-2xl flex-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setScalar('q', draftQuery.trim());
+            }}
+          >
+            <label htmlFor="talent-q" className="sr-only">
+              Search by name, headline, summary or subject
+            </label>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            >
+              <Icon name="magnifying-glass" className="text-sm" />
+            </span>
+            <TextInput
+              id="talent-q"
+              name="q"
+              type="search"
+              placeholder="Search by name, skills or keywords — e.g. “IB Physics”, “dyslexia specialist”"
+              value={draftQuery}
+              onChange={(event) => setDraftQuery(event.target.value)}
+              className="!bg-gray-50 !pl-11 focus:!bg-white"
+            />
+            {/* Submits the form; Enter in the box does the same. */}
+            <button type="submit" className="sr-only">
+              Search
+            </button>
+          </form>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="talent-sort"
+              className="whitespace-nowrap text-sm font-medium text-gray-500"
+            >
+              Sort by:
+            </label>
+            <SelectInput
+              id="talent-sort"
+              name="sort"
+              options={CANDIDATE_SEARCH_SORT_OPTIONS}
+              value={query.sort}
+              onChange={(event) => setScalar('sort', event.target.value)}
+              className="!w-auto !py-2 !text-sm"
+            />
+            <Button
+              type="button"
+              variant="outlineDark"
+              size="none"
+              radius="lg"
+              aria-expanded={filtersOpen}
+              aria-controls="talent-filters"
+              className="px-4 py-2 text-sm font-semibold !border-gray-300 !text-brand-dark hover:!bg-gray-50 lg:hidden"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              Filters{activeCount > 0 ? ` (${activeCount})` : ''}
+            </Button>
+          </div>
         </div>
 
-        <Button type="submit" variant="primary" size="md">
-          Search
-        </Button>
+        <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p role="status" aria-live="polite" className="text-sm text-gray-600">
+            {state.status === 'loading' ? (
+              'Searching…'
+            ) : (
+              <>
+                <strong className="font-bold text-brand-dark">{meta?.total ?? 0}</strong>{' '}
+                {meta?.total === 1 ? 'educator' : 'educators'}
+                {hasCriteria ? ' matching your criteria' : ' discoverable to your company'}
+              </>
+            )}
+          </p>
 
-        <div className="min-w-[11rem]">
-          <label htmlFor="talent-sort" className="mb-1 block text-xs font-medium text-gray-600">
-            Sort
-          </label>
-          <SelectInput
-            id="talent-sort"
-            name="sort"
-            options={CANDIDATE_SEARCH_SORT_OPTIONS}
-            value={query.sort}
-            onChange={(event) => setScalar('sort', event.target.value)}
-          />
+          {/*
+            Every active filter, removable from here. The rail is where filters are SET; this is
+            where a recruiter sees what is currently narrowing their results without scrolling a
+            panel to find the one box they need to untick.
+          */}
+          {chips.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {chips.map((chip) => (
+                <li key={chip.key}>
+                  <button
+                    type="button"
+                    onClick={() => clearChip(chip)}
+                    className="flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-brand-blue transition-colors hover:border-brand-blue hover:bg-blue-100"
+                  >
+                    {chip.label}
+                    <Icon name="xmark" className="text-[9px]" />
+                    <span className="sr-only">Remove this filter</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-
-        <Button
-          type="button"
-          variant="outlineDark"
-          size="md"
-          aria-expanded={filtersOpen}
-          aria-controls="talent-filters"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-          onClick={() => setFiltersOpen((open) => !open)}
-        >
-          Filters{activeCount > 0 ? ` (${activeCount})` : ''}
-        </Button>
-      </form>
+      </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[18rem_1fr]">
         <aside
@@ -423,25 +533,34 @@ export function CompanyTalentSearchPage() {
           aria-label="Filters"
           className={`${filtersOpen ? 'block' : 'hidden'} lg:block`}
         >
-          <div className="space-y-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            {hasCriteria && (
-              <Button
-                type="button"
-                variant="outlineDark"
-                size="sm"
-                className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-                onClick={() => {
-                  setDraftQuery('');
-                  setSearchParams(new URLSearchParams());
-                }}
-              >
-                Clear all
-              </Button>
-            )}
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            {/*
+              The reference's rail header: the word "Filters" with "Clear all" as a quiet text
+              link beside it, rather than a bordered button occupying its own row.
+            */}
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-brand-dark">Filters</h2>
+              {hasCriteria && (
+                <button
+                  type="button"
+                  className="rounded text-sm font-medium text-brand-blue hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+                  onClick={() => {
+                    setDraftQuery('');
+                    setSearchParams(new URLSearchParams());
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
 
             {FACETS.map((facet) => (
-              <fieldset key={facet.key}>
-                <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              /* A rule under each group, as the reference has — the last one drops it. */
+              <fieldset
+                key={facet.key}
+                className="mb-6 border-b border-gray-100 pb-6 last:mb-0 last:border-b-0 last:pb-0"
+              >
+                <legend className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-900">
                   {facet.label}
                 </legend>
                 <FacetOptions
@@ -452,8 +571,8 @@ export function CompanyTalentSearchPage() {
               </fieldset>
             ))}
 
-            <fieldset>
-              <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <fieldset className="mb-6 border-b border-gray-100 pb-6">
+              <legend className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-900">
                 Experience (years)
               </legend>
               <div className="flex items-center gap-2">
@@ -490,7 +609,7 @@ export function CompanyTalentSearchPage() {
             <div>
               <label
                 htmlFor="talent-region"
-                className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500"
+                className="mb-3 block text-sm font-bold uppercase tracking-wider text-gray-900"
               >
                 Region
               </label>
@@ -511,11 +630,18 @@ export function CompanyTalentSearchPage() {
           </h2>
 
           {state.status === 'loading' ? (
-            <div role="status" aria-live="polite" className="space-y-4">
+            /* Same grid and roughly the same card height as the results, so nothing jumps
+               when they arrive (PRD §19.1). */
+            <div
+              role="status"
+              aria-live="polite"
+              className="grid grid-cols-1 gap-6 xl:grid-cols-2"
+            >
               <span className="sr-only">Searching for candidates…</span>
-              <Skeleton className="h-28 w-full rounded-2xl" />
-              <Skeleton className="h-28 w-full rounded-2xl" />
-              <Skeleton className="h-28 w-full rounded-2xl" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
             </div>
           ) : (
             <>
@@ -535,121 +661,37 @@ export function CompanyTalentSearchPage() {
                   </p>
                 </div>
               ) : (
-                <ul className="space-y-4">
+                /*
+                  Two columns from `xl`, per the reference — not a single stacked list.
+                  Deliberately `xl:` rather than `lg:`: this grid already sits beside an 18rem
+                  filter rail, so splitting at `lg` would leave two columns of roughly 300px and
+                  wrap every candidate name. `flex flex-col` on the card keeps cards in a row the
+                  same height when their content differs.
+                */
+                /*
+                  Two columns from `xl`, per the reference — not a single stacked list.
+                  Deliberately `xl:` rather than `lg:`: this grid already sits beside an 18rem
+                  filter rail, so splitting at `lg` would leave two columns of roughly 300px and
+                  wrap every candidate name.
+                */
+                <ul className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                   {results.map((card) => (
-                    <li
+                    <CandidateResultCard
                       key={card.id}
-                      className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="text-base font-semibold text-brand-dark">
-                            {card.header.name || 'Educator'}
-                          </h3>
-                          {card.header.headline && (
-                            <p className="mt-0.5 text-sm text-gray-700">{card.header.headline}</p>
-                          )}
-
-                          <p className="mt-1 text-xs text-gray-500">
-                            {[
-                              card.header.location?.country
-                                ? COUNTRY_LABELS[card.header.location.country] ??
-                                  card.header.location.country
-                                : null,
-                              typeof card.header.yearsExperience === 'number'
-                                ? `${card.header.yearsExperience} years`
-                                : null,
-                              card.header.availability
-                                ? AVAILABILITY_LABELS[card.header.availability]
-                                : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ') || 'No location shared'}
-                          </p>
-
-                          {card.expertise.subjects.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              {card.expertise.subjects.slice(0, 6).map((subject) => (
-                                <span
-                                  key={subject}
-                                  className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700"
-                                >
-                                  {SUBJECT_LABELS[subject] ?? subject}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* PRD §21.4 — show why each candidate matches. */}
-                          {card.matchedOn.length > 0 && (
-                            <p className="mt-3 text-xs text-gray-500">
-                              <span className="font-medium text-gray-600">Matches:</span>{' '}
-                              {card.matchedOn.map(reasonText).join(' · ')}
-                            </p>
-                          )}
-                        </div>
-
-                        {/*
-                          Card actions. Every one persists: saving writes a shortlist row, adding
-                          writes a pipeline entry, messaging opens a real thread. Saving is silent
-                          to the candidate (PRD §21.4) — nothing here notifies them.
-                        */}
-                        <div className="flex flex-none flex-col gap-2 sm:w-40">
-                          <Button
-                            /* `source` is recorded in the access log (PRD §21.4). */
-                            to={`${buildPath(PATHS.COMPANY_CANDIDATE, {
-                              companySlug,
-                              candidateId: card.id,
-                            })}?source=search`}
-                            variant="primary"
-                            size="sm"
-                          >
-                            Open profile
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="outlineDark"
-                            size="sm"
-                            radius="lg"
-                            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-                            disabled={actionBusy === card.id}
-                            onClick={() => toggleSaved(card)}
-                          >
-                            {savedIds.has(card.id) ? 'Saved ✓' : 'Save'}
-                          </Button>
-
-                          {pipelineStages[card.id] ? (
-                            <span className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-gray-600">
-                              In {PIPELINE_STAGE_LABELS[pipelineStages[card.id]] ?? 'pipeline'}
-                            </span>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="outlineDark"
-                              size="sm"
-                              radius="lg"
-                              className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-                              disabled={actionBusy === card.id}
-                              onClick={() => addCandidate(card)}
-                            >
-                              Add to pipeline
-                            </Button>
-                          )}
-
-                          <Button
-                            type="button"
-                            variant="outlineDark"
-                            size="sm"
-                            radius="lg"
-                            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-                            onClick={() => setComposing({ card, body: '' })}
-                          >
-                            Message
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
+                      card={card}
+                      /* `source` is recorded in the access log (PRD §21.4). */
+                      profileHref={`${buildPath(PATHS.COMPANY_CANDIDATE, {
+                        companySlug,
+                        candidateId: card.id,
+                      })}?source=search`}
+                      isSaved={savedIds.has(card.id)}
+                      pipelineStage={pipelineStages[card.id]}
+                      busy={actionBusy === card.id}
+                      matchReasons={card.matchedOn.map(reasonPair)}
+                      onToggleSave={() => toggleSaved(card)}
+                      onAddToPipeline={() => addCandidate(card)}
+                      onMessage={() => setComposing({ card, body: '' })}
+                    />
                   ))}
                 </ul>
               )}
@@ -680,7 +722,7 @@ export function CompanyTalentSearchPage() {
       <Modal
         open={Boolean(composing)}
         onClose={() => setComposing(null)}
-        title={`Message ${composing?.card.name ?? 'this candidate'}`}
+        title={`Message ${composing?.card.header?.name ?? 'this candidate'}`}
         description="They will see your company name with this message. Keep it about the role."
       >
         <label htmlFor="first-message" className="mb-1.5 block text-sm font-semibold text-gray-700">
