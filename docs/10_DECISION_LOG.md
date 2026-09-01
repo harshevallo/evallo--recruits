@@ -31,6 +31,7 @@ Decisions are never silently reversed: a superseded ADR keeps its number, is mar
 | [021](#adr-021) | One company profile component, rendered by every surface | Accepted | 2026-08-27 |
 | [022](#adr-022) | A role gets its own page; consent gets no second implementation | Accepted | 2026-08-27 |
 | [023](#adr-023) | The approved HTML is a design reference, not a data contract | Accepted | 2026-08-27 |
+| [024](#adr-024) | A conversation is between two people, not a candidate and a company | **Proposed** | 2026-09-01 |
 
 ---
 
@@ -1307,3 +1308,200 @@ one context engineered to be trusted. No reference outranks that.
   cards, the filter chips, "Save and exit", the onward rail links — is wired to real behaviour.
   Decorative controls are not shipped.
 - B-04 is now the blocking dependency for two approved designs, and is annotated as such.
+
+---
+
+<a id="adr-024"></a>
+## ADR-024 — A conversation is between two people, not a candidate and a company
+
+**Status:** 🕐 Proposed, 2026-09-01. **Reverses an undocumented decision recorded in
+`05_DATABASE_SCHEMA.md` and `04_API_DOCUMENTATION.md`. Not implemented.**
+
+### Context
+
+Messaging shipped (CAN-09 + REC-15) with one thread per `{ candidateId, companyId }`, enforced by a
+unique index. On the call of 29 Aug 2026 the CTO asked for the opposite:
+
+> *"Chat private. You need to have one-on-one chat between two people."*
+
+and named the reason: *"what if there are two employees in the company?"* Today those two employees
+share one thread, the candidate sees a company logo where a person's name belongs, and either
+employee reads everything the other wrote.
+
+**The data layer is already half-way there.** `messages.senderUserId` and `senderType` exist, and
+`conversations.lastMessageSenderId` was denormalised specifically so the thread list could name the
+individual. Attribution is solved. **Separation is not** — and the unique index makes it
+structurally impossible, not merely unimplemented.
+
+#### What the production data actually contains
+
+All 8 live conversations were inspected before this decision. The distribution is the reason the
+migration below refuses to backfill:
+
+| Company messages in the thread came from | Threads | Owner determinable? |
+|---|---|---|
+| Exactly **one** employee | **6** | Yes, unambiguously |
+| **Two** employees (5 messages, interleaved) | **1** | **No** |
+| No `senderUserId` at all — pre-dates attribution | **1** | **No** |
+
+Two of eight cannot be assigned to a person by any rule that is not a guess.
+
+#### PRD §21.6 does not mandate the current design
+
+Both documents justify company-scoping by citing PRD §21.6 — *"a recruiter leaving does not orphan
+the thread and their replacement inherits it."* **§21.6 says the opposite.** Its only relevant line
+is:
+
+> | Recruiter removed from company | **Immediate** loss of candidate/search/message access; audit retained |
+
+The PRD never uses the word "conversation". There is no ADR on messaging. So the citation is
+mistaken, and per-person threads satisfy §21.6 **better** than the current design: a departing
+recruiter's thread goes inert, rather than being handed to a colleague the candidate never spoke to.
+
+This is recorded plainly because the company-scoped choice was a deliberate engineering decision and
+deserves to be reversed openly rather than drifted away from. What it lacks is not merit — it is the
+PRD authority it claims.
+
+### Decision
+
+**A new conversation is private between one candidate and one individual employee.**
+
+1. `conversations` gains **`recruiterUserId`**, nullable, identifying the employee who owns the
+   thread. Nullable is the whole design: it is what lets the 8 existing rows stay valid.
+2. The unique index becomes **`{ candidateId, companyId, recruiterUserId }`**. The current
+   `{ candidateId, companyId }` index is not a tidiness detail to be relaxed — it is a hard database
+   constraint that would reject the second thread with a duplicate-key error. It must be replaced
+   for the feature to exist at all. `companyId` stays in the key because blocking, authorization and
+   the interest flow are all company-scoped and remain so.
+3. Employee A's thread is separate from Employee B's. **Employees cannot see or reply to each
+   other's new conversations.** A candidate may hold several concurrent threads with one company.
+4. **Legacy rows keep `recruiterUserId = null` and remain shared** — any employee may read and
+   reply, exactly as today. They genuinely *were* shared conversations; presenting them as one
+   person's is a false statement about who said what.
+5. **No backfill. No splitting. No reassignment of historical messages.**
+
+#### Why not split, assign, or backfill
+
+| Option | Why rejected |
+|---|---|
+| Split by `senderUserId` | Works for 6 rows; on the two-employee thread it yields two half-conversations with replies severed from the questions that prompted them. The candidate experienced one conversation — splitting rewrites their history. |
+| Assign the whole thread to one employee | Puts one employee's messages under a colleague's name. **Misattribution is worse than the problem being fixed.** |
+| Backfill "most frequent sender" | A heuristic dressed as a fact, and undefined for the row with no attribution at all. |
+| Leave shared | Honest, reversible, and costs one transitional behaviour that decays as old threads go quiet. **Chosen.** |
+
+Two behaviours therefore coexist for a while. That is the accepted price of not lying about history.
+
+### Authorization expectations
+
+Reads and sends already pass `resolveCandidateAccess` and the `message:send` permission; both are
+unchanged. Added on top:
+
+- A thread with `recruiterUserId` set is readable and writable by **that user only**, within that
+  company. Not by owners, not by admins — *"chat private"* admits no membership-tier exception, and
+  a role that can read every private thread is the feature's absence wearing a different name.
+- A thread with `recruiterUserId = null` stays readable and writable by any member holding the
+  permission.
+- `listCompanyConversations` currently returns every thread for the company to any recruiter. It
+  must return the caller's own threads plus legacy shared ones. **This is the security-relevant edit
+  of the whole change** — the one place where getting it wrong exposes messages to the wrong
+  employee.
+- Replying to a legacy `null` thread **must not silently adopt it.** Adoption would privatise, on
+  one click and with no consent, a thread colleagues could previously read.
+
+### Blocking stays company-level
+
+Unchanged, and deliberately so. Blocking bites in `resolveCandidateAccess`, keyed on
+`{ profile, companyId }` and checked before any conversation is touched. One block therefore stops
+**every** employee of that company across **all** threads, legacy and new, with no per-thread
+bookkeeping. A candidate blocking a company means the company — not the individual who happened to
+write last. Per-person threads must not weaken this into a per-person block.
+
+### Unread-count implications
+
+`candidateUnread` / `companyUnread` stay per side. Under per-person threads `companyUnread` becomes
+genuinely per person, because each new thread has exactly one employee — the field acquires the
+meaning it always implied.
+
+**A pre-existing defect is exposed rather than introduced:** today `companyUnread` is shared, so one
+recruiter opening a thread clears the badge for the entire company. New threads fix this as a side
+effect; **legacy shared threads keep the bug.** It is named here so it is fixed on purpose, with a
+test, instead of being mistaken for a migration artefact.
+
+### Data-export implications
+
+The candidate export (`settings.service.js`) emits `{ company, slug, startedAt, messages[{ from,
+body, sentAt }] }`, where `from` is `senderType` only — a candidate's own export cannot today
+distinguish two recruiters. Per-person threads make including the employee's name *possible*.
+
+**It is not adopted here.** Naming a company's employee inside a file the candidate downloads,
+retains and may forward is a privacy decision about a third party, not an export-formatting
+improvement. The export stays company-level until someone decides otherwise on the record.
+
+### Migration and index rollout
+
+The schema change is one nullable field and one index swap. **No data migration.**
+
+| # | Step | Reversible? |
+|---|---|---|
+| 1 | Add `recruiterUserId` (nullable, default `null`). Deploy. No behaviour change. | Yes, trivially |
+| 2 | **Drop `{ candidateId, companyId }`, create `{ candidateId, companyId, recruiterUserId }` — back to back, in one maintenance step.** | Yes |
+| 3 | Deploy the code that sets `recruiterUserId` on creation and enforces the authorization rules above. **First release with a behaviour change.** | See below |
+| 4 | Frontend: person's name as thread title, company beneath; "mine" vs "team (legacy)". | Yes |
+
+> ⚠️ **Correction, found while executing step 2.** The ordering below is wrong on one point, and it
+> was observed failing rather than reasoned about: after the migration ran and was verified, the old
+> `candidateId_1_companyId_1` unique index **came back on its own**. Nothing in this repository
+> recreates it — one model owns the collection, it no longer declares that key, and a full test run
+> left the index untouched.
+>
+> The cause is `autoIndex`. This project never sets `autoIndex: false` and never calls
+> `syncIndexes()`, so **every process running the pre-step-2 model recreates the old index on boot**
+> — the deployed API, a colleague's dev server, anything pointed at the same cluster. Mongoose adds
+> declared indexes and removes nothing, so an old instance silently undoes the migration.
+>
+> **The real constraint is therefore: no instance running the old model may be connected when the
+> migration runs.** Deploy step 2's code everywhere first (or stop the old instances), then migrate,
+> then verify. Re-running the migration is safe and is the fix when this happens.
+>
+> This also means step 2 is not durable on a shared development cluster while anyone runs older
+> code, and that the migration should be re-verified immediately before step 3 ships rather than
+> trusted from an earlier run.
+
+**The ordering is the substance of this section: field before index, index before code, code before
+UI.** Any other order fails in a specific way —
+
+- Index before field: the new index is created over a field no document has.
+- Code before index: the second thread is rejected by the old unique index; sending appears broken.
+- Index created before step 3's code: every new thread is written with `recruiterUserId = null`,
+  collides with the legacy row, and messaging **silently reverts to shared** with nothing failing.
+
+Step 2's window between `drop` and `create` is the only moment no uniqueness constraint exists.
+Messaging is low-volume; it is performed in one step at a quiet hour, not left open across a deploy.
+
+### Rollback considerations
+
+- **Steps 1–2:** drop the new index, restore the old one. Nothing has changed behaviourally.
+- **Step 3 is the point of no easy return.** Once per-person threads exist, restoring the old unique
+  index fails wherever two threads share a `{ candidateId, companyId }` pair — the index build
+  itself aborts. Rolling back then means merging real conversations, which is the splitting problem
+  in reverse and equally lossy.
+- Therefore step 3 is rehearsed against a restored copy of production before it ships, and step 2 is
+  preceded by a backup.
+- Rolling back the frontend alone (step 4) is always safe: threads exist and remain readable.
+
+### Consequences
+
+- `05_DATABASE_SCHEMA.md` and `04_API_DOCUMENTATION.md` both state that threads belong to the
+  company and cite §21.6. **Both are wrong on the citation today, and will be wrong on the
+  behaviour after step 3.** Each now carries a pointer to this ADR; each is rewritten when step 3
+  ships, not before — the docs describe what runs.
+- Tests to change: `candidateJourney`, `recruiterWorkflow`, `candidateBlocking`, `dataExport` — all
+  assume one thread per candidate/company pair. Tests to add: two employees produce two threads · a
+  legacy `null` thread still works for any member · an employee cannot read a colleague's thread ·
+  unread isolation · blocking still kills every thread from that company.
+- **The 5-message two-employee thread is the regression fixture.** It is the only production row
+  that exercises the ambiguous case, and it is checked by hand after every step above.
+- One question remains open and is the CTO's to answer, not engineering's: **may colleagues *see*
+  (without replying to) each other's threads?** This ADR assumes not, per *"chat private"*. If the
+  answer changes, only the `listCompanyConversations` filter in step 3 changes — which is why the
+  question does not block steps 1 and 2.

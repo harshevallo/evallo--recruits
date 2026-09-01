@@ -575,6 +575,16 @@ A conversation is between a **candidate and a company**, never two users: the co
 context, so a recruiter leaving does not orphan the thread and their replacement inherits it
 (PRD §21.6). Unread counts are per side.
 
+> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
+> behaviour.** Two corrections to the paragraph above. First, **the §21.6 citation is wrong** —
+> §21.6 says a departing recruiter suffers *"immediate loss of candidate/search/message access"*,
+> which is the opposite of inheritance, and the PRD never uses the word "conversation".
+> Company-scoping was a house engineering decision, not a PRD requirement. Second, ADR-024 replaces
+> it: new conversations are private between a candidate and **one individual employee**, keyed
+> `{ candidateId, companyId, recruiterUserId }`. Existing rows keep `recruiterUserId = null` and
+> stay shared — there is no backfill, because 2 of 8 live threads have no determinable owner. This
+> section is rewritten when that ships, not before.
+
 Indexes:
 ```js
 { candidateId: 1, companyId: 1 }   // unique
@@ -649,6 +659,16 @@ because the content is the record (§16.3).
 A conversation is between a **candidate and a company**, never two users: the company side is a
 context, so a recruiter leaving does not orphan the thread and their replacement inherits it
 (PRD §21.6). Unread counts are per side.
+
+> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
+> behaviour.** Two corrections to the paragraph above. First, **the §21.6 citation is wrong** —
+> §21.6 says a departing recruiter suffers *"immediate loss of candidate/search/message access"*,
+> which is the opposite of inheritance, and the PRD never uses the word "conversation".
+> Company-scoping was a house engineering decision, not a PRD requirement. Second, ADR-024 replaces
+> it: new conversations are private between a candidate and **one individual employee**, keyed
+> `{ candidateId, companyId, recruiterUserId }`. Existing rows keep `recruiterUserId = null` and
+> stay shared — there is no backfill, because 2 of 8 live threads have no determinable owner. This
+> section is rewritten when that ships, not before.
 
 `messages`: `{ conversationId, senderType, senderUserId, body, attachments[], readAt }`, indexed
 `{ conversationId, createdAt }`. A separate collection because a thread grows unboundedly and an

@@ -5,6 +5,7 @@ import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { fetchVisibility, updateVisibility, unblockCompany } from '@/services';
 import { PATHS } from '@/router/paths';
+import { siteOrigin } from '@/utils/pageMeta';
 
 /**
  * CAN-04 — visibility settings (PRD §4.3, §8.2).
@@ -32,12 +33,106 @@ const STATUS_OPTIONS = [
       'Authorised recruiters at published companies can find you in search, subject to your contact rule.',
   },
   {
+    value: 'public',
+    title: 'Public',
+    /*
+     * The consent sentence, and the reason this option is worded longer than the others.
+     *
+     * Every state above is a choice about which RECRUITERS can see you — a bounded, accountable
+     * audience. This one is a choice about strangers, so the copy names the audience plainly
+     * instead of using a word like "public" and leaving the reader to work out the scope.
+     *
+     * It deliberately does NOT promise search-engine indexing: the API still answers with
+     * `X-Robots-Tag: noindex` and there is no public page yet. Saying "Google will find you" today
+     * would be a claim the system does not honour — that sentence arrives with the SEO step.
+     */
+    detail:
+      'Everything Discoverable allows, plus a portfolio page anyone can open with the link — no Evallo account needed. Your contact details are never shown on it.',
+  },
+  {
     value: 'paused',
     title: 'Paused',
     detail:
       'Hidden from new searches. Companies you have already shared with keep the access you granted.',
   },
 ];
+
+/**
+ * The public address, with a copy action.
+ *
+ * Built from `siteOrigin()` rather than `window.location.origin`, so the link a candidate copies
+ * is the canonical one even when they are on a preview deployment — pasting a `*.vercel.app` URL
+ * into a CV is a link that dies with the deployment.
+ */
+function PublicLinkPanel({ slug }) {
+  const url = `${siteOrigin()}/e/${slug}`;
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      /* Reverts on its own — a button stuck on "Copied" stops telling the truth. */
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* Clipboard blocked (permissions, insecure context). The input below is selectable. */
+      setCopied(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="public-link-heading"
+      className="mb-8 rounded-2xl border border-brand-blue/30 bg-blue-50/40 p-6"
+    >
+      <h2 id="public-link-heading" className="mb-1 text-lg font-bold text-brand-dark">
+        Your public portfolio link
+      </h2>
+      <p className="mb-4 text-sm text-gray-600">
+        Anyone with this link can view your portfolio without signing in. Share it on a CV, an
+        email, or a job application.
+      </p>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        {/*
+          A readonly input rather than plain text: it is selectable, keyboard-reachable and
+          long-pressable on a phone, so the link is still copyable when the clipboard API is not.
+        */}
+        <input
+          type="text"
+          readOnly
+          value={url}
+          aria-label="Your public portfolio address"
+          onFocus={(event) => event.target.select()}
+          className="w-full flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-brand-dark shadow-sm"
+        />
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          radius="lg"
+          onClick={copy}
+          className="shrink-0"
+        >
+          {copied ? 'Copied' : 'Copy link'}
+        </Button>
+      </div>
+
+      {/*
+        No "View public profile" button yet, and that is deliberate rather than an omission: the
+        page at this address does not exist until the next step. A button leading to a 404 is
+        worse than no button. It arrives with the portfolio page.
+      */}
+      <p className="mt-3 text-xs text-gray-600">
+        The page itself is being built — this address is reserved for you and will stay the same.
+      </p>
+
+      <p aria-live="polite" className="sr-only">
+        {copied ? 'Link copied to clipboard.' : ''}
+      </p>
+    </section>
+  );
+}
 
 const CONTACT_OPTIONS = [
   { value: 'hidden', title: 'Hidden', detail: 'Companies reply through Evallo Recruit only.' },
@@ -159,6 +254,18 @@ export function VisibilitySettingsPage() {
         <StatusRegion tone="info" className="mb-6">
           Your profile is still a draft. Finish it before you can be found: {publishBlockers.join(', ')}.
         </StatusRegion>
+      )}
+
+      {/*
+        The address, shown only while PUBLIC is the ACTIVE state.
+
+        A slug is kept when a candidate switches away — so republishing restores the same URL
+        rather than orphaning whatever already linked to it — but showing it while the page 404s
+        would be offering a link that does not work. The condition is the live state, not the
+        existence of a slug.
+      */}
+      {visibility.status === 'public' && visibility.publicSlug && (
+        <PublicLinkPanel slug={visibility.publicSlug} />
       )}
 
       <section

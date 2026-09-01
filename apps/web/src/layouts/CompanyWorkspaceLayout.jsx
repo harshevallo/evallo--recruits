@@ -23,6 +23,21 @@ import { PATHS, buildPath } from '@/router/paths';
 const LABEL = 'Company';
 
 const ITEMS = [
+  /*
+   * Find candidates FIRST — ahead of Overview.
+   *
+   * Not alphabetical, not workflow order: it is the job a recruiter opens this workspace to do.
+   * Overview is a dashboard about work already in flight, and Interest inbox only has anything in
+   * it once candidates have found you. Searching is the one action that works on day one with an
+   * empty account, so burying it third made the product look emptier than it is.
+   */
+  {
+    key: 'search',
+    label: 'Find candidates',
+    icon: 'magnifying-glass',
+    path: PATHS.COMPANY_SEARCH,
+    permission: PERMISSIONS.CANDIDATE_SEARCH,
+  },
   { key: 'home', label: 'Overview', icon: 'building', path: PATHS.COMPANY_HOME, permission: null, end: true },
   {
     key: 'interests',
@@ -30,13 +45,6 @@ const ITEMS = [
     icon: 'heart',
     path: PATHS.COMPANY_INTERESTS,
     permission: PERMISSIONS.INTEREST_VIEW,
-  },
-  {
-    key: 'search',
-    label: 'Find candidates',
-    icon: 'magnifying-glass',
-    path: PATHS.COMPANY_SEARCH,
-    permission: PERMISSIONS.CANDIDATE_SEARCH,
   },
   {
     key: 'pipeline',

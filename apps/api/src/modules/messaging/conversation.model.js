@@ -6,6 +6,10 @@
  * it (PRD §21.6). Messages live in their own collection because a thread grows unboundedly and an
  * embedded array would rewrite the whole document on every reply.
  *
+ * ADR-024 reverses that first sentence — threads become candidate-to-one-employee — and corrects
+ * its citation: §21.6 actually mandates a departing recruiter's *immediate loss* of message access,
+ * not inheritance. Only `recruiterUserId` below has landed so far; the behaviour is unchanged.
+ *
  * Internal recruiter notes are deliberately NOT here — they belong in a separate collection so
  * leaking one into a candidate-visible payload is structurally impossible rather than one
  * serialisation bug away.
@@ -32,6 +36,21 @@ const conversationSchema = new mongoose.Schema(
       ref: 'Company',
       required: true,
     },
+    /**
+     * The employee who owns this thread — ADR-024 step 1. **Nothing reads this yet.**
+     *
+     * Reserved, deliberately inert. ADR-024 moves messaging from one thread per
+     * `{ candidateId, companyId }` to one per candidate-and-individual-employee, and the field has
+     * to exist before the unique index can include it: an index built over a field no document
+     * carries is the one ordering of that migration that cannot work.
+     *
+     * `null` means "shared company thread", which is every conversation today and every conversation
+     * written before the behaviour change ships. That is why it is nullable rather than required —
+     * 8 live threads predate it, and 2 of them have no determinable owner, so there is no backfill
+     * to write. Legacy threads keep reading and replying exactly as they do now.
+     */
+    recruiterUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+
     /** What started the thread. Today always an expression of interest. */
     interestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExpressionOfInterest' },
 
@@ -78,8 +97,28 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true, collection: 'conversations' },
 );
 
-/** One thread per candidate per company — a reply continues it rather than starting another. */
-conversationSchema.index({ candidateId: 1, companyId: 1 }, { unique: true });
+/**
+ * One thread per candidate per company **per employee** — ADR-024 step 2.
+ *
+ * Was `{ candidateId, companyId }`. The third key is what will let Employee A and Employee B hold
+ * separate threads with the same candidate; until step 3 writes a non-null `recruiterUserId`,
+ * nothing can create that combination and the behaviour is identical to before.
+ *
+ * **Legacy threads are still protected.** MongoDB indexes a missing path and an explicit `null` as
+ * the same value, so the 7 existing shared threads — some of which lack the path entirely — all key
+ * as `(candidate, company, null)`. A second shared thread for one pair is still rejected, which is
+ * the whole of the old index's guarantee.
+ *
+ * Widening a unique index is strictly permissive: every document legal under the two-key index is
+ * legal under this one. That is why step 2 cannot fail on existing data, and why the migration
+ * creates this index BEFORE dropping the old one rather than after.
+ *
+ * Mongoose does not drop indexes it no longer declares, and this project never calls
+ * `syncIndexes()`. Editing this line alone would therefore leave the old two-key unique index in
+ * place, silently forbidding the per-person threads step 3 exists to create. The drop lives in
+ * `scripts/migrate-conversation-indexes.mjs` and must be run against every database.
+ */
+conversationSchema.index({ candidateId: 1, companyId: 1, recruiterUserId: 1 }, { unique: true });
 conversationSchema.index({ candidateId: 1, lastMessageAt: -1 });
 conversationSchema.index({ companyId: 1, lastMessageAt: -1 });
 

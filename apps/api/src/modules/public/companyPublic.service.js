@@ -49,7 +49,10 @@ function buildFilter(query) {
   if (query.service) filter.educationServices = { $in: query.service };
   if (query.deliveryMode) filter.deliveryModes = { $in: query.deliveryMode };
   if (query.country) filter['location.country'] = query.country;
-  if (query.hiringOnly) filter.isCurrentlyHiring = true;
+  /*
+   * `hiringOnly` is applied by the CALLER, not here: it needs a query against hiring intents and
+   * `buildFilter` is synchronous. See `hiringCompanyClause`.
+   */
 
   return filter;
 }
@@ -70,6 +73,35 @@ function buildSort(query) {
  * Companies matching a `roleCategory` filter, resolved through their ACTIVE hiring intents.
  * Returns null when the filter is not in play, so the caller can skip the extra stage.
  */
+/**
+ * A Mongo clause matching companies that are hiring — by either definition.
+ *
+ * ── Why "hiring" needs two definitions ───────────────────────────────────────────────
+ *
+ * `isCurrentlyHiring` is a MANUAL flag, default `false`, that nothing keeps in step with reality.
+ * It exists so a company with no posted roles can still say "approach us anyway" — which is why it
+ * pairs with `acceptsGeneralInterest`. It was never meant to be the whole answer.
+ *
+ * Filtering on it alone produced a straightforward bug: a company could post active roles, have
+ * them listed on its own profile and appear in role search, and still be EXCLUDED from
+ * `?hiringOnly=true` — hiding real, open jobs from the candidates most explicitly looking for
+ * them. Measured on live data at the time of the fix: 2 of 16 published companies.
+ *
+ * So a company is hiring if it SAYS it is, or if it demonstrably is. An active role is the
+ * stronger evidence of the two, and it cannot drift, because it is not a flag anybody has to
+ * remember to set.
+ *
+ * Returns a `$or`, and callers must compose it under `$and` — `buildFilter` may already carry an
+ * `$or` from another facet, and a bare assignment would silently drop whichever ran second.
+ */
+async function hiringCompanyClause() {
+  const withActiveRoles = await HiringIntent.distinct('companyId', {
+    status: HIRING_INTENT_STATUS.ACTIVE,
+  });
+
+  return { $or: [{ isCurrentlyHiring: true }, { _id: { $in: withActiveRoles } }] };
+}
+
 async function companyIdsForRoleCategories(roleCategories) {
   if (!roleCategories) return null;
 
@@ -86,6 +118,10 @@ async function companyIdsForRoleCategories(roleCategories) {
  */
 export async function listPublicCompanies(query) {
   const filter = buildFilter(query);
+
+  if (query.hiringOnly) {
+    filter.$and = [...(filter.$and ?? []), await hiringCompanyClause()];
+  }
 
   const roleFilteredIds = await companyIdsForRoleCategories(query.roleCategory);
   if (roleFilteredIds) {
@@ -170,6 +206,14 @@ async function attachActiveRoles(companies) {
         deliveryModes: r.deliveryModes ?? [],
       })),
       activeRoleCount: roles.length,
+      /*
+       * The single truth the UI should render, matching `hiringCompanyClause` exactly.
+       *
+       * Without it a card could be RETURNED by `?hiringOnly=true` and still render "not hiring",
+       * because the flag and the filter would be answering the question differently. `isHiring` is
+       * derived in the same place the roles are counted, so the two cannot disagree.
+       */
+      isHiring: Boolean(company.isCurrentlyHiring) || roles.length > 0,
     };
   });
 }
@@ -232,6 +276,8 @@ export function serialisePublicCompany(company, intents = []) {
         intent.compensation?.visibility === 'public' ? intent.compensation : undefined,
     })),
     openRoleCount: intents.length,
+    /* Same definition as the directory card and the search filter. See `hiringCompanyClause`. */
+    isHiring: Boolean(company.isCurrentlyHiring) || intents.length > 0,
   };
 }
 
@@ -276,7 +322,8 @@ export async function getDirectoryFacets() {
       { $group: { _id: '$deliveryModes', count: { $sum: 1 } } },
     ]),
     Company.aggregate([{ $match: base }, { $group: { _id: '$location.country', count: { $sum: 1 } } }]),
-    Company.countDocuments({ ...base, isCurrentlyHiring: true }),
+    /* Same definition as the filter — a count that disagrees with its own filter is a lie. */
+    Company.countDocuments({ ...base, ...(await hiringCompanyClause()) }),
     Company.countDocuments(base),
   ]);
 

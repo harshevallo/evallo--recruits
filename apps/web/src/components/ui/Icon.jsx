@@ -111,9 +111,13 @@ const REGISTRY = {
   'building-columns': FaBuildingColumns,
   star: FaStar,
   /*
-   * `bookmark` and `star` are deliberately different marks for two different candidate actions:
+   * `star` and `rocket` are deliberately different marks for two different candidate actions:
    * SAVED companies (star) is a private bookmark that tells the company nothing, while SHORTLISTED
-   * companies (bookmark) are ones the candidate actually reached out to. Same shelf, different act.
+   * companies (rocket) are ones the candidate actually reached out to. Same shelf, different act —
+   * one is watching, the other is a launch.
+   *
+   * `bookmark` is kept in the registry: it is the natural mark for a future save action, and the
+   * shortlist used it until the rocket was chosen for it.
    */
   bookmark: FaBookmark,
   award: FaAward,

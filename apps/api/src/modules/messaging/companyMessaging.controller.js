@@ -5,14 +5,14 @@ import * as messaging from './companyMessaging.service.js';
 
 /** GET /api/companies/:companyId/conversations */
 export async function listCompanyConversations(req, res) {
-  return sendSuccess(res, await messaging.listCompanyConversations(req.company._id));
+  return sendSuccess(res, await messaging.listCompanyConversations(req.company._id, req.user._id));
 }
 
 /** GET /api/companies/:companyId/conversations/:conversationId */
 export async function getCompanyConversation(req, res) {
   return sendSuccess(
     res,
-    await messaging.getCompanyConversation(req.company._id, req.params.conversationId),
+    await messaging.getCompanyConversation(req.company._id, req.params.conversationId, req.user._id),
   );
 }
 

@@ -213,9 +213,21 @@ export function CompanyMessagesPage() {
                         )}
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <Badge tone={state.tone} size="sm" radius="full">
-                          {state.label}
-                        </Badge>
+                        <span className="flex items-center gap-1.5">
+                          <Badge tone={state.tone} size="sm" radius="full">
+                            {state.label}
+                          </Badge>
+                          {/*
+                            * Threads are private to the recruiter who opened them; these older ones
+                            * are not, and the team can still read them. Saying so is the honest
+                            * alternative to letting the difference stay invisible.
+                            */}
+                          {conversation.shared && (
+                            <Badge tone="neutral" size="sm" radius="full">
+                              Team
+                            </Badge>
+                          )}
+                        </span>
                         <span className="text-[10px] text-gray-400">
                           {timeOf(conversation.lastMessageAt)}
                         </span>

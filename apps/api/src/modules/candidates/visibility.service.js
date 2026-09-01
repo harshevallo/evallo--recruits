@@ -16,6 +16,7 @@ import { ApiError } from '../../lib/ApiError.js';
 import { Company } from '../companies/company.model.js';
 import { getBuilderState } from './builder.service.js';
 import { loadPortfolio } from './portfolio.service.js';
+import { ensurePublicSlug } from './publicPortfolio.service.js';
 
 /**
  * Fields the recruiter view withholds, named so the preview can label them (PRD §8.2 CAN-03:
@@ -190,6 +191,22 @@ export async function updateVisibility(profile, input, user) {
         });
       }
       profile.publishedAt = profile.publishedAt ?? new Date();
+    }
+
+    /*
+     * Choosing PUBLIC mints the address.
+     *
+     * Here rather than on read, because a slug is a consequence of a DECISION: a profile that has
+     * never been public should never acquire a public URL, even a dormant one. `ensurePublicSlug`
+     * is idempotent, so re-saving PUBLIC returns the same slug rather than minting a second.
+     *
+     * And it is never cleared. Switching back to `private` makes the address 404 — the state
+     * check in `resolvePublicPortfolio` does that, not the absence of a slug — but KEEPING it means
+     * a candidate who republishes gets their original URL back rather than orphaning whatever
+     * already linked to it. A slug is cheap; a broken link someone printed is not.
+     */
+    if (input.status === CANDIDATE_VISIBILITY.PUBLIC) {
+      await ensurePublicSlug(profile, user?.name);
     }
 
     profile.status = input.status;

@@ -39,9 +39,22 @@ export async function listConversations(profile) {
    */
   const senderIds = [
     ...new Set(
-      conversations
-        .filter((c) => c.lastMessageSenderType === MESSAGE_SENDERS.COMPANY && c.lastMessageSenderId)
-        .map((c) => String(c.lastMessageSenderId)),
+      [
+        ...conversations
+          .filter(
+            (c) => c.lastMessageSenderType === MESSAGE_SENDERS.COMPANY && c.lastMessageSenderId,
+          )
+          .map((c) => String(c.lastMessageSenderId)),
+
+        /*
+         * The thread's OWNER, resolved in the same query — ADR-024.
+         *
+         * `lastMessageFrom` cannot title a thread: it is null whenever the candidate wrote last, so
+         * the heading would flip between a person's name and nothing as the conversation went back
+         * and forth. `recruiterUserId` does not move, which is what makes a stable title possible.
+         */
+        ...conversations.filter((c) => c.recruiterUserId).map((c) => String(c.recruiterUserId)),
+      ],
     ),
   ];
 
@@ -67,6 +80,17 @@ export async function listConversations(profile) {
             initials: companyInitials(company.name),
           }
         : null,
+      /**
+       * The person this thread is with — the title the candidate reads (ADR-024).
+       *
+       * Null on legacy shared threads, which have no one owner. The UI falls back to the company
+       * name there rather than inventing a person, so an old thread stays honest about having been
+       * a conversation with a company.
+       */
+      recruiter: conversation.recruiterUserId
+        ? { name: senderById.get(String(conversation.recruiterUserId))?.name ?? null }
+        : null,
+
       /** The individual recruiter who wrote last, when that was the company side. */
       lastMessageFrom: lastSender?.name ?? null,
       lastMessageAt: conversation.lastMessageAt ?? null,
@@ -126,9 +150,16 @@ export async function getConversation(profile, conversationId) {
    */
   const companySenderIds = [
     ...new Set(
-      messages
-        .filter((message) => message.senderType === MESSAGE_SENDERS.COMPANY && message.senderUserId)
-        .map((message) => String(message.senderUserId)),
+      [
+        ...messages
+          .filter(
+            (message) => message.senderType === MESSAGE_SENDERS.COMPANY && message.senderUserId,
+          )
+          .map((message) => String(message.senderUserId)),
+
+        /* The owner, so the heading names the person even before they have written (ADR-024). */
+        ...(conversation.recruiterUserId ? [String(conversation.recruiterUserId)] : []),
+      ],
     ),
   ];
 
@@ -147,6 +178,12 @@ export async function getConversation(profile, conversationId) {
           initials: companyInitials(company.name),
         }
       : null,
+
+    /** The person this thread is with; null on a legacy shared thread (ADR-024). */
+    recruiter: conversation.recruiterUserId
+      ? { name: senderById.get(String(conversation.recruiterUserId))?.name ?? null }
+      : null,
+
     state: conversation.candidateState ?? CANDIDATE_CONVERSATION_STATES.PENDING,
     muted: Boolean(conversation.mutedAt),
     reported: Boolean(conversation.reportedAt),

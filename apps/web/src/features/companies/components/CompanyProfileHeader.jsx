@@ -69,7 +69,16 @@ export function CompanyProfileHeader({
   topSpacing = 'navbar',
 }) {
   const location = formatLocation(company.location);
-  const canExpressInterest = company.isCurrentlyHiring || company.acceptsGeneralInterest;
+  /*
+   * `isHiring` is the server's derived answer — the manual flag OR at least one active role — and
+   * it is what the directory filter matches on. Reading the raw flag here is what produced a page
+   * that listed two open roles under a "Not hiring right now" badge.
+   *
+   * `?? company.isCurrentlyHiring` so a payload from an older deploy still renders sensibly rather
+   * than silently reading `undefined` as "not hiring".
+   */
+  const isHiring = company.isHiring ?? company.isCurrentlyHiring;
+  const canExpressInterest = isHiring || company.acceptsGeneralInterest;
 
   return (
     <section
@@ -177,7 +186,7 @@ export function CompanyProfileHeader({
                 general interest while not actively hiring.
               */}
               <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-                {company.isCurrentlyHiring ? (
+                {isHiring ? (
                   <Badge tone="successLight" size="sm" radius="full" weight="bold">
                     <span className="relative flex h-2 w-2" aria-hidden="true">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />

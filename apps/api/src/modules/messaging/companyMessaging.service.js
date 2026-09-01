@@ -5,9 +5,22 @@
  * other end: unread counts, read receipts and acceptance state are all per side, so nothing here
  * touches the candidate's.
  *
- * A conversation is between a candidate and a COMPANY, never two users (05_DATABASE_SCHEMA §9), so
- * any member with the permission inherits the thread — PRD §21.6 requires a departing recruiter's
- * replacement to pick it up rather than the thread being orphaned.
+ * ── Threads belong to a PERSON, not the company — ADR-024 step 3 ──────────────────────────────
+ *
+ * A thread is between the candidate and one employee. Two colleagues messaging the same candidate
+ * open two separate threads, and neither can read the other's. `recruiterUserId` is the owner;
+ * `null` means a legacy shared thread, from before this existed, which every member may still read
+ * and reply to because it genuinely was shared.
+ *
+ * Two rules that are easy to get subtly wrong, and are load-bearing:
+ *
+ *   1. **A colleague's thread is reported as ABSENT, not forbidden.** A 403 would confirm that a
+ *      named candidate is in conversation with a named teammate, which is the privacy this step
+ *      exists to create.
+ *   2. **Replying to a legacy shared thread does not adopt it.** `replyAsCompany` continues the
+ *      thread it resolved, in place, and never re-derives one from the candidate id — otherwise a
+ *      reply would miss the shared thread (whose owner is null, not the sender) and silently fork a
+ *      second one, while the team quietly lost sight of a thread they used to share.
  *
  * Opening a thread is how a company starts contact, so this is also where PRD §11.2's "a first
  * message to a merely-discoverable candidate clearly identifies the company and role context" is
@@ -39,9 +52,20 @@ async function candidateSummary(candidateId, companyId) {
   };
 }
 
-/** The company's thread list, newest activity first. */
-export async function listCompanyConversations(companyId) {
-  const conversations = await Conversation.find({ companyId })
+/**
+ * The threads one member may touch: their own, plus every legacy shared thread.
+ *
+ * `recruiterUserId: null` also matches documents written before the field existed — MongoDB treats
+ * a missing path and an explicit null as the same value — so no backfill is needed for legacy rows
+ * to keep behaving as they always have.
+ */
+function visibleToMember(actorUserId) {
+  return { $or: [{ recruiterUserId: null }, { recruiterUserId: actorUserId }] };
+}
+
+/** This member's thread list, newest activity first. */
+export async function listCompanyConversations(companyId, actorUserId) {
+  const conversations = await Conversation.find({ companyId, ...visibleToMember(actorUserId) })
     .sort({ lastMessageAt: -1, createdAt: -1 })
     .lean();
 
@@ -60,6 +84,14 @@ export async function listCompanyConversations(companyId) {
         lastMessageFromCompany:
           conversation.lastMessageSenderType === MESSAGE_SENDERS.COMPANY ? true : false,
         unread: conversation.companyUnread ?? 0,
+        /**
+         * A legacy thread with no owner, which the whole team can still read (ADR-024).
+         *
+         * Surfaced because the difference is invisible otherwise: a recruiter should know which of
+         * their threads a colleague can also see, and not assume the new privacy applies to one
+         * that predates it.
+         */
+        shared: conversation.recruiterUserId == null,
         candidateState: conversation.candidateState ?? CANDIDATE_CONVERSATION_STATES.PENDING,
         reported: Boolean(conversation.reportedAt),
         createdAt: conversation.createdAt,
@@ -71,9 +103,19 @@ export async function listCompanyConversations(companyId) {
   return { conversations: list, unreadTotal: list.reduce((sum, row) => sum + row.unread, 0) };
 }
 
-/** Loads a thread belonging to this company, or fails. Ownership is checked here, not upstream. */
-async function companyConversation(companyId, conversationId) {
-  const conversation = await Conversation.findOne({ _id: conversationId, companyId });
+/**
+ * Loads a thread this member may touch, or fails. Ownership is checked here, not upstream.
+ *
+ * A thread owned by a colleague produces the same 404 as one that does not exist. That is
+ * deliberate: distinguishing them would tell a recruiter that a named candidate is talking to a
+ * named teammate, which is exactly what a private thread must not reveal.
+ */
+async function companyConversation(companyId, conversationId, actorUserId) {
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    companyId,
+    ...visibleToMember(actorUserId),
+  });
   if (!conversation) throw ApiError.notFound('Conversation not found.');
   return conversation;
 }
@@ -82,8 +124,8 @@ async function companyConversation(companyId, conversationId) {
  * A thread and its messages. Opening it clears the COMPANY's unread count and stamps `readAt` on
  * the candidate's messages — never on the company's own.
  */
-export async function getCompanyConversation(companyId, conversationId) {
-  const conversation = await companyConversation(companyId, conversationId);
+export async function getCompanyConversation(companyId, conversationId, actorUserId) {
+  const conversation = await companyConversation(companyId, conversationId, actorUserId);
 
   const candidate = await candidateSummary(conversation.candidateId, companyId);
   if (!candidate) throw ApiError.notFound('Conversation not found.');
@@ -148,28 +190,12 @@ export async function getCompanyConversation(companyId, conversationId) {
 }
 
 /**
- * Sends a message, opening the thread if this is the first one.
+ * Appends a message to a thread already resolved and authorized by the caller.
  *
- * Upsert-shaped because 05_DATABASE_SCHEMA §9 makes `{ candidateId, companyId }` unique: a second
- * "start conversation" must continue the existing thread rather than fail or fork it.
+ * Split out so replying never re-derives the thread from the candidate id. `recruiterUserId` is
+ * deliberately not written here: a legacy shared thread stays shared no matter who replies.
  */
-export async function sendCompanyMessage(companyId, actorUserId, { candidateId, body, interestId }) {
-  const profile = await CandidateProfile.findById(candidateId);
-  if (!profile) throw ApiError.notFound('Candidate not found.');
-
-  const access = await resolveCandidateAccess(profile, companyId);
-  if (!access.visible) throw ApiError.notFound('Candidate not found.');
-
-  let conversation = await Conversation.findOne({ candidateId, companyId });
-
-  if (!conversation) {
-    conversation = await Conversation.create({
-      candidateId,
-      companyId,
-      interestId: interestId ?? null,
-    });
-  }
-
+async function appendCompanyMessage(conversation, actorUserId, body) {
   if (conversation.reportedAt) {
     throw ApiError.forbidden('This conversation has been reported and is closed to new messages.');
   }
@@ -207,11 +233,50 @@ export async function sendCompanyMessage(companyId, actorUserId, { candidateId, 
   };
 }
 
-/** Replies inside a thread the company already has. */
-export async function replyAsCompany(companyId, actorUserId, conversationId, body) {
-  const conversation = await companyConversation(companyId, conversationId);
-  return sendCompanyMessage(companyId, actorUserId, {
-    candidateId: conversation.candidateId,
-    body,
+/**
+ * Sends a message, opening the thread if this sender has not written to this candidate before.
+ *
+ * Keyed on the SENDER as well as the candidate and company (ADR-024), so two colleagues messaging
+ * one candidate get one thread each rather than sharing.
+ *
+ * A legacy shared thread is deliberately not matched here. Adopting it — quietly stamping the
+ * first replier as its owner — would privatise, with no consent and no undo, a thread the whole
+ * team could previously read. Continuing one is done through `replyAsCompany`, from the thread
+ * itself.
+ */
+export async function sendCompanyMessage(companyId, actorUserId, { candidateId, body, interestId }) {
+  const profile = await CandidateProfile.findById(candidateId);
+  if (!profile) throw ApiError.notFound('Candidate not found.');
+
+  const access = await resolveCandidateAccess(profile, companyId);
+  if (!access.visible) throw ApiError.notFound('Candidate not found.');
+
+  let conversation = await Conversation.findOne({
+    candidateId,
+    companyId,
+    recruiterUserId: actorUserId,
   });
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      candidateId,
+      companyId,
+      recruiterUserId: actorUserId,
+      interestId: interestId ?? null,
+    });
+  }
+
+  return appendCompanyMessage(conversation, actorUserId, body);
+}
+
+/**
+ * Replies inside a thread this member may touch.
+ *
+ * Continues the resolved thread in place. It must NOT route through `sendCompanyMessage`: that
+ * looks a thread up by sender, so replying to a shared thread (owner `null`) would miss it and
+ * silently open a second one.
+ */
+export async function replyAsCompany(companyId, actorUserId, conversationId, body) {
+  const conversation = await companyConversation(companyId, conversationId, actorUserId);
+  return appendCompanyMessage(conversation, actorUserId, body);
 }

@@ -241,6 +241,8 @@ export async function setVisibility(user, input) {
       status: profile.status,
       contactVisibility: profile.contactVisibility,
       publishedAt: profile.publishedAt ?? null,
+      /* Same shape as the read, so the screen can show the URL from the save response alone. */
+      publicSlug: profile.publicSlug ?? null,
     },
     blockedCompanies: await listBlockedCompanies(profile),
   };
@@ -253,6 +255,14 @@ export async function getVisibility(user) {
       status: profile.status,
       contactVisibility: profile.contactVisibility,
       publishedAt: profile.publishedAt ?? null,
+      /*
+       * The public address, once one has been minted.
+       *
+       * Reported whatever the current state, not only while PUBLIC — a candidate who switches
+       * back to private keeps the slug, and the screen should be able to say "this is the address
+       * your profile returns to" rather than appearing to have lost it.
+       */
+      publicSlug: profile.publicSlug ?? null,
     },
     blockedCompanies: await listBlockedCompanies(profile),
     /** Naming what still blocks publication keeps CAN-04 honest about why a change was refused. */

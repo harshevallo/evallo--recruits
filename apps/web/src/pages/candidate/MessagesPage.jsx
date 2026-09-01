@@ -256,13 +256,26 @@ export function MessagesPage() {
                       shape="rounded"
                       tone="brand"
                     />
+                    {/*
+                      * A candidate is talking to a PERSON, so the person is the title and the
+                      * company is context beneath it (ADR-024).
+                      *
+                      * Legacy shared threads have no one owner, so they keep the company as their
+                      * title rather than borrowing the name of whoever happened to write last —
+                      * that thread really was a conversation with a company.
+                      */}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-brand-dark">
-                        {item.company?.name ?? 'Company'}
+                        {item.recruiter?.name ?? item.company?.name ?? 'Company'}
                       </span>
-                      {/* Who wrote last, then what they said — a candidate deals with people. */}
+                      {item.recruiter?.name && item.company?.name && (
+                        <span className="block truncate text-xs text-gray-600">
+                          {item.company.name}
+                        </span>
+                      )}
                       <span className="block truncate text-xs text-gray-500">
-                        {item.lastMessageFrom && (
+                        {/* Naming the sender is redundant once they are the heading. */}
+                        {!item.recruiter?.name && item.lastMessageFrom && (
                           <span className="font-medium text-gray-600">
                             {item.lastMessageFrom}:{' '}
                           </span>
@@ -293,14 +306,20 @@ export function MessagesPage() {
             ) : (
               <>
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
-                  <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
-                    {thread.company?.name ?? 'Conversation'}
-                    {thread.state === 'declined' && (
-                      <span className="ml-2 align-middle text-xs font-normal text-gray-500">
-                        Declined
-                      </span>
+                  <div className="min-w-0">
+                    <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
+                      {thread.recruiter?.name ?? thread.company?.name ?? 'Conversation'}
+                      {thread.state === 'declined' && (
+                        <span className="ml-2 align-middle text-xs font-normal text-gray-500">
+                          Declined
+                        </span>
+                      )}
+                    </h2>
+                    {/* The company stays visible as context, never replaced by the person. */}
+                    {thread.recruiter?.name && thread.company?.name && (
+                      <p className="truncate text-sm text-gray-600">{thread.company.name}</p>
                     )}
-                  </h2>
+                  </div>
 
                   {/* PRD 11.2 candidate controls. Block lives in visibility settings. */}
                   <div className="flex flex-wrap items-center gap-4">

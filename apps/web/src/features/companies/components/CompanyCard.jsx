@@ -63,7 +63,8 @@ export function CompanyCard({ company, profilePath = PATHS.COMPANY_PROFILE }) {
           </p>
         </div>
 
-        {company.isCurrentlyHiring && (
+        {/* Derived server-side: the manual flag OR an active role. Matches `?hiringOnly=true`. */}
+        {(company.isHiring ?? company.isCurrentlyHiring) && (
           <Badge tone="successLight" size="sm" radius="full" weight="bold">
             Hiring
           </Badge>

@@ -118,7 +118,7 @@ export function CandidateWorkspaceLayout() {
       group: 'lists',
       label: 'Your lists',
       items: [
-        { to: PATHS.CANDIDATE_INTERESTS, label: 'Shortlisted companies', icon: 'bookmark' },
+        { to: PATHS.CANDIDATE_INTERESTS, label: 'Shortlisted companies', icon: 'rocket' },
         { to: PATHS.CANDIDATE_SAVED, label: 'Saved companies', icon: 'star' },
       ],
     },

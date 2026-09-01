@@ -112,7 +112,18 @@ describe('GET /api/public/companies', () => {
 
   test('filters by hiringOnly', async () => {
     const { body } = await get('/api/public/companies?hiringOnly=true&limit=48');
-    assert.ok(body.data.every((c) => c.isCurrentlyHiring === true));
+
+    /*
+     * `isHiring`, not `isCurrentlyHiring`.
+     *
+     * This assertion used to read `isCurrentlyHiring === true`, which encoded the bug rather than
+     * the rule: it passed precisely BECAUSE companies with active roles and the flag unset were
+     * being excluded. "Hiring" now means the flag OR at least one active role, so the invariant
+     * worth holding is that everything returned reports itself as hiring — which still fails
+     * loudly if the filter stops filtering.
+     */
+    assert.ok(body.data.length > 0, 'the fixture company is hiring, so this is not vacuous');
+    assert.ok(body.data.every((c) => c.isHiring === true));
   });
 
   test('filters by roleCategory through active intents', async () => {
@@ -215,6 +226,155 @@ describe('GET /api/public/companies', () => {
   test('an unpublished company is still excluded when searched by name', async () => {
     const { body } = await get('/api/public/companies?q=spec%20draft');
     assert.equal(body.meta.total, 0, 'visibility outranks the search term');
+  });
+});
+
+describe('the hiring filter counts real roles, not just the flag', () => {
+  /*
+   * ── The bug ─────────────────────────────────────────────────────────────────────────
+   *
+   * `?hiringOnly=true` matched `isCurrentlyHiring` — a MANUAL flag, default false, that nothing
+   * keeps in step with reality. A company could post active roles, have them listed on its own
+   * profile and returned by role search, and still be excluded from the one filter candidates use
+   * to find employers who are hiring. On live data: 2 of 16 published companies.
+   *
+   * These fixtures are their own companies rather than reusing the suite's, because the assertion
+   * is about which companies come BACK, and that has to be decidable without depending on what
+   * other tests happen to have created.
+   */
+  const HIRING_SLUGS = ['spec-hire-flag', 'spec-hire-roles', 'spec-hire-neither'];
+
+  const makeCo = (slug, extra) =>
+    Company.create({
+      slug,
+      name: `Spec ${slug}`,
+      organizationType: 'tutoring_center',
+      status: 'published',
+      moderationStatus: 'none',
+      location: { country: 'US' },
+      ...extra,
+    });
+
+  const hiringSlugs = async () => {
+    const { body } = await get('/api/public/companies?hiringOnly=true&limit=48');
+    return body.data.map((c) => c.slug);
+  };
+
+  before(async () => {
+    await Company.deleteMany({ slug: { $in: HIRING_SLUGS } });
+
+    /* Says it is hiring, has nothing posted — the "approach us anyway" case. */
+    await makeCo('spec-hire-flag', { isCurrentlyHiring: true });
+
+    /* Says nothing, but has an ACTIVE role. This is the case that was wrongly excluded. */
+    const withRoles = await makeCo('spec-hire-roles', { isCurrentlyHiring: false });
+    await HiringIntent.create({
+      companyId: withRoles._id,
+      title: 'Spec Open Role',
+      status: 'active',
+      roleCategories: ['private_tutor'],
+      employmentTypes: ['part_time'],
+      deliveryModes: ['remote'],
+    });
+
+    /* Neither. */
+    await makeCo('spec-hire-neither', { isCurrentlyHiring: false });
+  });
+
+  after(async () => {
+    const cos = await Company.find({ slug: { $in: HIRING_SLUGS } }).select('_id').lean();
+    await HiringIntent.deleteMany({ companyId: { $in: cos.map((c) => c._id) } });
+    await Company.deleteMany({ slug: { $in: HIRING_SLUGS } });
+  });
+
+  test('a company with the flag set is included', async () => {
+    assert.ok((await hiringSlugs()).includes('spec-hire-flag'));
+  });
+
+  test('a company with ACTIVE roles is included, even with the flag off', async () => {
+    assert.ok(
+      (await hiringSlugs()).includes('spec-hire-roles'),
+      'an open role is stronger evidence of hiring than a flag nobody remembered to set',
+    );
+  });
+
+  test('a company with neither is excluded', async () => {
+    assert.ok(!(await hiringSlugs()).includes('spec-hire-neither'));
+  });
+
+  test('the filter still narrows — it did not become a no-op', async () => {
+    const filtered = await hiringSlugs();
+    const { body: all } = await get('/api/public/companies?limit=48');
+    assert.ok(
+      filtered.length < all.data.length,
+      'if every company came back, the filter would be broken in the other direction',
+    );
+  });
+
+  test('an INACTIVE role does not make a company hiring', async () => {
+    const co = await makeCo('spec-hire-closed', { isCurrentlyHiring: false });
+    await HiringIntent.create({
+      companyId: co._id,
+      title: 'Closed Role',
+      status: 'closed',
+      roleCategories: ['private_tutor'],
+      employmentTypes: ['part_time'],
+      deliveryModes: ['remote'],
+    });
+    try {
+      assert.ok(!(await hiringSlugs()).includes('spec-hire-closed'));
+    } finally {
+      await HiringIntent.deleteMany({ companyId: co._id });
+      await Company.deleteOne({ _id: co._id });
+    }
+  });
+
+  test('a role at an UNPUBLISHED company does not make it appear', async () => {
+    const draft = await makeCo('spec-hire-draft', { status: 'draft', isCurrentlyHiring: false });
+    await HiringIntent.create({
+      companyId: draft._id,
+      title: 'Draft Co Role',
+      status: 'active',
+      roleCategories: ['private_tutor'],
+      employmentTypes: ['part_time'],
+      deliveryModes: ['remote'],
+    });
+    try {
+      assert.ok(
+        !(await hiringSlugs()).includes('spec-hire-draft'),
+        'visibility still outranks the hiring predicate',
+      );
+    } finally {
+      await HiringIntent.deleteMany({ companyId: draft._id });
+      await Company.deleteOne({ _id: draft._id });
+    }
+  });
+
+  test('the payload carries `isHiring`, so the badge cannot contradict the filter', async () => {
+    const { body } = await get('/api/public/companies?limit=48');
+    const withRoles = body.data.find((c) => c.slug === 'spec-hire-roles');
+    const neither = body.data.find((c) => c.slug === 'spec-hire-neither');
+
+    assert.equal(withRoles.isHiring, true, 'listed by the filter, so it must render as hiring');
+    assert.equal(withRoles.isCurrentlyHiring, false, 'the raw flag is untouched');
+    assert.equal(neither.isHiring, false);
+  });
+
+  test('the company PROFILE agrees with the directory', async () => {
+    const { body } = await get('/api/public/companies/spec-hire-roles');
+    const company = body.data.company ?? body.data;
+    assert.equal(company.isHiring, true);
+    assert.equal(company.openRoleCount, 1);
+  });
+
+  test('the hiring FACET count matches the filter it describes', async () => {
+    const { body: facets } = await get('/api/public/companies/facets');
+    const filtered = await hiringSlugs();
+    assert.equal(
+      facets.data.hiring,
+      filtered.length,
+      'a count that disagrees with its own filter is a lie',
+    );
   });
 });
 

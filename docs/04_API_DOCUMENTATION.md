@@ -1299,6 +1299,14 @@ the existing thread rather than forking a new one.
 `senderUserId` is retained and resolved, so the candidate sees **which individual recruiter** wrote
 each message, never only the company name.
 
+> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
+> behaviour.** The §21.6 citation above is wrong — §21.6 mandates a departing recruiter's
+> *"immediate loss of candidate/search/message access"*, not inheritance. Under ADR-024 a thread
+> belongs to **one employee**, `listCompanyConversations` returns the caller's own threads plus
+> legacy shared ones rather than every thread at the company, and `POST .../conversations` upserts
+> on `{ candidateId, companyId, recruiterUserId }` — so a *different* employee messaging the same
+> candidate opens a new thread instead of continuing an existing one. Rewritten when that ships.
+
 An invisible candidate cannot be messaged. A viewer cannot send; an outsider cannot read the thread.
 
 `attachments` is present in every message payload and **always empty** — the field is reserved and

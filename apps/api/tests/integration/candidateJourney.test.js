@@ -253,6 +253,104 @@ describe('CAN-04 visibility settings', () => {
     assert.ok(body.error.details.status, 'the gaps are named on the field');
   });
 
+  /*
+   * ── Step 1: PUBLIC becomes selectable ───────────────────────────────────────────────
+   *
+   * The backend for PUBLIC shipped in Phase 3C but nothing could reach it — no slug was ever
+   * minted, so `GET /api/candidates/:slug` had no address to answer on. These pin the one new
+   * behaviour: choosing PUBLIC creates a STABLE address, and every other state is untouched.
+   */
+  test('choosing PUBLIC mints a public slug', async () => {
+    const { accessToken } = await readyCandidate();
+
+    const before = await (
+      await authGet('/api/me/candidate-profile/visibility', accessToken)
+    ).json();
+    assert.equal(before.data.visibility.publicSlug, null, 'no address before opting in');
+
+    const res = await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+      status: CANDIDATE_VISIBILITY.PUBLIC,
+    });
+    const body = await res.json();
+
+    assert.equal(res.status, 200);
+    assert.equal(body.data.visibility.status, CANDIDATE_VISIBILITY.PUBLIC);
+    assert.ok(body.data.visibility.publicSlug, 'the save response carries the address');
+    assert.match(body.data.visibility.publicSlug, /^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'url-safe');
+  });
+
+  test('re-saving PUBLIC reuses the same slug', async () => {
+    const { accessToken } = await readyCandidate();
+
+    const first = await (
+      await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+        status: CANDIDATE_VISIBILITY.PUBLIC,
+      })
+    ).json();
+    const second = await (
+      await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+        status: CANDIDATE_VISIBILITY.PUBLIC,
+      })
+    ).json();
+
+    assert.equal(
+      second.data.visibility.publicSlug,
+      first.data.visibility.publicSlug,
+      'a second save must not mint a second address',
+    );
+  });
+
+  test('switching away from PUBLIC keeps the slug, and returning reuses it', async () => {
+    const { accessToken } = await readyCandidate();
+
+    const published = await (
+      await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+        status: CANDIDATE_VISIBILITY.PUBLIC,
+      })
+    ).json();
+    const slug = published.data.visibility.publicSlug;
+
+    /*
+     * Unpublishing must not DESTROY the address. The page 404s because the state check refuses it,
+     * not because the slug is gone — so republishing restores the same URL rather than orphaning
+     * whatever already linked to it.
+     */
+    const away = await (
+      await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+        status: CANDIDATE_VISIBILITY.PRIVATE,
+      })
+    ).json();
+    assert.equal(away.data.visibility.status, CANDIDATE_VISIBILITY.PRIVATE);
+    assert.equal(away.data.visibility.publicSlug, slug, 'the address is kept, not cleared');
+
+    const back = await (
+      await authPatch('/api/me/candidate-profile/visibility', accessToken, {
+        status: CANDIDATE_VISIBILITY.PUBLIC,
+      })
+    ).json();
+    assert.equal(back.data.visibility.publicSlug, slug, 'and reused on return');
+  });
+
+  test('choosing a NON-public state never mints a slug', async () => {
+    const { accessToken } = await readyCandidate();
+
+    for (const status of [
+      CANDIDATE_VISIBILITY.DISCOVERABLE,
+      CANDIDATE_VISIBILITY.PRIVATE,
+      CANDIDATE_VISIBILITY.PAUSED,
+    ]) {
+      const body = await (
+        await authPatch('/api/me/candidate-profile/visibility', accessToken, { status })
+      ).json();
+      assert.equal(body.data.visibility.status, status);
+      assert.equal(
+        body.data.visibility.publicSlug,
+        null,
+        `${status} must not acquire a public address`,
+      );
+    }
+  });
+
   test('pausing does not revoke existing access (PRD §4.3)', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
