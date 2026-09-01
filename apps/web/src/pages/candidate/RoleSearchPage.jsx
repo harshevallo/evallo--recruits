@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { RoleResultCard } from '@/features/companies/components/RoleResultCard';
 import { fetchPublicRoles, fetchRoleFacets } from '@/services';
 import { PATHS } from '@/router/paths';
+import { usePageMeta } from '@/utils/pageMeta';
 import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
 
 /**
@@ -187,12 +188,44 @@ function useRoleFilters() {
   return { searchParams, filters, setValue, toggleValue, update, activeCount, setSearchParams };
 }
 
-export function RoleSearchPage() {
+/**
+ * @param {object} props
+ * @param {string} [props.roleDetailPath]      where a result card's title links
+ * @param {string} [props.companyProfilePath]  where a result card's company name links
+ * @param {string} [props.companyDirectoryPath] where the empty state sends the reader
+ *
+ * One page, two mount points — `/roles` for anyone and `/me/roles` for a signed-in candidate.
+ * The data already came from the PUBLIC endpoint (`fetchPublicRoles`), so nothing about the search
+ * itself changes between them; only where the links point. Defaults are the public routes.
+ */
+export function RoleSearchPage({
+  roleDetailPath = PATHS.PUBLIC_ROLE_DETAIL,
+  companyProfilePath = PATHS.COMPANY_PROFILE,
+  companyDirectoryPath = PATHS.COMPANY_DIRECTORY,
+} = {}) {
   const { searchParams, filters, setValue, toggleValue, update, activeCount, setSearchParams } =
     useRoleFilters();
 
   const [state, setState] = useState({ status: 'loading', roles: [], meta: null });
   const [facets, setFacets] = useState(null);
+  /*
+   * Static metadata, and the canonical deliberately drops the query string.
+   *
+   * Filter state lives in the URL, so `?subject=physics&page=3` is a distinct address for every
+   * combination a visitor can click. Generating a title from those parameters would mint an
+   * unbounded set of near-identical pages competing with each other, and pointing each one's
+   * canonical at itself would tell a crawler they are all originals. One canonical, `/roles`.
+   *
+   * Set on the `/me/roles` mount too. It is the same content, `robots.txt` disallows `/me`, and
+   * naming `/roles` as canonical is exactly right for a duplicate behind a login.
+   */
+  usePageMeta({
+    title: 'Teaching jobs and tutoring roles | Evallo Recruit',
+    description:
+      'Browse open teaching, tutoring and education roles from verified schools, tutoring centres and edtech companies. Search by subject, location and delivery mode.',
+    path: PATHS.PUBLIC_ROLES,
+  });
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [keyword, setKeyword] = useState(filters.q);
 
@@ -385,7 +418,7 @@ export function RoleSearchPage() {
               title="No roles match that search"
               description="Try fewer filters, or browse the companies instead — many accept interest even when they are not actively hiring."
               action={
-                <Button to={PATHS.CANDIDATE_COMPANIES} variant="primary" size="md" radius="lg">
+                <Button to={companyDirectoryPath} variant="primary" size="md" radius="lg">
                   Search for companies
                 </Button>
               }
@@ -397,7 +430,11 @@ export function RoleSearchPage() {
               <ul className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {roles.map((role) => (
                   <li key={role.id}>
-                    <RoleResultCard role={role} />
+                    <RoleResultCard
+                      role={role}
+                      roleDetailPath={roleDetailPath}
+                      companyProfilePath={companyProfilePath}
+                    />
                   </li>
                 ))}
               </ul>

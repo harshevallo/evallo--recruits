@@ -27,6 +27,10 @@ Decisions are never silently reversed: a superseded ADR keeps its number, is mar
 | [017](#adr-017) | In-house authentication; no external identity provider | Accepted | 2026-08-01 |
 | [018](#adr-018) | `onboardingCompletedAt` — a timestamp, not a role | Accepted | 2026-08-02 |
 | [019](#adr-019) | Candidate share links — a revocable secret, not a public profile | **Proposed** | 2026-08-21 |
+| [020](#adr-020) | Profile photos: bytes in MongoDB now, object storage later | **Proposed** | 2026-08-26 |
+| [021](#adr-021) | One company profile component, rendered by every surface | Accepted | 2026-08-27 |
+| [022](#adr-022) | A role gets its own page; consent gets no second implementation | Accepted | 2026-08-27 |
+| [023](#adr-023) | The approved HTML is a design reference, not a data contract | Accepted | 2026-08-27 |
 
 ---
 
@@ -1159,3 +1163,147 @@ by the shared uploader), `Icon.jsx` (`camera`).
 
 Covered by 17 integration tests in `profilePhoto.test.js`, of which 5 assert that the declared
 content type is disregarded and one pins the `Cross-Origin-Resource-Policy` header below.
+
+---
+
+## ADR-021 — One company profile component, rendered by every surface that shows a company
+
+**Status:** ✅ Accepted and implemented, 2026-08-27.
+
+### Context
+
+A company profile was reachable at three places: `/companies/:slug` anonymously (PUB-02),
+`/me/companies/:slug` signed in (CAN-06), and inside REC-06's preview panel. All three were built
+independently. They shared `CompanyOverview` and `OpenRoleCard` and nothing else — the header, the
+page width, the section rhythm, the roles heading and the empty state were each written three
+times.
+
+The predictable thing happened. PUB-02 was rebuilt to the approved reference; the other two were
+not. The product then had two different-looking company pages at the same time, and **which one a
+person saw depended on how they arrived** — a link gave them the new page, browsing while signed in
+gave them the old one. REC-06's own source comment claimed "what a recruiter reviews is what the
+public gets", which had quietly become false.
+
+Restyling the two stragglers to match would have restored the appearance and left the structure
+that caused it, ready to diverge again on the next change.
+
+### Decision
+
+**The layout lives once, in `features/companies/components/CompanyProfileView.jsx`.** All three
+routes render it. Pages supply only what genuinely differs:
+
+| Prop | Why it differs per surface |
+|---|---|
+| `actions` | Anonymous gets "Express interest". Signed-in gets Save, Block and interest state — which depend on a relationship an anonymous visitor does not have |
+| `banner` | Signed-in status messages: blocked, interest already sent, last action's outcome |
+| `backTo` | The directory this profile was reached from |
+| `topSpacing` | Navbar clearance differs per shell — a named prop, not a `className`, because `cn` is a plain join and a passed `pt-0` beside a built-in `pt-20` leaves both classes on the element and lets stylesheet order decide |
+| `editStepHref` | REC-06 only. What turns the shared rendering into an editing surface, without the public page carrying any of it |
+
+Everything else — and that is nearly everything — is **not a prop**, so it cannot diverge.
+
+### Consequences
+
+- A change to the company page is one change. The failure mode that produced this ADR is now
+  structurally impossible rather than a thing to remember.
+- REC-06's claim is true: the preview *is* the public rendering.
+- The cost is a component with five props whose values are decided by the caller. That is the
+  correct trade against three copies, and the props are few because the surfaces genuinely differ
+  in few ways.
+- `CompanyProfileSkeleton` was extracted for the same reason: two routes load the same payload
+  through the same hook, so a skeleton written twice is two chances to stop matching.
+
+---
+
+## ADR-022 — A role gets its own page; the consent flow does not get a second implementation
+
+**Status:** ✅ Accepted and implemented, 2026-08-27. **Reverses the destination half of an earlier
+decision recorded in `RoleResultCard`.**
+
+### Context
+
+`RoleResultCard` linked to `/me/companies/<slug>#open-roles`. The reasoning was written down and
+was about the interest flow:
+
+> *"There is no separate role detail page and no second interest flow — the consent disclosure, the
+> intent selector and the access grant all live on that page already (CAN-06/CAN-07), and a second
+> implementation of a consented disclosure is the last thing this product should have two of."*
+
+That is right about the **flow** and wrong about the **destination**. The effect was that "Search
+for Roles" and "Search for Companies" led to the same screen. The role search could *find* a role
+but never *show* one: opening a result landed on the organisation's profile, where the role you
+clicked was one card among several. One of the two searches was, in practice, redundant.
+
+### Decision
+
+**A role has its own page** — `/me/roles/:roleId`, served by a new
+`GET /api/public/roles/:roleId`. The role is the subject: heading, summary panel, apply action. The
+company is context, with a real link to its profile — so that visit becomes a choice rather than
+somewhere the candidate was sent.
+
+**The original objection is answered rather than overridden.** `RoleDetailPage` *reuses*
+`CandidateInterestModal`; it does not rebuild it. There is still exactly **one** implementation of
+the PRD §8.7 step-6 consented disclosure, now openable from two places. A `defaultIntentId` prop was
+added so applying from a role page submits *that role* instead of silently defaulting to general
+interest.
+
+### Consequences
+
+- **Visibility is re-proved, not inherited.** Search hides a role by not returning it; a direct link
+  asks for one *by id*, so the detail endpoint re-checks every rule search applies. A closed intent,
+  a draft company, a moderation-restricted company and an unknown id all return an **identical
+  404** — a 404 that meant "withdrawn" would let anyone enumerate closed roles. Six tests in
+  `roleSearch.test.js` pin exactly that.
+- The endpoint reuses `serialiseRole`, so the card and the page cannot disagree about a field; a
+  test asserts the two payloads are deep-equal.
+- `/roles/facets` is declared before `/roles/:roleId` so the literal segment wins.
+
+---
+
+## ADR-023 — The approved HTML is a design reference, not a data contract
+
+**Status:** ✅ Accepted, 2026-08-27. **Qualifies ADR-016.**
+
+### Context
+
+ADR-016 established that the founder's HTML supersedes the PRD as the newer requirement source.
+Four screens were rebuilt against those references in August 2026 (PUB-02, REC-02, REC-12, plus the
+CAN-06 unification above). Each reference contained, alongside its layout, **content the product has
+no data for** — and in one case content it must not fabricate:
+
+| Reference | Element | Reality |
+|---|---|---|
+| REC-12 | "Platform Verified Credentials" — *1590 (Official)*, *Background Cleared* | **Nothing in this product verifies anything.** B-04 is unbuilt; no field distinguishes a checked background from a claimed one |
+| REC-12 | "Must Have" filter toggles — Video Intro, Official Score Report, Background Check | Filters over that same non-existent verification |
+| REC-12 | Teaching-sample video on the search card | `evidence.media` exists, but `toSearchCard` drops the evidence block by design (PRD §21.4) |
+| REC-02 | Logo "Browse files" picker | No company-owned asset storage. B-18, blocked on D-02 |
+| REC-02 | Editable slug field | Needs B-11 redirect handling, or every shared link breaks |
+| PUB-02 | Media gallery, educator testimonials | B-15, B-16 |
+
+### Decision
+
+**Match the reference's layout, structure and visual language. Never render a claim the data cannot
+support.** Where a reference block has no data behind it, one of three things happens, in this
+order of preference:
+
+1. **Fill the slot with something true.** REC-12's credential badges became "Why they match your
+   search" — real, server-computed, in the identical two-tone chip treatment, and something PRD
+   §21.4 requires be shown anyway.
+2. **Keep the shape, change the control.** REC-02's logo block kept its preview-beside-field layout
+   and dropped the file picker, because a dialog that opens and then discards the file is worse than
+   a URL input that works.
+3. **Omit it and write down why** — here, and in the backlog with a blocking dependency.
+
+**The hard line is fabricated verification.** Rendering "Background Cleared" on a real educator's
+card, to someone deciding whether to hire them, asserts a check this product has never performed.
+That is not a styling shortcut with a cosmetic cost; it is a false statement about a person, in the
+one context engineered to be trusted. No reference outranks that.
+
+### Consequences
+
+- Screens will differ from their reference in specific, listed places. Each difference is recorded
+  in `11_CHANGELOG.md` with its reason and its unblocking backlog item.
+- **A new button must work.** Every control added from a reference — the tag input, the option
+  cards, the filter chips, "Save and exit", the onward rail links — is wired to real behaviour.
+  Decorative controls are not shipped.
+- B-04 is now the blocking dependency for two approved designs, and is annotated as such.

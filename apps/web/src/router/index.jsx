@@ -249,6 +249,20 @@ export const router = createBrowserRouter([
           { path: PATHS.COMPANY_PROFILE, element: <CompanyProfilePage /> },
 
           /*
+           * Public role discovery (Phase 1).
+           *
+           * The same two components the candidate workspace renders, at public paths with public
+           * links. `/api/public/roles` was already unauthenticated and already excluded inactive
+           * roles and invisible companies — the only thing missing was a page, so nothing here
+           * relaxes a rule; it exposes a surface that was already safe to expose.
+           *
+           * Defaults handle the paths, so no props: the components default to the PUBLIC routes
+           * and it is `/me/roles` below that passes overrides.
+           */
+          { path: PATHS.PUBLIC_ROLES, element: <RoleSearchPage /> },
+          { path: PATHS.PUBLIC_ROLE_DETAIL, element: <RoleDetailPage /> },
+
+          /*
            * D-09 — Terms and Privacy are referenced by the sign-up consent line, the early-access
            * form and SET-01, so they are real routes with a real document page. The approved text
            * is a founder/legal deliverable; until it lands the page says so rather than inventing
@@ -367,13 +381,33 @@ export const router = createBrowserRouter([
                    * visible company; Companies returns organisations. Same visibility predicate on
                    * the server, different result unit, different card.
                    */
-                  { path: PATHS.CANDIDATE_ROLES, element: <RoleSearchPage /> },
+                  {
+                    /* Same page as `/roles`; only the links change, so a signed-in candidate stays
+                       inside their workspace instead of being bounced out to the public site. */
+                    path: PATHS.CANDIDATE_ROLES,
+                    element: (
+                      <RoleSearchPage
+                        roleDetailPath={PATHS.CANDIDATE_ROLE_DETAIL}
+                        companyProfilePath={PATHS.CANDIDATE_COMPANY_PROFILE}
+                        companyDirectoryPath={PATHS.CANDIDATE_COMPANIES}
+                      />
+                    ),
+                  },
                   /*
                    * A role has its own page. Declared after the search it is reached from; the two
                    * paths do not overlap (`/me/roles` vs `/me/roles/:roleId`), so order is for
                    * reading rather than for matching.
                    */
-                  { path: PATHS.CANDIDATE_ROLE_DETAIL, element: <RoleDetailPage /> },
+                  {
+                    path: PATHS.CANDIDATE_ROLE_DETAIL,
+                    element: (
+                      <RoleDetailPage
+                        rolesPath={PATHS.CANDIDATE_ROLES}
+                        companyProfilePath={PATHS.CANDIDATE_COMPANY_PROFILE}
+                        candidateActions
+                      />
+                    ),
+                  },
                   {
                     path: PATHS.CANDIDATE_COMPANIES,
                     element: (

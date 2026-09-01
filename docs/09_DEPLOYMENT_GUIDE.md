@@ -200,7 +200,7 @@ source files outside of the Root Directory"* setting to be on.
 
 **SEO** *(when PUB-02 ships — ADR-004)*
 - [ ] `/robots.txt` blocks candidate, search, message, pipeline, and account routes
-- [ ] `/sitemap.xml` lists published companies only
+- [ ] `/sitemap.xml` lists published companies only — **⚠️ not implemented.** No route emits a sitemap, and no SEO metadata is injected anywhere; ADR-004 Stage 1 is unbuilt. This line is a launch requirement, not a check that can pass today
 - [ ] Draft/paused/archived/restricted pages emit `noindex`
 - [ ] A published page's served HTML contains title, description, canonical, OG tags, and JSON-LD
 - [ ] Search Console verified, sitemap submitted, **and an owner named for the ADR-004 exit

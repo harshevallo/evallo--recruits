@@ -89,12 +89,49 @@ function textAnswer(byKey, key) {
 }
 
 /**
+ * Audiences this projection knows how to serve.
+ *
+ * `recruiter` is everything ADR-008 already allowed — the signed-in recruiter, the candidate's own
+ * preview, and the token share link. `public` is the far narrower set an anonymous visitor may
+ * read from a portfolio whose owner chose `CANDIDATE_VISIBILITY.PUBLIC`.
+ */
+export const PORTFOLIO_AUDIENCE = Object.freeze({
+  RECRUITER: 'recruiter',
+  PUBLIC: 'public',
+});
+
+/**
  * Loads and projects everything below the profile document.
  *
+ * ── The `public` audience ───────────────────────────────────────────────────────────
+ *
+ * `recruiter` is the DEFAULT so every existing caller — `candidateViewer`, `visibility.service`,
+ * `share.service` — is unchanged by this parameter existing.
+ *
+ * The public audience differs by SUBTRACTION, and the subtractions are deliberate rather than
+ * incidental. Three things are removed even though a recruiter sees them:
+ *
+ *   · **`documentUrl`** — a scanned certificate typically carries a full legal name, a date of
+ *     birth and a certificate number. The candidate cannot control what their scan contains, and
+ *     once an indexed page links it they cannot un-publish it either.
+ *   · **Assessment scores** — performance data. A mediocre score, public and cached indefinitely,
+ *     is a lasting cost paid for one click.
+ *   · **Media / video** — face and voice. Most of these are UNLISTED YouTube links: linking one
+ *     from an indexed page overrides the privacy choice the candidate made on YouTube, silently.
+ *
+ * None of the three is forbidden forever — each is a candidate decision that does not exist yet,
+ * and until the control exists the honest default is to withhold. `withheld` still reports counts,
+ * so the candidate's own preview can say what an audience is not seeing.
+ *
+ * NOTE ON `withheld`: its counts describe per-ITEM visibility (ADR-008), not this audience filter.
+ * A public reader is not told how many scores or videos exist — see the public branch below.
+ *
  * @param {object} profile  CandidateProfile document or lean object
- * @returns {Promise<{ evidence, practice, outcomes, expertise, withheld }>}
+ * @param {{ audience?: 'recruiter'|'public' }} [options]
+ * @returns {Promise<{ evidence, practice, outcomes, expertise, identity, withheld }>}
  */
-export async function loadPortfolio(profile) {
+export async function loadPortfolio(profile, { audience = PORTFOLIO_AUDIENCE.RECRUITER } = {}) {
+  const isPublic = audience === PORTFOLIO_AUDIENCE.PUBLIC;
   const candidateId = profile._id;
 
   const [experiences, education, credentials, media, answers] = await Promise.all([
@@ -124,17 +161,27 @@ export async function loadPortfolio(profile) {
   const isScore = (entry) =>
     /score|test|exam|assessment/i.test(String(entry.credentialType ?? '')) && Boolean(entry.result);
 
-  const credentialFields = [
-    'name',
-    'credentialType',
-    'issuer',
-    'result',
-    'documentUrl',
-    'startDate',
-    'endDate',
-    'description',
-    'verificationStatus',
-  ];
+  /*
+   * `documentUrl` and `verificationStatus` are recruiter-only.
+   *
+   * The document for the reason above. `verificationStatus` because nothing writes anything but
+   * `unverified` yet (PRD §20.3 defers issuer verification) — publishing an "unverified" badge to
+   * the internet would advertise a verification programme that does not exist and imply doubt
+   * about a candidate that nobody has actually assessed.
+   */
+  const credentialFields = isPublic
+    ? ['name', 'credentialType', 'issuer', 'result', 'startDate', 'endDate', 'description']
+    : [
+        'name',
+        'credentialType',
+        'issuer',
+        'result',
+        'documentUrl',
+        'startDate',
+        'endDate',
+        'description',
+        'verificationStatus',
+      ];
 
   return {
     evidence: {
@@ -149,7 +196,7 @@ export async function loadPortfolio(profile) {
           'current',
           'description',
           'outcome',
-          'verificationStatus',
+          ...(isPublic ? [] : ['verificationStatus']),
         ]),
       ),
       education: visibleEducation.map((entry) =>
@@ -161,17 +208,35 @@ export async function loadPortfolio(profile) {
           'endDate',
           'current',
           'description',
-          'verificationStatus',
+          ...(isPublic ? [] : ['verificationStatus']),
         ]),
       ),
       credentials: visibleCredentials
         .filter((entry) => !isScore(entry))
         .map((entry) => shape(entry, credentialFields)),
-      /** PRD §8.3 section 7 — assessments and scores, shown only where visibility allows. */
-      scores: visibleCredentials.filter(isScore).map((entry) => shape(entry, credentialFields)),
-      media: visibleMedia.map((entry) =>
-        shape(entry, ['title', 'url', 'provider', 'prompt', 'description']),
-      ),
+      /**
+       * PRD §8.3 section 7 — assessments and scores, shown only where visibility allows.
+       *
+       * Empty for a public reader. Not "filtered to the safe ones" — there is no per-score public
+       * consent to filter ON, and inventing one silently would be exactly the reinterpretation
+       * this whole design set out to avoid.
+       */
+      scores: isPublic
+        ? []
+        : visibleCredentials.filter(isScore).map((entry) => shape(entry, credentialFields)),
+
+      /**
+       * Empty for a public reader, for the unlisted-video reason above.
+       *
+       * The URL is withheld along with the title and prompt: "Concept explanation — quadratics"
+       * beside a name is not the disclosure the candidate declined, but it advertises that a video
+       * exists and invites someone to go looking for it.
+       */
+      media: isPublic
+        ? []
+        : visibleMedia.map((entry) =>
+            shape(entry, ['title', 'url', 'provider', 'prompt', 'description']),
+          ),
       /*
        * PRD §20.3 defers reference COLLECTION to Phase 2 and there is no `references` collection
        * to read. Reported as an empty array rather than omitted, so every audience renders the
@@ -228,11 +293,22 @@ export async function loadPortfolio(profile) {
      * this projection contains (PRD §8.2 "private-field indicators"). A count answers that
      * without the content itself ever being assembled for an audience that may not see it.
      */
-    withheld: {
-      experience: experiences.length - visibleExperience.length,
-      education: education.length - visibleEducation.length,
-      credentials: credentials.length - visibleCredentials.length,
-      media: media.length - visibleMedia.length,
-    },
+    /*
+     * Zeroed for a public reader.
+     *
+     * These counts exist so the CANDIDATE'S OWN preview can explain the gap between what they
+     * entered and what an audience sees (PRD §8.2). To a stranger the same numbers are a small
+     * disclosure in their own right — "this person has four things they chose not to show", and
+     * with media now withheld wholesale, "this person has three videos somewhere". Neither is
+     * information the public page is for.
+     */
+    withheld: isPublic
+      ? { experience: 0, education: 0, credentials: 0, media: 0 }
+      : {
+          experience: experiences.length - visibleExperience.length,
+          education: education.length - visibleEducation.length,
+          credentials: credentials.length - visibleCredentials.length,
+          media: media.length - visibleMedia.length,
+        },
   };
 }

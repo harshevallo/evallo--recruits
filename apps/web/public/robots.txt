@@ -36,8 +36,17 @@ Disallow: /forgot-password
 Disallow: /signin
 Disallow: /signup
 
-# Explicitly open: the marketing site, the public company directory, and company profiles. These
-# are the only pages PRD §17 asks to be indexed.
+# Explicitly open: the marketing site, the public company directory and profiles, and — since
+# Phase 1 — public role discovery. `/api/public/roles` was always unauthenticated; these pages
+# simply give it a front door. Nothing candidate-related is listed here.
 Allow: /$
 Allow: /companies
 Allow: /companies/
+Allow: /roles
+Allow: /roles/
+
+# The crawlable index of public pages: the directory, role search, every published company and
+# every active role at one. Generated live by the API and rewritten onto this origin by
+# `vercel.json`, so the sitemap and the URLs inside it are same-origin — a cross-domain sitemap is
+# largely ignored. Candidates appear nowhere in it (PRD §21.2).
+Sitemap: https://test.recruit.evallo.org/sitemap.xml

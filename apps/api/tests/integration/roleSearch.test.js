@@ -205,6 +205,93 @@ describe('role search — payload', () => {
   });
 });
 
+describe('role search — free text', () => {
+  /*
+   * Same defect as company search: `$text` matched whole stemmed words only, so `?q=phys` found
+   * nothing while `?q=Physics` found the role. See lib/textSearch.js.
+   */
+  test('a PARTIAL word matches', async () => {
+    const company = await makeCompany('rs-published');
+    await makeIntent(company._id, { title: 'IB Physics Teacher' });
+
+    const { body } = await get('/api/public/roles?q=phys');
+    const titles = body.data.map((r) => r.title);
+    assert.ok(titles.includes('IB Physics Teacher'), '"phys" must find "IB Physics Teacher"');
+  });
+
+  test('matches the description too, not only the title', async () => {
+    const company = await makeCompany('rs-published');
+    await makeIntent(company._id, {
+      title: 'Assessment Writer',
+      description: 'Designing olympiad-level problem sets.',
+    });
+
+    const { body } = await get('/api/public/roles?q=olympiad');
+    assert.ok(body.data.some((r) => r.title === 'Assessment Writer'));
+  });
+
+  test('is case-insensitive', async () => {
+    const company = await makeCompany('rs-published');
+    await makeIntent(company._id, { title: 'IB Physics Teacher' });
+
+    const lower = await get('/api/public/roles?q=physics');
+    const upper = await get('/api/public/roles?q=PHYSICS');
+    assert.equal(lower.body.meta.total, upper.body.meta.total);
+    assert.ok(lower.body.meta.total >= 1);
+  });
+
+  /*
+   * ── The composition test ────────────────────────────────────────────────────────
+   *
+   * `region` already used `filter.$or`. Making `q` a substring match gave it an `$or` too, and a
+   * bare `filter.$or = [...]` from either would silently overwrite the other — dropping half the
+   * query with no error. Both now compose under `$and`; this is what proves it.
+   */
+  test('a keyword and a region are ANDed, not overwritten', async () => {
+    const company = await makeCompany('rs-published');
+    await makeIntent(company._id, {
+      title: 'Physics Teacher',
+      locations: [{ country: 'IN', region: 'Karnataka', city: 'Bengaluru' }],
+    });
+    await makeIntent(company._id, {
+      title: 'Physics Teacher',
+      locations: [{ country: 'IN', region: 'Maharashtra', city: 'Pune' }],
+    });
+    await makeIntent(company._id, {
+      title: 'History Teacher',
+      locations: [{ country: 'IN', region: 'Karnataka', city: 'Bengaluru' }],
+    });
+
+    const mine = (b) => b.data.filter((r) => r.company?.slug === 'rs-published');
+
+    /* Each half alone. */
+    assert.equal(mine((await get('/api/public/roles?q=physics')).body).length, 2);
+    assert.equal(mine((await get('/api/public/roles?region=bengaluru')).body).length, 2);
+
+    /* Together: only the Bengaluru physics role. If either clause were dropped this would be 2. */
+    const both = mine((await get('/api/public/roles?q=physics&region=bengaluru')).body);
+    assert.equal(both.length, 1, 'the two clauses must both apply');
+    assert.equal(both[0].title, 'Physics Teacher');
+  });
+
+  test('a keyword still cannot reach a role at an invisible company', async () => {
+    const draft = await makeCompany('rs-draft', { status: COMPANY_STATUS.DRAFT });
+    await makeIntent(draft._id, { title: 'Secret Physics Role' });
+
+    const { body } = await get('/api/public/roles?q=secret');
+    assert.equal(body.data.length, 0, 'visibility outranks the search term');
+  });
+
+  test('regex metacharacters are escaped, not executed', async () => {
+    const company = await makeCompany('rs-published');
+    await makeIntent(company._id, { title: 'Plain Role' });
+
+    const { status, body } = await get('/api/public/roles?q=.%2A');
+    assert.equal(status, 200, 'must not 500');
+    assert.equal(body.data.filter((r) => r.company?.slug === 'rs-published').length, 0);
+  });
+});
+
 describe('role search — filters', () => {
   test('facets AND together, values within one facet OR', async () => {
     const company = await makeCompany('rs-published');

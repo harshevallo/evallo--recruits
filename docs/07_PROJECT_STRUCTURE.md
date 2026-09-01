@@ -1,7 +1,14 @@
 # 07 — Project Structure
 
 **Status:** Approved and in use. Folders marked deferred in §11 are created as their milestone arrives.
-**Version:** 2.2 · 2026-08-03 · Supersedes v2.1
+**Version:** 3.0 · 2026-08-27 · Supersedes v2.2
+
+**What changed in v3.0:** every tree in this document was verified file-by-file against the working
+tree. Several entries were design intent the build did not take — three layouts that became two
+workspace shells, a `components/data/` folder that stayed empty, a Toast system replaced by
+`StatusRegion`, and an `ErrorBoundary.jsx` that was asserted to exist and does not (now
+`12_KNOWN_ISSUES.md` I-18). Those are recorded in the new **§4.0**, rather than deleted, so the
+question "why is there no X?" has a written answer.
 
 This is the complete folder design for Evallo Recruit — built to carry all 41 known screens plus
 the unscheduled scope in `03_TRD.md` §15, not just the screens delivered so far.
@@ -61,20 +68,18 @@ packages/shared/
 ├─ src/
 │  ├─ schemas/                Zod — the API contract (ADR-009)
 │  │  ├─ common.schema.js       id · email · url · pagination · location · money
-│  │  ├─ auth.schema.js         M1
-│  │  ├─ user.schema.js         M1
-│  │  ├─ company.schema.js      M2
-│  │  ├─ hiringIntent.schema.js M2
-│  │  ├─ membership.schema.js   M2
-│  │  ├─ candidate.schema.js    M3
-│  │  ├─ evidence.schema.js     M3
-│  │  ├─ questionBank.schema.js M3
-│  │  ├─ interest.schema.js     M4
-│  │  ├─ pipeline.schema.js     M5
-│  │  ├─ message.schema.js      M5
-│  │  ├─ search.schema.js       M5
-│  │  ├─ earlyAccess.schema.js  M-M
+│  │  ├─ auth.schema.js         built
+│  │  ├─ company.schema.js      built — company, hiring intent, membership, setup steps
+│  │  ├─ interest.schema.js     built
+│  │  ├─ search.schema.js       built — candidate search (REC-12)
+│  │  ├─ roleSearch.schema.js   built — role search + facets (CAN-05b)
+│  │  ├─ earlyAccess.schema.js  built
 │  │  └─ index.js
+│  │
+│  │  Fewer files than planned: `user`, `hiringIntent` and `membership` fold into
+│  │  `company.schema.js`; candidate profile, evidence and question-bank validation
+│  │  live server-side in `modules/candidates/*.validation.js`, because none of it is
+│  │  shared with the client. Pipeline and messaging validate in their modules too.
 │  ├─ constants/              Enumerated values — never inline literals elsewhere
 │  │  ├─ roles.js               owner · admin · recruiter · hiring_manager · viewer
 │  │  ├─ permissions.js         permission keys (PRD §4.2)
@@ -194,15 +199,15 @@ apps/api/
 | `public/` | Unauthenticated read surface, SEO, early access | M-M / M2 |
 | `candidates/` | Profile, facets, visibility, answers | M3 |
 | `question-bank/` | Versioned question configuration (ADR-007) | M3 |
-| `evidence/` | Experience, education, credentials, media, references | M3 |
+| `evidence/` | Experience, education, credentials, media, references | ✅ built **inside `candidates/`** (`profileEntry.*`) rather than as its own module |
 | `interests/` | Expression of interest, consent, access grants | M4 |
-| `search/` | Talent search, facets, saved searches | M5 |
-| `pipeline/` | Stages, assignment, notes, outcomes | M5 |
-| `messaging/` | Conversations, messages, attachments | M5 |
-| `notifications/` | Delivery, preferences, digests | M6 |
+| `search/` | Talent search and facets | ✅ built (saved searches not built) |
+| `pipeline/` | Stages, assignment, notes, outcomes | ✅ built |
+| `messaging/` | Conversations and messages (**attachments reserved, always empty** — I-15) | ✅ built |
+| `notifications/` | Delivery, preferences, digests | Not built |
 | `audit/` | Append-only audit events | M3+ |
-| `moderation/` | Reports, blocks, appeals | M6 |
-| `analytics/` | Event taxonomy, company summaries | M6 |
+| `moderation/` | Reports, blocks, appeals | Not built — candidate→company blocking ships inside `candidates/` (CAN-04) |
+| `analytics/` | Event taxonomy, company summaries | Not built |
 | `assessments/` | **Unscheduled** — TRD §15 D-01 | TBD |
 
 ### 3.2 Standard module anatomy
@@ -271,12 +276,12 @@ modules/public/
 ├─ earlyAccess.service.js
 ├─ earlyAccessRequest.model.js
 ├─ companyPublic.service.js       Published-company projections ONLY
-└─ seo/
-   ├─ metadata.js                 title · description · canonical · OG
-   ├─ structuredData.js           Organization + WebSite JSON-LD
-   ├─ sitemap.js                  Published companies only
-   └─ robots.js                   Blocks candidate/search/message/account routes
+└─ rolePublic.service.js          Role search + one role, within visible companies only
 ```
+
+> **Planned, not built:** a `seo/` subfolder (`metadata` · `structuredData` · `sitemap` ·
+> `robots`). ADR-004 Stage 1 metadata and the sitemap are still ahead of the code — see
+> `13_BACKLOG.md`. Nothing in this module emits SEO artefacts today.
 
 **This module may never import a candidate collection.** PRD §21.2: *"Candidate data never appears
 in public company HTML, public APIs, sitemaps, or unauthenticated responses."* Making it a
@@ -290,73 +295,69 @@ import list.
 ```
 apps/web/
 ├─ public/                    Served verbatim: favicon, og images, robots fallback
-├─ scripts/
-│  └─ prerender.js            Build-time prerender of MKT-01 (ADR-013)
 ├─ src/
 │  ├─ main.jsx                Client entry
-│  ├─ entry-server.jsx        Prerender/SSR entry (ADR-013 / ADR-004 Stage 2)
 │  ├─ App.jsx
 │  ├─ app/
 │  │  └─ providers.jsx        Composed context providers
 │  ├─ router/
 │  │  ├─ index.jsx            Route tree
 │  │  ├─ paths.js             EVERY path string — single source of truth
+│  │  ├─ RouteFallback.jsx    Suspense fallback for lazy routes
 │  │  ├─ ScrollToTop.jsx
 │  │  ├─ ScrollToHash.jsx     React Router does not do this natively
 │  │  └─ guards/
 │  │     ├─ RequireAuth.jsx
+│  │     ├─ RequireCandidate.jsx
 │  │     ├─ RequireCompany.jsx
-│  │     ├─ RequirePermission.jsx
-│  │     └─ RedirectIfAuthenticated.jsx
+│  │     └─ RequirePermission.jsx
 │  ├─ layouts/
-│  │  ├─ MarketingLayout.jsx      MKT-01
-│  │  ├─ PublicLayout.jsx         PUB-01, PUB-02 — SSR-safe
+│  │  ├─ RootLayout.jsx           Providers + global chrome
+│  │  ├─ MarketingLayout.jsx      Public pages AND the authenticated shell (footer off)
 │  │  ├─ AuthLayout.jsx           AUTH-*  centred single-task (PRD §19.1)
-│  │  ├─ PersonalLayout.jsx       HOME-01, CAN-*
-│  │  ├─ CompanyLayout.jsx        REC-*  sidebar + company switcher
+│  │  ├─ BuilderLayout.jsx        CAN-02  its own full-height shell
+│  │  ├─ CandidateWorkspaceLayout.jsx   CAN-*  rail + content
+│  │  ├─ CompanyWorkspaceLayout.jsx     REC-*  rail + content
 │  │  └─ partials/
-│  │     ├─ AppNavbar.jsx · AppSidebar.jsx
-│  │     ├─ CompanySwitcher.jsx · UserMenu.jsx
 │  │     ├─ MarketingNavbar.jsx · MarketingFooter.jsx
-│  │     └─ NotificationBell.jsx
+│  │     ├─ WorkspaceSidebar.jsx      The one rail, shared by both workspaces
+│  │     ├─ MobileNavDrawer.jsx · UserMenu.jsx
+│  │     └─ accountDestinations.js    Account menu, shared by avatar and drawer
 │  ├─ pages/                  ONE file per screen. Composition only
-│  │  ├─ marketing/MarketingPage.jsx
+│  │  ├─ marketing/           MKT-01 and the marketing sub-pages
 │  │  ├─ public/              CompanyDirectoryPage · CompanyProfilePage
 │  │  ├─ legal/               TermsPage · PrivacyPage        (TRD §15 D-09)
-│  │  ├─ auth/                AUTH-01 … AUTH-14
+│  │  ├─ auth/                AUTH-*
 │  │  ├─ home/                HOME-01
-│  │  ├─ candidate/           CAN-01 … CAN-12
-│  │  ├─ company/             REC-01 … REC-19
+│  │  ├─ candidate/           CAN-*
+│  │  ├─ company/             REC-*
 │  │  ├─ settings/            SET-01, SET-02
 │  │  └─ errors/              NotFound · Forbidden · ServerError
 │  ├─ features/               Domain logic — hooks, components, utils
-│  │  ├─ marketing/ auth/ candidate/ company/ hiring/
-│  │  ├─ interests/ search/ pipeline/ messaging/ notifications/
+│  │  ├─ account/ auth/ candidate/ companies/ home/ marketing/ media/
 │  ├─ components/             Presentational. No data fetching
-│  │  ├─ ui/                  Design system primitives
-│  │  ├─ form/                FormField · FormError · FormActions · FormSection
-│  │  ├─ feedback/            Toast · EmptyState · Skeleton · ErrorBoundary · StatusRegion
-│  │  ├─ data/                DataTable · Pagination · FilterPanel · SortControl
-│  │  └─ public/              SSR-safe shared components
+│  │  ├─ ui/                  Avatar · BackLink · Badge · Button · Container · Icon
+│  │  │                       Logo · Modal · Pagination · Section · SectionHeading
+│  │  ├─ form/                FormField · TextInput · Textarea · SelectInput
+│  │  │                       ComboboxInput · PasswordInput · Checkbox
+│  │  │                       CheckCardGroup · TagInput
+│  │  └─ feedback/            EmptyState · Skeleton · StatusRegion
 │  ├─ context/
 │  │  ├─ AuthContext.jsx      Session + current user
-│  │  ├─ CompanyContext.jsx   Active company + membership
-│  │  └─ ToastContext.jsx
+│  │  └─ CompanyContext.jsx   Active company + membership
 │  ├─ services/               HTTP transport + endpoint bindings
 │  │  ├─ apiClient.js         Configured Axios instance
 │  │  ├─ interceptors/
 │  │  │  ├─ auth.interceptor.js   401 → refresh → retry, with queueing
 │  │  │  └─ error.interceptor.js  Envelope → typed client error
 │  │  ├─ auth.api.js · users.api.js · companies.api.js
-│  │  ├─ candidates.api.js · interests.api.js · search.api.js
-│  │  ├─ pipeline.api.js · messaging.api.js · public.api.js
+│  │  ├─ public.api.js · settings.api.js
 │  │  └─ index.js
 │  ├─ hooks/                  Generic, domain-free
-│  │  ├─ useZodForm.js        Binds a shared schema to a form
-│  │  ├─ useDebounce.js · useMediaQuery.js · useOnClickOutside.js
-│  │  ├─ useFocusTrap.js · useReducedMotion.js · useLocalStorage.js
-│  ├─ utils/                  Web-only pure helpers
-│  ├─ constants/              Web-only: breakpoints, nav config, UI copy
+│  │  └─ useDebounce.js · useScrolled.js
+│  ├─ config/                 auth.js · marketing.js
+│  ├─ content/legal/          Terms and privacy copy, as data
+│  ├─ utils/                  cn.js · imageResize.js · optionSearch.js
 │  ├─ styles/                 index.css, Tailwind layers, fonts
 │  └─ assets/                 Imported and processed by Vite
 ├─ index.html
@@ -365,6 +366,24 @@ apps/web/
 ├─ postcss.config.js
 └─ vite.config.js
 ```
+
+### 4.0 What the plan said, and what the code does
+
+Several things in earlier revisions of this document were **design intent that the build did not
+take**. They are listed here rather than quietly deleted, because "why is there no Toast?" is a
+question worth answering once:
+
+| Planned | Reality | Why |
+|---|---|---|
+| `PublicLayout` · `PersonalLayout` · `CompanyLayout` | `MarketingLayout` serves public AND authenticated pages (`footer={false}`); the two workspaces have their own rail layouts | One navbar, one shell. Three layouts that differed only in chrome were three places to fix a navbar bug |
+| `components/data/` — DataTable · FilterPanel · SortControl | Empty. `Pagination` lives in `components/ui/`; each search screen owns its own filter rail | The two searches filter different vocabularies with different controls. A generic FilterPanel would have been an abstraction over two cases |
+| `components/public/` | Empty | SSR was never built (ADR-013 / ADR-004 Stage 2 are open), so nothing needed an SSR-safe variant |
+| `Toast` + `ToastContext` | `StatusRegion`, rendered in place | An `aria-live` region beside the thing that changed beats a corner popup for form outcomes, which is what every message here is |
+| `ErrorBoundary.jsx` | **Not built** | A real gap, not a decision — see `12_KNOWN_ISSUES.md` |
+| `entry-server.jsx` · `scripts/prerender.js` | Not built (`scripts/` is empty) | Prerendering is ADR-013, still open |
+| `useMediaQuery` · `useOnClickOutside` · `useFocusTrap` · `useReducedMotion` · `useLocalStorage` | Only `useDebounce` and `useScrolled` | Written when needed. `Modal` owns its own focus trap rather than exporting one |
+| `candidates.api.js` · `interests.api.js` · `search.api.js` · `pipeline.api.js` · `messaging.api.js` | Folded into `companies.api.js` and `users.api.js` | Split by *who owns the data*, not by screen. Talent search, pipeline and messaging are all company-scoped |
+| `features/hiring/ interests/ search/ pipeline/ messaging/ notifications/` | `account/ auth/ candidate/ companies/ home/ marketing/ media/` | Same reason. A feature folder appeared when it had more than one consumer |
 
 ### 4.1 `pages/` vs `features/` vs `components/`
 
@@ -382,14 +401,31 @@ components. If a page contains an `axios` call or a business rule, it is misplac
 ### 4.2 Feature folder anatomy
 
 ```
+features/companies/               The richest one — three screens share it
+├─ components/                    CompanyCard · CompanyOverview · CompanyProfileHeader
+│                                 CompanyProfileView · CompanyProfileSkeleton
+│                                 DirectoryFilters · DirectoryToolbar
+│                                 OpenRoleCard · RoleResultCard · CandidateResultCard
+│                                 ExpressInterestModal
+├─ hooks/                         useCompanyProfile · useCompanyDirectory
+└─ requiredFields.js              Publish-checklist adapter, shared by wizard and preview
+
 features/candidate/
-├─ hooks/                     useCandidateProfile · useProfileBuilder · useVisibility
-├─ components/                ProfileSectionNav · CompletenessBar · EvidenceCard
-├─ utils/                     completeness.js · answerProjection.js
-└─ index.js                   Public surface of the feature
+├─ components/                    Builder, visibility and interest components
+├─ portfolio/                     The portfolio renderer, shared by CAN-03 and the share link
+└─ sections/                      One module per profile section
 ```
 
+There is **no `index.js` barrel per feature**; modules are imported by path. A barrel was tried and
+removed — it made every import look identical regardless of what it pulled in, which hid exactly
+the coupling the layering rules below exist to make visible.
+
 Features **import from `services/`, never Axios directly.**
+
+`CompanyProfileView` is the clearest example of why a component sits in `features/` rather than
+`pages/`: **three** routes render it — `/companies/:slug` (PUB-02), `/me/companies/:slug` (CAN-06)
+and REC-06's preview panel. Until 2026-08-27 each of those had its own copy of the layout, and
+rebuilding one left the other two behind. See `11_CHANGELOG.md`.
 
 ### 4.3 Why `services/` holds every endpoint, rather than colocating in features
 
@@ -448,7 +484,7 @@ enabling SSR a config change rather than an audit of every component.
 | **Messaging** | `api/src/modules/messaging/` · `web/src/features/messaging/` |
 | **Notifications** | `api/src/modules/notifications/` · `web/src/features/notifications/` |
 | **Audit** | `api/src/modules/audit/` — written by services only |
-| **Logging** | Server: `api/src/lib/logger.js` + `middleware/requestContext.js` · Client: `components/feedback/ErrorBoundary.jsx` |
+| **Logging** | Server: `api/src/lib/logger.js` + `middleware/requestContext.js` · Client: **no error boundary yet** — see §4.0 and `12_KNOWN_ISSUES.md` |
 
 ---
 
@@ -573,12 +609,12 @@ Created only when their milestone arrives.
 | `api/src/modules/memberships/` | **built** | Company join requests (`joinRequest.*`); membership rows themselves live in `modules/companies` |
 | `api/src/jobs/` | **built 2026-08-12** | `jobRunner.js` (single-flight, error-isolated, unref'd timers, off under `NODE_ENV=test`), `accountDeletion.job.js` (reports the `deletion_pending` queue; purges nothing — I-17), `index.js` registry. Started from `server.js` after the database connects, **never** from `createApp()`, so importing the app in a test does not start timers. Digests (PRD §15.1) are the next consumer |
 | ~~`api/src/lib/mailer/`~~ | **built as `api/src/lib/email/`** | `EmailService` + `templates/` + `transports/{console,smtp}`. Q3 resolved: nodemailer, SendGrid over SMTP in production |
-| `api/src/lib/storage/providers/` | **still empty** | Provider undecided (§14 Q2). Consequence: no upload endpoint anywhere — credential documents and portfolio media are links, and `messages.attachments` is reserved and always empty (`12_KNOWN_ISSUES.md` I-15) |
-| `web/src/components/data/` | **M5** | Tables, filters, and pagination have no consumer before talent search |
-| `web/src/features/{search,pipeline,messaging,notifications}/` | **M5–M6** | Mirror their backend modules |
-| `web/src/pages/candidate/` | **built** | CAN-01…09 |
-| `web/src/pages/{company,settings}/` | **M2–M6** | Await their HTML. `/settings` and `/c/:companySlug` resolve to `PlaceholderPage` so no shipped page has a dead link |
-| `web/src/entry-server.jsx` | **M-M** | Arrives with the ADR-013 prerender step |
+| `api/src/lib/storage/providers/` | **still empty** | Provider undecided (§14 Q2 / D-02). One narrow exception now exists: **profile photo bytes live in MongoDB** under ADR-020, in `modules/media/`. Everything else is still links — credential documents and portfolio media — and `messages.attachments` is reserved and always empty (`12_KNOWN_ISSUES.md` I-15). D-02 also blocks the company logo upload (B-18) and the media gallery (B-15) |
+| `web/src/components/data/` | **empty, and likely permanent** | `Pagination` went to `components/ui/`; each search screen owns its filter rail. See §4.0 |
+| `web/src/features/{search,pipeline,messaging}/` | **not created** | Their screens live in `pages/company/` and pull from `companies.api.js`; no second consumer has needed a feature folder |
+| `web/src/pages/candidate/` | **built** | CAN-01…09, CAN-11, plus role search and role detail (CAN-05b/c) |
+| `web/src/pages/{company,settings}/` | **built** | REC-* and SET-01/02 are real screens. `PlaceholderPage` survives for the marketing sub-pages only (pricing, blog, guides) |
+| `web/src/entry-server.jsx` | **not built** | Arrives with the ADR-013 prerender step, which is still open. `apps/web/scripts/` is empty |
 | `web/src/pages/legal/` | **Before the MKT-01 form ships** | TRD §15 D-09 — the form already claims consent to these |
 
 **Created at M0 even though nearly empty:** `packages/shared/*`, `api/src/config`, `api/src/lib`,

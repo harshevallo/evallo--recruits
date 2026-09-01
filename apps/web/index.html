@@ -14,8 +14,13 @@
     />
 
     <!--
-      Per-page metadata (canonical, Open Graph, JSON-LD) is injected server-side for public
-      routes — see ADR-004 and ADR-013. These are the document defaults.
+      These are the DOCUMENT DEFAULTS, and the fallback for every page.
+
+      There is no SSR. This is a Vite SPA served as static files, so per-page metadata is written
+      by `utils/pageMeta.js` after hydration. Googlebot renders JavaScript and sees it; social
+      crawlers that fetch raw HTML — WhatsApp, Slack, LinkedIn — do not, and get the card below.
+      An earlier version of this comment claimed the tags were "injected server-side"; they never
+      were. See `pageMeta.js` for the limitation and what would actually fix it.
     -->
     <title>Evallo Recruit | The Premier Hiring Platform for Educators</title>
     <meta

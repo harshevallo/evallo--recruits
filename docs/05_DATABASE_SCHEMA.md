@@ -208,8 +208,8 @@ Public, indexable organisation profile (PRD §7.4, §13).
 |---|---|:--:|---|
 | `name` | String | ✅ | |
 | `legalName` | String | | |
-| `slug` | String | ✅ | **Unique.** Public URL. Redirect history preserved (PRD §17) |
-| `slugHistory` | [Object] | | `{ slug, changedAt }` — 301s after a slug change |
+| `slug` | String | ✅ | **Unique.** Public URL, generated from the name. Redirect history is preserved but not yet served — see `slugHistory` |
+| `slugHistory` | [Object] | | `{ slug, changedAt }` — the *record* for 301s after a slug change. **Nothing reads it yet:** redirect handling is B-11, and because of that the setup wizard shows the slug read-only (B-19) |
 | `organizationType` | String | ✅ | Taxonomy-linked |
 | `status` | String | ✅ | `draft \| published \| paused \| archived` (PRD §14.2) |
 | `moderationStatus` | String | | Overlays `status`; independent (PRD §9.3) |
@@ -587,9 +587,11 @@ Indexes:
 an embedded array would rewrite the whole document on every reply.
 
 **`attachments` is reserved and always empty.** The field exists on the model and both serializers
-emit `attachments: []`, but there is no upload endpoint, no storage backend and no validation for
-it — file storage is undecided (TRD §14 Q2). The shape is forward-compatible; the capability is not
-implemented.
+emit `attachments: []`, but there is no upload endpoint for it, no general storage backend and no
+validation — file storage is undecided (TRD §14 Q2 / D-02). The shape is forward-compatible; the
+capability is not implemented. (The one upload that *does* exist, profile photos under ADR-020,
+writes to `mediaAssets` and is deliberately scoped to that single kind — it is not a general
+attachment store.)
 
 Although a conversation belongs to the company, `senderUserId` is retained and resolved, so the
 candidate sees **which individual recruiter** wrote each message rather than only the company name

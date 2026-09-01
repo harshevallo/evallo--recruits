@@ -1,7 +1,7 @@
 # 16 — Retention & Deletion Policy
 
 **Status: 🟡 PROPOSED — awaiting founder/legal sign-off.**
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-27 (adds `mediaAssets` — profile photographs — which was absent from both this policy and `15_DATA_INVENTORY.md` until this audit)
 
 > This is an engineering proposal, not approved policy and not legal advice. It exists so the open
 > decision in `12_KNOWN_ISSUES.md` I-17 / backlog B-09 has something concrete to approve or amend
@@ -12,6 +12,12 @@
 > nothing, exactly as before.
 
 Source of facts: `15_DATA_INVENTORY.md`.
+
+> **⚠️ 2026-08-27 — a collection was missing from both documents.** `mediaAssets` (ADR-020,
+> 2026-08-26) stores the **bytes of profile photographs** and appeared in neither the data inventory
+> nor this table. It has been added to both. Anyone who reviewed an earlier revision of this policy
+> was reviewing a list that omitted the most sensitive category of personal data in the system.
+> Re-read the inventory out of the models before sign-off rather than trusting either document.
 
 ---
 
@@ -63,6 +69,7 @@ Applied when a `deletion_pending` account passes the grace period.
 | `candidateProfiles` | headline, summary, all taxonomy arrays, availability, years of experience, blocked-company list | `_id`, `userId`, `status: archived`, `deletedAt` | Tombstone. Keeps interests, conversations and pipeline entries referentially valid; `archived` already denies every recruiter path |
 | `expressionsOfInterest` | `contact.name`, `contact.email`, `ip`, `userAgent` | the row, its status, its consent record, **and `message`** | The company received this legitimately; the consent record is itself evidence |
 | `companyMembers` | — | row, set `status: removed`, `removedAt` | Employment-relationship history the company relies on |
+| `mediaAssets` | **the entire row, including the image bytes** | nothing | A photograph of the person's face. There is no tombstone need — nothing references it but `users.profilePicture`, which is cleared in the same pass — and no legitimate reason to keep a face after deletion. **Already implemented** (ADR-020, `accountDeletion.job.js`): this is the one deletion in this table that does not wait on the approval below, because a photo that outlived the account would stay reachable by anyone still holding its URL |
 
 ### Retained unchanged
 

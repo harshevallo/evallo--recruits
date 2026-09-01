@@ -1,6 +1,6 @@
 # 03 — Technical Requirements Document
 
-**Version:** 1.0 · 2026-07-31
+**Version:** 1.1 · 2026-08-27 — §4.1 route tree regenerated from `router/paths.js`
 **Source of truth for product scope:** `Evallo_Recruit_PRD_v1.pdf` (40 pp.)
 **Decisions referenced here are recorded in:** `10_DECISION_LOG.md`
 
@@ -84,36 +84,61 @@ Routes are grouped by **the object being managed**, per PRD §5.3 — not by use
 would contradict ADR-001.
 
 ```
-/                                   → MKT-01 marketing landing      [public, prerendered]
-/home                               → HOME-01 universal home        [auth]
-/signin  /signup  /verify  /set-password
-/forgot-password  /reset-password                                   [public]
+/                                   → MKT-01 marketing landing      [public]
+/pricing /assessments /help /hiring-guides
+/blog /market-research /about /contact                              [public]
+/terms  /privacy                                                    [public]
+/p/:token                           → shared portfolio link         [public, tokenised]
 
-/companies                          → PUB-01 directory              [public, SSR-safe]
-/companies/:slug                    → PUB-02 company profile        [public, SSR-safe]
+/signin  /signup  /verify-email  /restore-account
+/forgot-password  /reset-password                                   [public]
+/auth/verification-sent  /auth/change-email  /auth/set-password
+/auth/setup  /auth/first-action                                     [mixed]
+
+/companies                          → PUB-01 directory              [public]
+/companies/start                    → REC-01 create a company       [auth]
+/companies/:slug                    → PUB-02 company profile        [public]
+
+/home                               → HOME-01 universal home        [auth]
 
 /me                                 → CAN-01 candidate home         [auth + candidate]
 /me/profile                         → CAN-02 builder                [auth + candidate]
 /me/profile/preview                 → CAN-03                        [auth + candidate]
+/me/portfolio                       → CAN-12 portfolio + sharing    [auth + candidate]
 /me/visibility                      → CAN-04                        [auth + candidate]
+/me/roles                           → CAN-05b role search           [auth + candidate]
+/me/roles/:roleId                   → CAN-05c role detail           [auth + candidate]
 /me/companies                       → CAN-05 discovery              [auth + candidate]
 /me/companies/:slug                 → CAN-06 company, signed in     [auth + candidate]
-/me/interests                       → CAN-08                        [auth + candidate]
+/me/interests                       → CAN-08 shortlisted            [auth + candidate]
+/me/saved                           → CAN-11 saved companies        [auth + candidate]
 /me/messages                        → CAN-09                        [auth + candidate]
-/me/saved                           → CAN-11                        [not built]
-/settings/*                         → SET-01                        [auth]
+
+/settings                           → SET-01                        [auth]
+/settings/{account,security,notifications,privacy,data}             [auth]
 
 /c/:companySlug                     → REC-10 company home           [auth + membership]
+/c/:companySlug/setup               → REC-02 setup wizard           [+ company:edit]
+/c/:companySlug/profile/edit        → REC-17 same screen as setup   [+ company:edit]
+/c/:companySlug/preview             → REC-06 preview and publish    [+ company:edit]
 /c/:companySlug/interests           → REC-11                        [+ interest:view]
-/c/:companySlug/search              → REC-12                        [+ candidate:search]
-/c/:companySlug/candidates/:id      → REC-13                        [+ candidate:view]
+/c/:companySlug/search              → REC-12 talent search          [+ candidate:search]
+/c/:companySlug/candidates/:candidateId → REC-13                    [+ candidate:view]
 /c/:companySlug/pipeline            → REC-14                        [+ pipeline:view]
+/c/:companySlug/hires               → REC-19 hires                  [+ pipeline:view]
 /c/:companySlug/messages            → REC-15                        [+ message:send]
-/c/:companySlug/hiring              → REC-16                        [+ hiring:manage]
-/c/:companySlug/profile/edit        → REC-17                        [+ company:edit]
+/c/:companySlug/hiring              → REC-16 hiring intents         [+ hiring:manage]
 /c/:companySlug/team                → REC-18                        [+ member:manage]
 /c/:companySlug/settings            → SET-02                        [+ company:settings]
 ```
+
+> Every path above is generated from `apps/web/src/router/paths.js`, which is the single source of
+> truth — no path string is written anywhere else in the client. Note `/c/:companySlug/search`, not
+> `/talent`: the segment is `search`.
+>
+> **Not prerendered.** The public routes are marked `[public]` rather than `[public, SSR-safe]`
+> because SSR and the build-time prerender step (ADR-013, ADR-004 Stage 2) are **not built**. Every
+> route today is client-rendered.
 
 **The `/c/:companySlug` prefix is load-bearing.** Company context lives in the URL, not in
 client state. This gives three things the PRD requires: a shareable/bookmarkable link that

@@ -78,7 +78,22 @@ function payLine(compensation) {
   return period ? `${range} / ${period}` : range;
 }
 
-export function RoleResultCard({ role }) {
+/**
+ * @param {object} props
+ * @param {object} props.role
+ * @param {string} [props.roleDetailPath]     where the title links
+ * @param {string} [props.companyProfilePath] where the company name links
+ *
+ * Both default to the PUBLIC routes, so an anonymous visitor is the default reader and the
+ * candidate workspace is the variant — the same way `CompanyCard` treats `profilePath`. Getting
+ * this backwards would make the public page link into `/me/...` and bounce every visitor to
+ * sign-in from a page that never needed a session.
+ */
+export function RoleResultCard({
+  role,
+  roleDetailPath = PATHS.PUBLIC_ROLE_DETAIL,
+  companyProfilePath = PATHS.COMPANY_PROFILE,
+}) {
   const heading = roleHeading(role);
   const meta = metaLine(role);
   const pay = payLine(role.compensation);
@@ -91,8 +106,8 @@ export function RoleResultCard({ role }) {
    */
   if (!role.company) return null;
 
-  const roleHref = buildPath(PATHS.CANDIDATE_ROLE_DETAIL, { roleId: role.id });
-  const companyHref = buildPath(PATHS.CANDIDATE_COMPANY_PROFILE, { slug: role.company.slug });
+  const roleHref = buildPath(roleDetailPath, { roleId: role.id });
+  const companyHref = buildPath(companyProfilePath, { slug: role.company.slug });
 
   return (
     <article className="group relative h-full rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">

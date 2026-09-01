@@ -18,6 +18,7 @@ import healthRoutes from './modules/health/health.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
 import portfolioRoutes from './modules/portfolio/portfolio.routes.js';
 import mediaRoutes from './modules/media/media.routes.js';
+import candidatePublicRoutes from './modules/candidatePublic/candidatePublic.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/user.routes.js';
 import companyRoutes from './modules/companies/company.routes.js';
@@ -46,6 +47,15 @@ router.use('/portfolio', portfolioRoutes);
  * a profile photo is the one asset class for which that trade is acceptable.
  */
 router.use('/media', mediaRoutes);
+
+/*
+ * The public candidate portfolio — readable only for `CANDIDATE_VISIBILITY.PUBLIC`.
+ *
+ * Outside `/public` on the same grounds as the two above: that module may never query a candidate
+ * collection, and this one must. Read-only and single-address by design — there is no listing
+ * endpoint, so opting one page into publicity never assembles a directory of people.
+ */
+router.use('/candidates', candidatePublicRoutes);
 
 // Authentication — public (issues our own JWTs).
 router.use('/auth', authRoutes);

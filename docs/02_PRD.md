@@ -3,6 +3,14 @@
 **Version:** 1.0 · 2026-07-31
 **Source of truth:** `Evallo_Recruit_PRD_v1.pdf` (v1.0, 40 pp.)
 
+> **Implementation status is NOT tracked here.** This document states requirements, and requirements
+> do not change because code was written. For what actually exists, see `14_PROGRESS_TRACKER.md`
+> (screen-by-screen), `11_CHANGELOG.md` (what shipped when), `12_KNOWN_ISSUES.md` (what is broken or
+> missing) and `13_BACKLOG.md` (specified but unbuilt). Where a requirement here is deliberately
+> unmet, the reason is recorded in one of those four — never by editing this file.
+>
+> *Audited 2026-08-27: no requirement in this document was changed; the pointer above was added.*
+
 > This is the engineering-facing restatement of the source PRD: features expressed as user
 > stories with testable acceptance criteria, mapped to screens and permissions. It **does not
 > replace** the source PDF, which remains authoritative on product intent and contains the full

@@ -79,6 +79,22 @@ const candidateProfileSchema = new mongoose.Schema(
     shareEnabled: { type: Boolean, default: false },
     shareTokenCreatedAt: Date,
 
+    /*
+     * ── Public portfolio address ─────────────────────────────────────────────────────
+     *
+     * Deliberately NOT the share token, and deliberately the opposite kind of identifier.
+     *
+     * A share token is a secret: unguessable, revocable, and rotating it must break the old link.
+     * A public address is the reverse — stable, readable, and safe to print. Reusing the token for
+     * both would mean rotating a share link 404s an indexed page, and would put two opposite
+     * security models on one route where a single mistake exposes both.
+     *
+     * Sparse unique: only profiles that have opted in carry one, and `null` does not collide.
+     * Once assigned the slug is KEPT even if the candidate returns to `private`, so re-publishing
+     * restores the same URL rather than orphaning whatever already links to it.
+     */
+    publicSlug: { type: String, trim: true, lowercase: true, default: null },
+
     publishedAt: Date,
     lastActiveAt: Date,
 
@@ -98,6 +114,17 @@ const candidateProfileSchema = new mongoose.Schema(
 
 /** One active candidate profile per user. */
 candidateProfileSchema.index({ userId: 1 }, { unique: true });
+
+/**
+ * One public address per candidate.
+ *
+ * Partial rather than plain-unique: every profile that has never opted in has `publicSlug: null`,
+ * and a plain unique index would let exactly one of them exist.
+ */
+candidateProfileSchema.index(
+  { publicSlug: 1 },
+  { unique: true, partialFilterExpression: { publicSlug: { $type: 'string' } } },
+);
 candidateProfileSchema.index({ status: 1, lastActiveAt: -1 });
 
 /**
@@ -159,6 +186,82 @@ candidateProfileSchema.methods.toOwnerView = function toOwnerView() {
  * @param {object} [portfolio]  The output of `loadPortfolio()`. Omitted only where the caller
  *                              genuinely wants the header alone; the sections then render empty.
  */
+/**
+ * The portfolio as an ANONYMOUS visitor may read it.
+ *
+ * ── Why this is a separate method and not a flag on `toRecruiterView` ────────────────────
+ *
+ * Because the difference is not "the same object with some keys blanked". Three fields must be
+ * STRUCTURALLY ABSENT rather than nulled, and a shared function with an `if` around each one is a
+ * function where the next edit can reach the wrong branch:
+ *
+ *   · **`contact`** — never present, under ANY `contactVisibility`. `authorized_recruiters` means
+ *     what its name says: named professionals at published companies. It is not, and must never
+ *     be read as, consent to publish an email address to the open internet and its scrapers. This
+ *     method takes no `email` argument at all, so no future caller can pass one by accident.
+ *   · **`header.status`** — the candidate's visibility state is internal. A reader of a public
+ *     page learns nothing useful from it and it discloses system posture.
+ *   · **`location.city`** — name + photo + city is a doxxing triple. Coarse location is enough to
+ *     answer "could I work with this person"; the city is a separate decision the candidate has
+ *     not been asked to make. Country, region and timezone remain.
+ *
+ * Everything else mirrors `toRecruiterView`, and the evidence half arrives already narrowed by
+ * `loadPortfolio(profile, { audience: 'public' })` — no documents, no scores, no media.
+ *
+ * @param {object} viewer     `{ name, photoUrl, location, languages }` — NO email, by construction
+ * @param {object} portfolio  the result of `loadPortfolio` with the PUBLIC audience
+ */
+candidateProfileSchema.methods.toPublicView = function toPublicView(viewer = {}, portfolio = {}) {
+  const evidence = portfolio.evidence ?? {};
+
+  /* Rebuilt field by field. Spreading and deleting would carry a new field in by default. */
+  const location = viewer.location
+    ? {
+        country: viewer.location.country ?? null,
+        region: viewer.location.region ?? null,
+        timezone: viewer.location.timezone ?? null,
+      }
+    : null;
+
+  return {
+    header: {
+      name: viewer.name ?? null,
+      photoUrl: viewer.photoUrl ?? null,
+      location,
+      languages: viewer.languages ?? [],
+      headline: this.headline ?? null,
+      targetRoles: this.targetRoles ?? [],
+      yearsExperience: this.yearsExperience ?? null,
+      availability: this.availability ?? null,
+      deliveryModes: this.deliveryModes ?? [],
+      employmentTypes: this.employmentTypes ?? [],
+      pronouns: portfolio.identity?.pronouns ?? null,
+    },
+    introduction: this.summary ?? null,
+    expertise: {
+      subjects: this.subjects ?? [],
+      learnerSegments: this.learnerSegments ?? [],
+      tests: portfolio.expertise?.tests ?? null,
+      curricula: portfolio.expertise?.curricula ?? null,
+    },
+    evidence: {
+      experience: evidence.experience ?? [],
+      education: evidence.education ?? [],
+      credentials: evidence.credentials ?? [],
+      /*
+       * Present and empty, never omitted. A client that renders "no scores supplied" for a public
+       * reader and nothing at all for a recruiter would be two renderers; these arrive empty from
+       * the public audience and the shape stays constant.
+       */
+      scores: evidence.scores ?? [],
+      media: evidence.media ?? [],
+      references: evidence.references ?? [],
+    },
+    practice: portfolio.practice ?? [],
+    outcomes: portfolio.outcomes ?? { statements: [], fromExperience: [] },
+  };
+};
+
 candidateProfileSchema.methods.toRecruiterView = function toRecruiterView(
   viewer = {},
   portfolio = {},

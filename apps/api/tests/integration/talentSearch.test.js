@@ -43,9 +43,10 @@ const C_DRAFT = 'ts-cand-draft@example.com';
 const C_PRIVATE = 'ts-cand-private@example.com';
 const C_PAUSED = 'ts-cand-paused@example.com';
 const C_BLOCKER = 'ts-cand-blocker@example.com';
+const C_PUBLIC = 'ts-cand-public@example.com';
 
 const STAFF = [OWNER, RECRUITER, VIEWER, HIRING_MANAGER, STRANGER];
-const CANDIDATES = [C_MATHS, C_PHYSICS, C_DRAFT, C_PRIVATE, C_PAUSED, C_BLOCKER];
+const CANDIDATES = [C_MATHS, C_PHYSICS, C_DRAFT, C_PRIVATE, C_PAUSED, C_BLOCKER, C_PUBLIC];
 const ALL_EMAILS = [...STAFF, ...CANDIDATES];
 
 const jsonPost = (path, body, headers = {}) =>
@@ -232,6 +233,52 @@ describe('REC-12 privacy', () => {
 
     assert.deepEqual(namesIn(result), ['Maths Person']);
     assert.equal(result.meta.total, 1, 'the excluded ones do not inflate the count either');
+  });
+
+  /*
+   * Phase 3C widened `searchableCandidateFilter` from a hardcoded `discoverable` to
+   * `SEARCHABLE_VISIBILITY_STATES`, which now also holds `public`.
+   *
+   * The direction matters: `public` is a SUPERSET of `discoverable`, so opting into a public
+   * portfolio must never cost a candidate the recruiter discovery they already had. Before this
+   * change the hardcoded filter would have made them vanish from search the moment they published
+   * — more visibility producing less reach, which nobody would choose on purpose.
+   */
+  test('PUBLIC candidates appear in recruiter search, alongside DISCOVERABLE', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const company = await createCompany(accessToken);
+
+    await candidate(C_MATHS, { userPatch: { name: 'Discoverable Person' }, subjects: ['mathematics'] });
+    await candidate(C_PUBLIC, {
+      userPatch: { name: 'Public Person' },
+      status: CANDIDATE_VISIBILITY.PUBLIC,
+      subjects: ['mathematics'],
+    });
+    await candidate(C_PRIVATE, {
+      userPatch: { name: 'Private Person' },
+      status: CANDIDATE_VISIBILITY.PRIVATE,
+      subjects: ['mathematics'],
+    });
+
+    const result = await search(company.slug, accessToken);
+    const names = namesIn(result).sort();
+
+    assert.deepEqual(names, ['Discoverable Person', 'Public Person']);
+    assert.ok(!names.includes('Private Person'), 'private is still excluded from search');
+    assert.equal(result.meta.total, 2, 'and the count matches what is listed');
+  });
+
+  test('a PUBLIC candidate is still excluded from search by a block', async () => {
+    const { accessToken } = await onboard(OWNER);
+    const company = await createCompany(accessToken);
+
+    await candidate(C_PUBLIC, {
+      userPatch: { name: 'Public Person' },
+      status: CANDIDATE_VISIBILITY.PUBLIC,
+      blockedCompanyIds: [company.id],
+    });
+
+    assert.deepEqual(namesIn(await search(company.slug, accessToken)), []);
   });
 
   test('a PRIVATE candidate with an access grant is still absent from search (§4.3)', async () => {

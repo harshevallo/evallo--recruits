@@ -1,6 +1,6 @@
 # 12 — Known Issues & Limitations
 
-**Last updated:** 2026-08-10 (documentation audit against the working tree)
+**Last updated:** 2026-08-27 (full documentation audit against the working tree)
 
 > Open issues first, then **known limitations accepted by decision** — each traceable to an ADR or
 > a PRD constraint. Recording the latter prevents a future engineer from mistaking a deliberate
@@ -31,6 +31,25 @@ what rules out a real regression and points at shared state.
 The caveat recorded in the original resolution is the likely cause and was written as a prediction:
 *"the suites still share one `evallo-recruit` database with development data… A new suite that
 reuses another's email will resurrect this class of failure."* Eight suites have been added since.
+
+**Reconfirmed 2026-08-27, with the cause isolated.** A four-file run
+(`roleSearch` + `companyProfile` + `companySetup` + `candidateJourney`) produced 5 failures, all in
+`roleSearch`. Re-running the identical four files with that day's new `roleSearch` tests stashed
+produced **the same 5 failures**, which rules the new tests out as the cause. Each of the four
+passes alone: `roleSearch` 22/22, `companyProfile` 17/17, `companySetup` 23/23,
+`companyRequiredFields` 15/15. Same signature, same conclusion — shared database state, not a
+regression.
+
+A clean full run the same day: **538 tests, 536 pass, 2 fail** — so the magnitude is small and the
+suite is broadly healthy; it is the *non-determinism* that costs, not the count.
+
+**Two concurrent runs are catastrophic.** An accidental overlapping `node --test` during the same
+session produced **376 failures of 538**. Same cause, no contention control. Never run the suite
+twice at once, and be aware that CI parallelism would do exactly this.
+
+**Practical consequence for anyone reading a red run:** before treating a failure as real, re-run
+the failing file **alone**. That is currently the only way to tell a regression from this issue,
+which is exactly the cost L-01 warned about.
 
 **Why this matters more than a flaky test normally would.** ADR-002 chose JavaScript and made
 integration tests the explicit substitute for a compiler (L-01). A suite whose failures are
@@ -263,6 +282,14 @@ test that never leaves one origin. The other 402 cases remain integration tests.
 
 `apps/web` still has **no test files of any kind** — no component, hook or route-guard tests.
 
+The untested surface grew substantially on 2026-08-27: `CompanyProfileView` (rendered by three
+routes), `RoleDetailPage`, `TagInput`, `CheckCardGroup`, `CandidateResultCard`, and a rebuilt REC-02
+wizard and REC-12 search. Two defects in that work were found by **reading the code**, not by any
+check — a composer title bound to `card.name`, a field a search card has never had, so every
+first-contact dialog said "Message this candidate" instead of the person's name; and an error-focus
+target (`field-<name>`) that a `<fieldset>` cannot receive. Both would have been caught by a
+component test and by nothing else in the pipeline.
+
 Frontend correctness is currently verified by `npm run lint`, `vite build`, and ad-hoc
 browser-automation scripts that live outside the repository. That has caught real defects — the
 sidebar and navigation fixes in `11_CHANGELOG.md`, and on 2026-08-12 a CAN-04 unblock that sent
@@ -273,6 +300,26 @@ screen. None of that automation is committed, so none of it will run again for t
 **Fix:** commit the browser checks as a runnable suite, or add component tests for the pieces where a
 regression is silent — the permission-filtered rail, the route guards, and the builder's section
 switching.
+
+### I-18 — No React error boundary anywhere in the client
+**Severity:** Medium · **Found:** 2026-08-27 documentation audit
+
+`07_PROJECT_STRUCTURE.md` listed `components/feedback/ErrorBoundary.jsx` as the client half of the
+logging story. **It does not exist**, and no component in `apps/web` implements
+`componentDidCatch` or `getDerivedStateFromError`.
+
+The consequence is the default React one: any render-time throw inside a route unmounts the whole
+tree and leaves a blank white page, with the error visible only in the console. There is no fallback
+UI, and nothing reports it anywhere a maintainer would see it. `RouteFallback` covers Suspense
+(a *loading* route), not a throw.
+
+This is a genuine gap rather than a decision — the document asserted the file existed, which is how
+it went unnoticed. The structure doc now records it as unbuilt.
+
+**Fix:** one boundary at `RootLayout` for the last-resort screen, and one per workspace outlet so a
+crash in a company screen does not take out the rail and navigation with it.
+
+---
 
 ### I-15 — File upload exists only for profile photos; there is still no object storage
 **Severity:** Low, by design · **Found:** 2026-08-10 documentation audit ·

@@ -11,6 +11,7 @@ import {
   useDirectoryFacets,
 } from '@/features/companies/hooks/usePublicCompanies';
 import { PATHS } from '@/router/paths';
+import { usePageMeta } from '@/utils/pageMeta';
 
 /**
  * PUB-01 — public company directory (PRD §9.1).
@@ -38,6 +39,14 @@ export function CompanyDirectoryPage({ profilePath = PATHS.COMPANY_PROFILE }) {
   const { companies, meta, isLoading, isError, isEmpty, error, retry } =
     usePublicCompanies(searchParams);
   const facets = useDirectoryFacets();
+
+  /* Static, and the canonical drops the query string — same reasoning as `/roles`. */
+  usePageMeta({
+    title: 'Education employers and tutoring companies | Evallo Recruit',
+    description:
+      'Browse verified schools, tutoring centres, edtech companies and universities hiring educators. Filter by organisation type, location and the programmes they run.',
+    path: PATHS.COMPANY_DIRECTORY,
+  });
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 

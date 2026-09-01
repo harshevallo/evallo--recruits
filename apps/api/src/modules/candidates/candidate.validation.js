@@ -1,3 +1,4 @@
+import { CANDIDATE_VISIBILITY_VALUES } from '@evallo/shared';
 import { z } from 'zod';
 
 /**
@@ -47,7 +48,11 @@ export const publishValidation = {
 export const visibilityValidation = {
   body: z
     .object({
-      status: z.enum(['draft', 'private', 'discoverable', 'paused', 'archived']).optional(),
+      /*
+       * Sourced from the shared enum rather than restated, so a state cannot exist in the model
+       * and be unsettable through the API — which is how `public` would otherwise be unreachable.
+       */
+      status: z.enum(CANDIDATE_VISIBILITY_VALUES).optional(),
       contactVisibility: z
         .enum(['hidden', 'authorized_recruiters', 'after_interest', 'on_request'])
         .optional(),

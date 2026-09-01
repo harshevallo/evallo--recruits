@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ROLE_CATEGORY_LABELS,
   EMPLOYMENT_TYPE_LABELS,
@@ -19,6 +19,7 @@ import {
   submitCandidateInterest,
 } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
+import { usePageMeta, clampDescription } from '@/utils/pageMeta';
 
 /**
  * The role's heading.
@@ -86,8 +87,30 @@ function Fact({ icon, label, children }) {
  * still wants to know who they would be working for. That link is now a choice rather than
  * somewhere they were sent.
  */
-export function RoleDetailPage() {
+/**
+ * @param {object} props
+ * @param {string}  [props.rolesPath]           where "back to search" goes
+ * @param {string}  [props.companyProfilePath]  where the company link goes
+ * @param {boolean} [props.candidateActions]    render the signed-in candidate affordances
+ *
+ * ── Why `candidateActions` is a flag and not just two more paths ─────────────────────────
+ *
+ * The role itself comes from the PUBLIC endpoint, so the page body needs no session. What does
+ * need one is the CANDIDATE'S RELATIONSHIP to the company — "already applied", "you blocked them"
+ * — which is fetched from `/me/companies/:slug/relationship`. For a visitor with no account that
+ * request is a guaranteed 401, and firing it would mean every public role view logs an auth
+ * failure and briefly renders an Apply button that cannot work.
+ *
+ * So the flag gates the FETCH, not merely the markup. A visitor is offered sign-in instead, with
+ * the role remembered so they land back here rather than on a dashboard.
+ */
+export function RoleDetailPage({
+  rolesPath = PATHS.PUBLIC_ROLES,
+  companyProfilePath = PATHS.COMPANY_PROFILE,
+  candidateActions = false,
+} = {}) {
   const { roleId } = useParams();
+  const location = useLocation();
 
   const [role, setRole] = useState(null);
   const [status, setStatus] = useState('loading'); // loading | ready | notFound | error
@@ -128,7 +151,8 @@ export function RoleDetailPage() {
    */
   useEffect(() => {
     const slug = role?.company?.slug;
-    if (!slug) return undefined;
+    /* No session, no relationship to fetch — and no 401 to provoke. */
+    if (!slug || !candidateActions) return undefined;
 
     const controller = new AbortController();
     fetchCompanyRelationship(slug, { signal: controller.signal })
@@ -136,7 +160,7 @@ export function RoleDetailPage() {
       .catch(() => setRelationship(null));
 
     return () => controller.abort();
-  }, [role?.company?.slug]);
+  }, [role?.company?.slug, candidateActions]);
 
   async function handleInterest(payload) {
     const result = await submitCandidateInterest(role.company.slug, payload);
@@ -148,6 +172,41 @@ export function RoleDetailPage() {
         : 'Interest submitted. You can withdraw it any time from Shortlisted companies.',
     );
   }
+
+  /*
+   * Page metadata — the role title and the company name, and nothing else.
+   *
+   * COMPENSATION IS DELIBERATELY ABSENT even when the API marks it public. A meta description is
+   * copied into link previews, search snippets and chat unfurls, all of which outlive the page and
+   * none of which re-check visibility later. A company that publishes a salary today and hides it
+   * next week would find the figure still sitting in a cached snippet. The page shows it; the
+   * metadata does not.
+   *
+   * The description is built from what the company wrote. When there is no description, it falls
+   * back to a factual restatement of fields already on the page — not an invented summary.
+   *
+   * Before the early returns: hooks cannot follow a conditional return.
+   */
+  usePageMeta(
+    role
+      ? {
+          title: `${roleHeading(role)}${role.company?.name ? ` — ${role.company.name}` : ''} | Evallo Recruit`,
+          description: clampDescription(
+            role.description ||
+              [
+                roleHeading(role),
+                role.company?.name ? `at ${role.company.name}` : null,
+                (role.locations ?? []).map(placeLine).filter(Boolean)[0],
+              ]
+                .filter(Boolean)
+                .join(' '),
+          ),
+          path: buildPath(PATHS.PUBLIC_ROLE_DETAIL, { roleId }),
+          /* The hiring company's logo is the only image; a role has none of its own. */
+          image: role.company?.logoUrl || undefined,
+        }
+      : null,
+  );
 
   if (status === 'loading') {
     return (
@@ -184,7 +243,7 @@ export function RoleDetailPage() {
           }
           action={
             isGone ? (
-              <Button to={PATHS.CANDIDATE_ROLES} variant="primary" size="md">
+              <Button to={rolesPath} variant="primary" size="md">
                 Back to role search
               </Button>
             ) : (
@@ -200,7 +259,7 @@ export function RoleDetailPage() {
 
   const { company } = role;
   const companyHref = company
-    ? buildPath(PATHS.CANDIDATE_COMPANY_PROFILE, { slug: company.slug })
+    ? buildPath(companyProfilePath, { slug: company.slug })
     : null;
 
   const categories = (role.roleCategories ?? []).map((c) => ROLE_CATEGORY_LABELS[c] ?? c);
@@ -221,7 +280,7 @@ export function RoleDetailPage() {
   return (
     <>
       <Container className="py-28">
-        <BackLink to={PATHS.CANDIDATE_ROLES} label="Back to role search" className="mb-6" />
+        <BackLink to={rolesPath} label="Back to role search" className="mb-6" />
 
         <header className="mb-8">
           {(categories.length > 0 || role.postedAt) && (
@@ -368,17 +427,42 @@ export function RoleDetailPage() {
                 </Fact>
               </dl>
 
-              <Button
-                variant="primary"
-                size="md"
-                radius="lg"
-                fullWidth
-                className="mt-5"
-                disabled={hasInterest || isBlocked}
-                onClick={() => setInterestOpen(true)}
-              >
-                {hasInterest ? 'Interest submitted' : 'Apply to this role'}
-              </Button>
+              {candidateActions ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  radius="lg"
+                  fullWidth
+                  className="mt-5"
+                  disabled={hasInterest || isBlocked}
+                  onClick={() => setInterestOpen(true)}
+                >
+                  {hasInterest ? 'Interest submitted' : 'Apply to this role'}
+                </Button>
+              ) : (
+                /*
+                  Applying needs an account, so a visitor is sent to sign-in rather than shown a
+                  button that fails. `state.from` is the CURRENT url, which SignInPage already
+                  honours — so they return to this role, not to a dashboard, and do not have to
+                  find it again.
+                */
+                <>
+                  <Button
+                    to={PATHS.SIGN_IN}
+                    state={{ from: `${location.pathname}${location.search}` }}
+                    variant="primary"
+                    size="md"
+                    radius="lg"
+                    fullWidth
+                    className="mt-5"
+                  >
+                    Sign in to apply
+                  </Button>
+                  <p className="mt-3 text-center text-xs text-gray-500">
+                    Browsing is open to everyone. An account is needed only to apply.
+                  </p>
+                </>
+              )}
 
               {hasInterest && (
                 <p className="mt-3 text-center text-xs text-gray-500">
@@ -397,7 +481,12 @@ export function RoleDetailPage() {
         </div>
       </Container>
 
-      {company && (
+      {/*
+        `candidateActions` as well as `company`: a visitor can never open this — nothing sets
+        `interestOpen` for them — but mounting a candidate-only surface on a public page is the
+        kind of thing that becomes a leak the first time someone adds a default-open prop.
+      */}
+      {company && candidateActions && (
         <CandidateInterestModal
           open={interestOpen}
           onClose={() => setInterestOpen(false)}

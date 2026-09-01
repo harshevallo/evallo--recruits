@@ -3,6 +3,14 @@
 **Version:** 1.0 · 2026-07-31
 **Derived from:** `Evallo_Recruit_PRD_v1.pdf` (v1.0, 30 July 2026)
 
+> **Implementation status is NOT tracked here.** This document states requirements, and requirements
+> do not change because code was written. For what actually exists, see `14_PROGRESS_TRACKER.md`
+> (screen-by-screen), `11_CHANGELOG.md` (what shipped when), `12_KNOWN_ISSUES.md` (what is broken or
+> missing) and `13_BACKLOG.md` (specified but unbuilt). Where a requirement here is deliberately
+> unmet, the reason is recorded in one of those four — never by editing this file.
+>
+> *Audited 2026-08-27: no requirement in this document was changed; the pointer above was added.*
+
 > This document states the *business* case: why the product exists, who it serves, and what
 > success means. Product behaviour is in `02_PRD.md`; implementation is in `03_TRD.md`.
 > Where this document and the source PDF differ, **the source PDF is authoritative.**

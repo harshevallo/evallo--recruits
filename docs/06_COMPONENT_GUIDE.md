@@ -20,7 +20,7 @@
 | `features/candidate/components/` | `ProfileCompletenessCard` `VisibilityCard` `NextStepsCard` `OpportunitiesCard` `ActivityCard` `BuilderQuestion` `CandidateInterestModal` |
 | `pages/candidate/` | `CandidateHomePage` `ProfileBuilderPage` `ProfilePreviewPage` `PortfolioPage` `VisibilitySettingsPage` `CandidateCompanyPage` `MyInterestsPage` (“Shortlisted companies”) `SavedCompaniesPage` `MessagesPage` |
 | `pages/company/` | `CompanyStartPage` `CompanySetupPage` `CompanyPreviewPage` `CompanyTeamPage` `CompanyHomePage` `CompanyInterestsPage` `CompanyTalentSearchPage` |
-| `features/companies/components/` | `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` |
+| `features/companies/components/` | `CandidateResultCard` `CompanyCard` `CompanyOverview` `CompanyProfileHeader` `CompanyProfileSkeleton` `CompanyProfileView` `DirectoryFilters` `DirectoryToolbar` `ExpressInterestModal` `OpenRoleCard` `RoleResultCard` |
 | `features/account/components/` | `CreateCompanyForm` `CompanyJoinSearch` |
 | `components/ui/` (added) | `BackLink` |
 | `layouts/` (added) | `CandidateWorkspaceLayout` `CompanyWorkspaceLayout` |
@@ -56,7 +56,8 @@ Five notes worth carrying forward:
   0×0 — so the readiness check polls for `[role="button"]` with a non-zero width. Polling for the
   iframe instead, as this component originally did, tore down working buttons (see I-02).
 - **REC-01/02/06 added three pages and no new company components.** `CompanyStartPage` reuses
-  `CreateCompanyForm`; `CompanyPreviewPage` renders through `CompanyOverview` and `OpenRoleCard`,
+  `CreateCompanyForm`; `CompanyPreviewPage` renders through `CompanyProfileView` — the same
+  component PUB-02 and CAN-06 render (ADR-021),
   the same components the public PUB-02 page uses, fed by the same `serialisePublicCompany`
   output. A separate preview renderer would have been a second definition of "what a company
   page looks like", guaranteed to drift.
@@ -266,6 +267,10 @@ auth screens and company pages inherit them for free.
 | `ComboboxInput` | UI | Searchable single-select | `options`, `value`, `onChange`, `listboxLabel`, `searchPlaceholder`, `emptyMessage` | ARIA 1.2 combobox with list autocomplete. `onChange` receives the **value**, not an event. Emits only option values, so free text can never reach the answer |
 | `TagInput` | UI | Free-text list as chips | `value` (array), `onChange`, `maxTags`, `maxLength` | Enter or comma commits; Backspace on an empty box removes the last. **Commits on blur**, so text typed but not entered is never silently discarded. For `[String]` fields with no taxonomy — subjects, service regions, perks |
 | `CheckCardGroup` | UI | Multi-select as selectable cards | `options`, `selected`, `onToggle`, `layout`, `id`, `required` | `layout` is `pill` / `tile` / `grid`, chosen by vocabulary size. A real checkbox in a label underneath, `sr-only` not `hidden`, so it stays focusable; the card shows focus via `peer-focus-visible`. `id` lands on the FIRST input, because a `<fieldset>` cannot receive the error focus the wizard sends |
+| `CompanyProfileView` | Feature | **The** company profile — header, overview, open roles | `company`, `actions`, `banner`, `backTo`, `topSpacing`, `editStepHref` | Rendered by all three company surfaces: PUB-02, CAN-06 and REC-06's preview. Everything that is the same across them is **not a prop**, so it cannot diverge. See ADR-021 for why this exists |
+| `CompanyProfileSkeleton` | Feature | Loading state for the above | `topSpacing` | Extracted for the same reason: two routes load one payload through one hook |
+| `RoleResultCard` | Feature | One role, as a CAN-05b search result | `role` | Title links to the ROLE (`/me/roles/:id`), company name links to the company. The company link needs `relative z-10` to clear the title's stretched `after:inset-0` overlay — without it, it is drawn but unclickable. See ADR-022 |
+| `OpenRoleCard` | Feature | One role, inside a company profile | `role`, `onExpressInterest` | Omitting `onExpressInterest` drops the Apply button entirely — that is how a blocked company and REC-06's preview render, rather than showing an action that cannot work |
 | `CandidateResultCard` | Feature | One educator, as a REC-12 search result | `card`, `profileHref`, `isSaved`, `pipelineStage`, `matchReasons`, action callbacks | Draws only what `toSearchCard` returns. **No verified-credential badges** — B-04 verification is unbuilt, so there is no field that could back one; the reference's badge slot carries `matchedOn` instead (PRD §21.4). **No evidence/video** — dropped from the search payload on purpose; that is a §21.4 decision, not a layout one |
 | `MarketingFooter` | Layout | Public footer | `columns` | Shared by MKT-01, PUB-01, PUB-02 |
 | `MobileNavDrawer` | Layout | Mobile menu | `open`, `onClose`, `items` | Focus trap, Escape to close, focus restore — none present in the HTML |

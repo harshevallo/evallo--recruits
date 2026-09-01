@@ -6,7 +6,8 @@ import { CompanyProfileView } from '@/features/companies/components/CompanyProfi
 import { CompanyProfileSkeleton } from '@/features/companies/components/CompanyProfileSkeleton';
 import { ExpressInterestModal } from '@/features/companies/components/ExpressInterestModal';
 import { useCompanyProfile } from '@/features/companies/hooks/useCompanyProfile';
-import { PATHS } from '@/router/paths';
+import { usePageMeta, clampDescription } from '@/utils/pageMeta';
+import { PATHS, buildPath } from '@/router/paths';
 
 /**
  * PUB-02 — public company profile (PRD §7.4, §9.3).
@@ -29,6 +30,33 @@ export function CompanyProfilePage() {
     setSelectedIntentId(intentId);
     setInterestOpen(true);
   }
+
+  /*
+   * Page metadata from the company's own words — nothing invented.
+   *
+   * `description.short` is the line the company wrote for exactly this purpose, and the tagline is
+   * the fallback. When neither exists the description is omitted rather than generated, because a
+   * made-up summary of somebody's organisation is worse than none. While the fetch is in flight
+   * `usePageMeta(null)` writes nothing, so the document keeps the generic defaults.
+   *
+   * The hook runs BEFORE the early returns below — hooks cannot sit after a conditional return.
+   */
+  usePageMeta(
+    company
+      ? {
+          title: `${company.name} — hiring educators | Evallo Recruit`,
+          description: clampDescription(
+            company.description?.short ||
+              company.tagline ||
+              `${company.name} on Evallo Recruit.`,
+          ),
+          path: buildPath(PATHS.COMPANY_PROFILE, { slug }),
+          ogType: 'profile',
+          /* Only a real logo. `initials` are rendered CSS, not an image a crawler can fetch. */
+          image: company.logoUrl || undefined,
+        }
+      : null,
+  );
 
   if (isLoading) return <CompanyProfileSkeleton />;
 

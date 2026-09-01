@@ -1,7 +1,7 @@
 import { cn } from '@/utils/cn';
 import { Icon } from './Icon';
 
-/** Page numbers with ellipses, keeping the control a fixed width. */
+/** The visible window of page numbers, keeping the control a fixed width. */
 function pageWindow(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
 
@@ -10,8 +10,35 @@ function pageWindow(current, total) {
   return [1, '…', current - 1, current, current + 1, '…', total];
 }
 
+/**
+ * Page numbers with ellipses, plus the scroll every paginated list needs.
+ *
+ * ── Why the scroll lives HERE ───────────────────────────────────────────────────────
+ *
+ * This control sits at the BOTTOM of a list. Clicking "2" replaced the rows above it and left the
+ * viewport exactly where it was — at the bottom — so the reader landed on the end of page two
+ * having never seen its start. Five screens render this component and every one of them had the
+ * same defect, which is the argument for fixing it in the component rather than five times over:
+ * a sixth list cannot reintroduce it by forgetting.
+ *
+ * `prefers-reduced-motion` is honoured. A smooth scroll across a long results page is exactly the
+ * kind of large-area motion that setting exists to suppress.
+ */
 export function Pagination({ page, totalPages, onChange }) {
   if (totalPages <= 1) return null;
+
+  const goTo = (next) => {
+    if (next === page || next < 1 || next > totalPages) return;
+    onChange(next);
+
+    /*
+     * After the handler, so the caller has already started loading. `scrollTo` is queued on the
+     * same frame either way — the new rows render into a viewport that is already back at the top,
+     * rather than the reader watching the page jump once content arrives.
+     */
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  };
 
   const buttonClass =
     'inline-flex h-10 min-w-10 items-center justify-center rounded-lg px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
@@ -20,7 +47,7 @@ export function Pagination({ page, totalPages, onChange }) {
     <nav aria-label="Pagination" className="flex items-center justify-center gap-1">
       <button
         type="button"
-        onClick={() => onChange(page - 1)}
+        onClick={() => goTo(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
         className={cn(buttonClass, 'text-gray-600 hover:bg-gray-100')}
@@ -37,7 +64,7 @@ export function Pagination({ page, totalPages, onChange }) {
           <button
             key={item}
             type="button"
-            onClick={() => onChange(item)}
+            onClick={() => goTo(item)}
             aria-label={`Page ${item}`}
             aria-current={item === page ? 'page' : undefined}
             className={cn(
@@ -54,7 +81,7 @@ export function Pagination({ page, totalPages, onChange }) {
 
       <button
         type="button"
-        onClick={() => onChange(page + 1)}
+        onClick={() => goTo(page + 1)}
         disabled={page >= totalPages}
         aria-label="Next page"
         className={cn(buttonClass, 'text-gray-600 hover:bg-gray-100')}

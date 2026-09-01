@@ -2,7 +2,14 @@
 
 **Base URL:** `/api` · **Format:** JSON · **Auth:** Bearer access token (ADR-005)
 
-> **Status: M1 (auth + current user) and the public/company surface used by M2 are implemented.**
+> **Status (2026-08-27): the API is substantially complete.** Auth, users, settings, companies,
+> memberships, hiring intents, candidate profiles and entries, portfolio, interests, access grants,
+> talent search, role search, pipeline, messaging, notes, audit, media and health are all
+> implemented — **122 route registrations** in `apps/api/src` (49 GET, 50 POST, 13 PATCH, 8 DELETE,
+> 2 PUT), counted 2026-08-27. Not built: notifications delivery, moderation,
+> analytics, assessments, and any SEO artefact (sitemap, structured data). The header above
+> previously read "M1 … and the public/company surface used by M2", which has been badly stale for
+> several milestones.
 > This document defines the conventions every endpoint must follow, and is updated **in the same
 > commit** as the endpoint it documents — an undocumented endpoint is an incomplete endpoint.
 

@@ -12,6 +12,20 @@ export const PATHS = Object.freeze({
   // Marketing and public — prerendered, SSR-safe (ADR-013)
   HOME: '/',
   COMPANY_DIRECTORY: '/companies',
+  /*
+   * Public role discovery (Phase 1).
+   *
+   * The API behind these — `/api/public/roles` and `/api/public/roles/:roleId` — has been
+   * unauthenticated and correct since role search shipped; only the PAGES were missing, mounted
+   * solely under `/me/roles` behind RequireCandidate. So a role was discoverable by anyone with
+   * curl and by nobody with a browser.
+   *
+   * Same relationship as COMPANY_DIRECTORY → CANDIDATE_COMPANIES: one set of components, rendered
+   * at a public path by default and at the candidate path with overrides.
+   */
+  PUBLIC_ROLES: '/roles',
+  PUBLIC_ROLE_DETAIL: '/roles/:roleId',
+
   COMPANY_PROFILE: '/companies/:slug',
   TERMS: '/terms',
   PRIVACY: '/privacy',

@@ -12,6 +12,7 @@ import {
 } from './companyPublic.service.js';
 import { listPublicRoles, getRoleFacets, getPublicRoleById } from './rolePublic.service.js';
 import { submitCompanyInterest } from '../interests/interest.service.js';
+import { buildSitemap } from './sitemap.service.js';
 
 /** Attribution derived from the request. Never trusted from the client body. */
 function buildSourceContext(req) {
@@ -98,4 +99,19 @@ export async function createCompanyInterest(req, res) {
   return result.status === 'submitted'
     ? sendCreated(res, result)
     : sendSuccess(res, result);
+}
+
+/**
+ * `GET /api/public/sitemap.xml`
+ *
+ * Served as XML, not the JSON envelope every other endpoint uses — a crawler parses the document
+ * itself, so there is nothing to wrap it in.
+ */
+export async function getSitemap(req, res) {
+  const xml = await buildSitemap();
+
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  /* Shared caches may hold this: it is public by definition and cheap to serve slightly stale. */
+  res.set('Cache-Control', 'public, max-age=3600');
+  return res.send(xml);
 }

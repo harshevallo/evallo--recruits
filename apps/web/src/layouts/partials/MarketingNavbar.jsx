@@ -23,6 +23,16 @@ import { cn } from '@/utils/cn';
  * `ScrollToHash` performs the scroll that the browser would otherwise have done.
  */
 const NAV_LINKS = [
+  /*
+   * Discovery first, pitch second.
+   *
+   * The three entries below are anchors into the landing page — they sell the product. These two
+   * are the product: real roles and real companies, browsable without an account. A visitor who
+   * arrived to see whether there is any work for them had no link to it, because until Phase 1
+   * role search existed only at `/me/roles` behind a sign-in wall.
+   */
+  { to: PATHS.PUBLIC_ROLES, label: 'Find Roles' },
+  { to: PATHS.COMPANY_DIRECTORY, label: 'Companies' },
   { to: `${PATHS.HOME}#businesses`, label: 'For Businesses' },
   { to: `${PATHS.HOME}#educators`, label: 'For Educators' },
   { to: `${PATHS.HOME}#features`, label: 'Features' },

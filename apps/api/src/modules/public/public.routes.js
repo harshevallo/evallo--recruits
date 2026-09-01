@@ -19,6 +19,7 @@ import {
   getRoles,
   getRoleSearchFacets,
   getRole,
+  getSitemap,
 } from './public.controller.js';
 import {
   earlyAccessValidation,
@@ -37,6 +38,15 @@ router.post(
   validate(earlyAccessValidation),
   asyncHandler(createEarlyAccessRequest),
 );
+
+/*
+ * The crawlable index. No validation — it takes no parameters — and no rate limiter: it is a
+ * cached GET that a crawler is supposed to fetch.
+ *
+ * Reached by readers at `https://<web-origin>/sitemap.xml`, which `vercel.json` rewrites here, so
+ * the sitemap and the URLs inside it share an origin.
+ */
+router.get('/sitemap.xml', asyncHandler(getSitemap));
 
 // PUB-01 — public company directory (PRD §9.1).
 router.get('/companies/facets', asyncHandler(getCompanyDirectoryFacets));

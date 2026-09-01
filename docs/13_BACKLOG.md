@@ -1,6 +1,6 @@
 # 13 — Backlog
 
-**Last updated:** 2026-07-31
+**Last updated:** 2026-08-27
 
 Screen-level work is tracked in `14_PROGRESS_TRACKER.md`. This document holds everything **not**
 in the current milestone plan: deferred features, technical improvements, and ideas.
@@ -19,7 +19,7 @@ no screen of its own and could otherwise be forgotten.
 | B-01 | Transactional email templates — verification, reset, invitation, interest, message | §15 | M1 | **P0** |
 | B-02 | Audit event emission across all candidate-access paths | §14.3, §16.1 | M3+ | **P0** |
 | B-03 | Company domain verification (DNS or email proof) | §16.2 | M2 | P1 |
-| B-04 | Evidence verification labels — self-declared / document / platform / issuer / expired | §8.6 | M3 | P1 |
+| B-04 | Evidence verification labels — self-declared / document / platform / issuer / expired | §8.6 | M3 | **P1 — now blocking two approved designs.** The REC-12 reference puts "Platform Verified Credentials" badges on every search card (*1590 (Official)*, *Background Cleared*) and "Must Have" verification toggles in the filter rail. Neither is built and neither can be: no field distinguishes a checked background from a claimed one, and rendering the badge anyway would assert a verification never performed, about a real person, to someone deciding whether to hire them. Until B-04 lands, the card carries `matchedOn` in that slot instead |
 | B-05 | Report and block flows for candidates and companies | §16.3 | M6 | P1 |
 | B-06 | Notification preferences with digest frequencies | §15.1 | M6 | P1 |
 | B-07 | Core funnel analytics event taxonomy | §18.1 | M6 | P1 |
@@ -29,9 +29,11 @@ no screen of its own and could otherwise be forgotten.
 | B-11 | Slug-change redirect handling | §17 | M2 | P2 |
 | B-12 | Saved companies with hiring-change notifications | §8.2 | M4 | P2 |
 | B-13 | Profile completeness by section and evidence type | §18.3 | M3 | P2 |
-| B-14 | Match explanation on search result cards | §7.8, §10.1 | M5 | P1 |
+| B-14 | ~~Match explanation on search result cards~~ | §7.8, §10.1 | M5 | ✅ **built** — `explainMatch` server-side, rendered as "Why they match your search" chips on `CandidateResultCard` (2026-08-27) |
 | B-15 | **Company media gallery** on the public profile. Designed and specified in the approved PUB-02 reference; the only missing piece is where the bytes live. **Blocked on D-02 (file storage)** — ADR-020's interim MongoDB exception for profile photos explicitly does not extend to this. When D-02 lands: a `media` array on `companies`, a `culture`-step uploader, and a gallery block above the pull quote | §7.4 | M6 | P2 |
 | B-16 | **Educator testimonials** ("Educator voices") on the public profile. In the approved PUB-02 reference and deliberately not built: these are public statements attributed to a named person about a named employer, so they need employment verification, an authorship path, and moderation (§16.3) before a single one can be published. Not a rendering task | §7.4, §16.3 | M6 | P2 |
+| B-18 | **Company logo and cover upload.** REC-02's approved reference has a "Browse files" picker; the wizard ships a live preview plus a URL field instead. `mediaAssets` is keyed by `ownerUserId` with its write route at `/api/me/photo` — a personal asset — so a company-owned asset needs a new owner dimension, a company-scoped write route behind `company:edit`, and a deletion path. **Blocked on D-02** on the same grounds as B-15 | §7.3 | M6 | P2 |
+| B-19 | **Editable company slug.** REC-02's reference makes the slug a form field; it ships read-only. Editing it needs B-11's redirect handling first, or every link already shared to the old address breaks silently | §17 | M6 | P2 |
 | B-17 | **Multi-role expressions of interest.** The PUB-02 reference lets a candidate tick several roles at once; `publicInterestSchema` carries a single optional `hiringIntentId` and one interest record means one intent all the way to REC-11's inbox, the dedupe rule, and CAN-07. The modal ships radio cards — what the contract can express. Changing it is a change to what an interest *is*, across five surfaces | §8.7, §9.2 | M6 | P2 |
 
 ---

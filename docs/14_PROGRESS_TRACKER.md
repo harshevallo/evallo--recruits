@@ -177,9 +177,32 @@ Key: ✅ Complete · 🟡 Partial · 🔴 Not implemented · ⚪ Placeholder
 **Environment:** Windows 11 · Node v22.17.0 · npm 10.2.0 · MongoDB standalone ·
 web `:3001` · api `:8081` · database `evallo-recruit`
 
-### Test suites — all passing, **all 24 files in a single run**
+### Test suites — **28 integration files + 1 unit file; a single run is no longer trustworthy**
 
-Measured 2026-08-12 with one `npm test` (no per-file invocation, no `--test-concurrency=1`):
+The 2026-08-12 measurement below was real and is kept for the record. It **no longer reproduces**:
+the suite has since grown past the point where sharing one database is survivable, and a full run
+now fails a different handful of tests each time. That is `12_KNOWN_ISSUES.md` **I-01**, reopened
+2026-08-27 and reconfirmed with a stash-and-rerun that isolated the cause to shared state rather
+than any regression.
+
+Measured 2026-08-27, one clean `node --test` over all 29 files:
+
+```
+# tests 538   # pass 536   # fail 2
+```
+
+**Read a red full run as inconclusive, not as a failure.** Re-run the failing file alone; that is
+currently the only way to tell a real regression from I-01. Suites verified individually on
+2026-08-27: `roleSearch` 22/22, `companyProfile` 17/17, `companySetup` 23/23,
+`companyRequiredFields` 15/15, `talentSearch` 19/19, `candidateViewer` 20/20,
+`companyDashboard` 11/11.
+
+**Do not run two `node --test` invocations at once.** During this audit an overlapping second run
+produced **376 failures of 538** — the same shared-database cause as I-01, amplified. The number is
+meaningless, and it is worth knowing that the failure mode scales that badly before someone reads a
+run like it and concludes the product is broken.
+
+The historic clean run, 2026-08-12, when the suite was 24 files:
 
 ```
 # tests 443   # suites 101   # pass 443   # fail 0   # cancelled 0   # skipped 0   # todo 0
@@ -237,8 +260,8 @@ difference is a counting artefact, not a missing or skipped test (`# skipped 0`,
 |---|---|
 | `/api/me/candidate-profile/entries/*` (4 endpoints) | The `verificationStatus` forgery guard is unpinned |
 | `/api/me/settings/*` (9 endpoints) | Password-change session revocation, export scoping and owner-blocked deletion have no regression guard |
-| `apps/api/tests/unit/` | Contains only `.gitkeep` — **no unit tests exist**; all 365 cases are integration tests |
-| `apps/web` | **No frontend tests of any kind** |
+| `apps/api/tests/unit/` | One file — `cookies.test.js`, 17 cases pinning the refresh-cookie policy. Everything else is an integration test |
+| `apps/web` | **No frontend tests of any kind.** The untested surface grew on 2026-08-27 — `CompanyProfileView` (three routes), `RoleDetailPage`, `TagInput`, `CheckCardGroup`, `CandidateResultCard`, and rebuilt REC-02 and REC-12 screens. Two defects in that work were caught by reading the code and by nothing else in the pipeline (I-14) |
 
 `npm run lint` — clean across all three workspaces.
 

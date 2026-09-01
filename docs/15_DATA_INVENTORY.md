@@ -1,6 +1,6 @@
 # 15 — Data Processing Inventory
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-27 (re-read out of the models; `mediaAssets` added — see the warning in §2)
 **Status:** Engineering record of fact. **Not legal advice and not a Privacy Policy.**
 
 ---
@@ -17,7 +17,7 @@ Two jobs, one analysis:
    table below is the same table that has to be answered "delete / anonymise / retain" before the
    account-deletion purge can be built.
 
-Everything here was read out of the models and services on 2026-08-12, not from the other
+Everything here was read out of the models and services on 2026-08-27, not from the other
 documents. Where the code and an older document disagree, the code is what runs.
 
 ---
@@ -78,10 +78,25 @@ verified and discarded — only the stable `googleId` is kept.
 | `credentials` | credential name, type, issuer, result/score, **`documentUrl` (an external link the candidate hosts)** | Evidence layer | Indefinite |
 | `evidenceItems` | title, URL, provider, prompt | Teaching samples — YouTube/Vimeo embeds only | Indefinite |
 | `savedCompanies` | candidate id, company id | The candidate's own shortlist | Indefinite |
+| `mediaAssets` | **the bytes of a profile photograph**, content type, byte length, owner user id | Profile photo (ADR-020) | Until replaced or the account is purged |
 
-**No file uploads exist anywhere in the system.** There is no upload endpoint and no object store,
-so the platform holds *links*, not documents. This materially narrows the policy's scope — but see
-§5, because embedding third-party media has its own disclosure.
+> **⚠️ `mediaAssets` was missing from this inventory until 2026-08-27.** It was added to the codebase
+> on 2026-08-26 by ADR-020, after this document's previous audit, and it is the **only** collection
+> here that stores a photograph of a person's face. Anyone drafting the privacy policy from an
+> earlier revision of this table was working from an incomplete list. It is the clearest example of
+> why this document has to be re-read out of the models rather than maintained by memory.
+
+**One kind of file upload now exists: profile photos** (ADR-020, 2026-08-26). The sentence that
+stood here previously — *"No file uploads exist anywhere in the system"* — is no longer true and has
+been corrected. The narrower statement still holds: there is **no object store**, and for everything
+other than a profile photo the platform holds *links*, not documents — credential documents and
+teaching samples are URLs the candidate hosts elsewhere. See §5, because embedding third-party media
+has its own disclosure.
+
+Retention note for B-09: the ADR-020 deletion purge **does** delete the asset row, not merely the
+pointer — otherwise a photograph of a face would outlive the account, reachable by anyone still
+holding the URL. That is already implemented in `accountDeletion.job.js`; it is the one part of the
+purge that is not blocked on the retention decision.
 
 ### Data about a candidate, written or held by a company
 

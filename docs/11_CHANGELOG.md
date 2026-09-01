@@ -9,6 +9,45 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Documentation
+- **2026-08-27 — full audit of `docs/` against the working tree.** Every one of the sixteen
+  documents was checked; trees and counts were re-read out of the code rather than trusted.
+
+  **Two findings matter beyond tidiness.**
+
+  **`mediaAssets` was missing from the data-processing inventory and the retention policy.** It was
+  added to the codebase on 2026-08-26 (ADR-020) and stores **the bytes of profile photographs** —
+  the most sensitive category of personal data in the system, and the only face data anywhere in it.
+  `15_DATA_INVENTORY.md` exists to be the brief for whoever drafts the privacy policy, and
+  `16_RETENTION_POLICY.md` is awaiting sign-off; both were describing a system without photographs.
+  Added to both, with a warning so a reviewer working from an earlier copy knows to re-check.
+  `15`'s flat assertion *"No file uploads exist anywhere in the system"* was also false and is
+  corrected.
+
+  **`ErrorBoundary.jsx` was documented as existing and does not** — no component in `apps/web`
+  implements `componentDidCatch` or `getDerivedStateFromError`, so any render-time throw gives a
+  blank page with nothing reported. Now `12_KNOWN_ISSUES.md` **I-18**.
+
+  Also corrected: `07_PROJECT_STRUCTURE.md` v3.0 — every tree verified file-by-file, with a new
+  **§4.0** recording where the plan and the build diverged (three layouts became two workspace
+  shells; `components/data/` and `components/public/` are empty; Toast became `StatusRegion`; five
+  planned hooks were never needed) rather than silently deleting the entries. `03_TRD.md` §4.1 route
+  tree regenerated from `router/paths.js` — it was missing role search, role detail, portfolio,
+  saved companies, setup, preview and hires, and marked public routes SSR-safe when SSR is not
+  built. `04_API_DOCUMENTATION.md`'s status header still read "M1 … M2"; it now reports the real
+  122 route registrations. `14_PROGRESS_TRACKER.md` claimed a clean 443-test run that no longer
+  reproduces and "no unit tests exist" when one suite does.
+
+  **Measured, not assumed:** one clean full run is **538 tests, 536 pass, 2 fail**. An accidental
+  *concurrent* second run during the audit produced **376 failures of 538** — same I-01 cause,
+  amplified — which is recorded so nobody reads a run like that as a broken product.
+
+  New: **ADR-021** (one company profile component), **ADR-022** (a role gets its own page; consent
+  gets no second implementation), **ADR-023** (the approved HTML is a design reference, not a data
+  contract — never render a claim the data cannot support). ADR-020 was missing from the index.
+  New backlog items **B-18** (company logo upload) and **B-19** (editable slug); **B-14** closed;
+  **B-04** annotated as now blocking two approved designs.
+
 ### Changed
 - **2026-08-27 — REC-12 talent search rebuilt to the approved reference.** The keyword box, sort
   control, result count and active filters now live in one white search bar instead of a row of

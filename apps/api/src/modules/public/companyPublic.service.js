@@ -13,6 +13,7 @@ import {
 } from '@evallo/shared';
 import { Company, companyInitials } from '../companies/company.model.js';
 import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
+import { substringFilter, andFilter } from '../../lib/textSearch.js';
 
 /**
  * The public visibility predicate. Every directory query starts from this — a company is
@@ -37,7 +38,13 @@ const PUBLIC_FIELDS =
 function buildFilter(query) {
   const filter = publiclyVisible();
 
-  if (query.q) filter.$text = { $search: query.q };
+  /*
+   * Substring, not `$text`. `$text` matches whole stemmed words, so "north" found nothing while
+   * "Northgate" found the company — which reads as a broken search. See lib/textSearch.js.
+   * The fields are the ones the `company_text` index covered, so nothing became searchable that
+   * was not searchable before.
+   */
+  andFilter(filter, substringFilter(query.q, ['name', 'tagline', 'description.short']));
   if (query.organizationType) filter.organizationType = { $in: query.organizationType };
   if (query.service) filter.educationServices = { $in: query.service };
   if (query.deliveryMode) filter.deliveryModes = { $in: query.deliveryMode };
@@ -50,8 +57,12 @@ function buildFilter(query) {
 function buildSort(query) {
   if (query.sort === COMPANY_DIRECTORY_SORTS.NAME) return { name: 1 };
   if (query.sort === COMPANY_DIRECTORY_SORTS.RECENT) return { updatedAt: -1 };
-  // Relevance: text score when searching, otherwise hiring companies first.
-  if (query.q) return { score: { $meta: 'textScore' }, updatedAt: -1 };
+  /*
+   * Hiring companies first, newest first.
+   *
+   * There is no `textScore` to sort by any more — a substring match is binary. Ranking a search
+   * by "is hiring" is a defensible second best for a directory whose purpose is finding work.
+   */
   return { isCurrentlyHiring: -1, updatedAt: -1 };
 }
 
@@ -86,9 +97,13 @@ export async function listPublicCompanies(query) {
 
   const skip = (query.page - 1) * query.limit;
 
-  const projection = query.q
-    ? { score: { $meta: 'textScore' } }
-    : {};
+  /*
+   * No projection. `{ score: { $meta: 'textScore' } }` used to ride along with the `$text` query;
+   * with substring matching there is no text score, and asking Mongo for `$meta: 'textScore'`
+   * without a `$text` operator is not ignored — it raises
+   * "must have a $meta projection for textScore" and the whole search 500s.
+   */
+  const projection = {};
 
   const [companies, total] = await Promise.all([
     Company.find(filter, projection)

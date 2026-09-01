@@ -30,6 +30,7 @@ import { HIRING_INTENT_STATUS } from '@evallo/shared';
 import { Company, companyInitials } from '../companies/company.model.js';
 import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
 import { publiclyVisible } from './companyPublic.service.js';
+import { substringFilter, andFilter } from '../../lib/textSearch.js';
 
 /**
  * Fields of the COMPANY a role result carries.
@@ -74,21 +75,22 @@ function buildIntentFilter(query, companyIds) {
     companyId: { $in: companyIds },
   };
 
-  if (query.q) filter.$text = { $search: query.q };
+  /* Substring, not `$text` — same reason as company search. See lib/textSearch.js. */
+  andFilter(filter, substringFilter(query.q, ['title', 'description']));
   if (query.roleCategory) filter.roleCategories = { $in: query.roleCategory };
   if (query.subject) filter['specializations.subjects'] = { $in: query.subject };
   if (query.employmentType) filter.employmentTypes = { $in: query.employmentType };
   if (query.deliveryMode) filter.deliveryModes = { $in: query.deliveryMode };
   if (query.country) filter['locations.country'] = { $in: query.country };
 
-  /* Free text, so matched case-insensitively against whatever the company typed. */
-  if (query.region) {
-    const escaped = query.region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      { 'locations.region': { $regex: escaped, $options: 'i' } },
-      { 'locations.city': { $regex: escaped, $options: 'i' } },
-    ];
-  }
+  /*
+   * Free text, so matched case-insensitively against whatever the company typed.
+   *
+   * Composed under `$and` rather than assigned to `filter.$or`. With `q` now also contributing an
+   * `$or`, a bare assignment here would overwrite whichever ran second and silently drop half the
+   * query — the location or the keywords.
+   */
+  andFilter(filter, substringFilter(query.region, ['locations.region', 'locations.city']));
 
   /*
    * "Roles I qualify for" — a role asking for at most N years. An intent with no `minYears` has
@@ -107,7 +109,7 @@ function buildIntentFilter(query, companyIds) {
 function buildSort(query) {
   if (query.sort === 'newest') return { createdAt: -1 };
   if (query.sort === 'title') return { title: 1, createdAt: -1 };
-  if (query.q) return { score: { $meta: 'textScore' }, createdAt: -1 };
+  /* No textScore to sort by once `q` is a substring match — newest first, like every other view. */
   return { createdAt: -1 };
 }
 
@@ -164,7 +166,8 @@ export async function listPublicRoles(query) {
 
   const filter = buildIntentFilter(query, companyIds);
   const skip = (query.page - 1) * query.limit;
-  const projection = query.q ? { score: { $meta: 'textScore' } } : {};
+  /* Empty for the same reason as company search: `$meta: 'textScore'` without `$text` throws. */
+  const projection = {};
 
   const [intents, total] = await Promise.all([
     HiringIntent.find(filter, projection)
