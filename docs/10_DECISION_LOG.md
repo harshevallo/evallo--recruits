@@ -1495,10 +1495,17 @@ Messaging is low-volume; it is performed in one step at a quiet hour, not left o
   company and cite §21.6. **Both are wrong on the citation today, and will be wrong on the
   behaviour after step 3.** Each now carries a pointer to this ADR; each is rewritten when step 3
   ships, not before — the docs describe what runs.
-- Tests to change: `candidateJourney`, `recruiterWorkflow`, `candidateBlocking`, `dataExport` — all
-  assume one thread per candidate/company pair. Tests to add: two employees produce two threads · a
-  legacy `null` thread still works for any member · an employee cannot read a colleague's thread ·
-  unread isolation · blocking still kills every thread from that company.
+- Tests to change: **`joinRequests`** — the "Recruiter identity in chat (PRD §11.2)" pair is the
+  only place that actually encoded the shared-thread model, asserting one thread for two recruiters
+  and an owner reading a thread a recruiter started. (Predicted here before implementation as
+  `candidateJourney`, `recruiterWorkflow`, `candidateBlocking` and `dataExport`; in the event none
+  of those four needed a change, because each uses a single recruiter and never exercises the
+  distinction.) Both were rewritten to the new structure with their PRD §11.2 guarantees — an
+  individual's name, never an email — carried over unchanged, and teammate attribution re-asserted
+  on a legacy shared thread, which is where more than one employee can still appear.
+- Tests added: two employees produce two threads · a legacy `null` thread still works for any
+  member · an employee cannot read a colleague's thread (404, not 403) · replying never adopts or
+  forks a shared thread · unread isolation.
 - **The 5-message two-employee thread is the regression fixture.** It is the only production row
   that exercises the ambiguous case, and it is checked by hand after every step above.
 - One question remains open and is the CTO's to answer, not engineering's: **may colleagues *see*
