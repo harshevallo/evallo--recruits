@@ -173,7 +173,22 @@ export function RoleResultCard({
             {role.minYears}+ {role.minYears === 1 ? 'year' : 'years'} experience
           </span>
         )}
-        {role.postedAt && <span>Posted {new Date(role.postedAt).toLocaleDateString()}</span>}
+        {/*
+          * Spelled month, not `8/27/2026`. A bare `toLocaleDateString()` renders month-first for a
+          * US visitor and day-first for an Indian one from the same string, so the same card reads
+          * as two different dates depending on who is looking. The day is kept — on a job listing,
+          * how recent a post is is the point.
+          */}
+        {role.postedAt && (
+          <span>
+            Posted{' '}
+            {new Date(role.postedAt).toLocaleDateString(undefined, {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </span>
+        )}
       </div>
     </article>
   );
