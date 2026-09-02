@@ -199,11 +199,26 @@ export function MessagesPage() {
   }
 
   return (
-    <Container className="py-32">
+    /*
+     * An app shell on desktop, a normal document on mobile.
+     *
+     * Messaging is the one candidate screen whose content is unbounded: a long thread used to grow
+     * the page until the reply box sat below the fold, while a short one left the workspace column
+     * (`flex min-h-screen` in CandidateWorkspaceLayout) mostly empty. Both are the same defect —
+     * nothing owned a height, so the CONTENT decided the page size.
+     *
+     * `h-screen` + `flex-col` makes this page own the viewport instead; `pt-24` clears the fixed
+     * `h-20` navbar, the offset the workspace already uses for its mobile trigger. Everything below
+     * is `shrink-0` except the two panes, which take the remainder and scroll inside it.
+     *
+     * `lg:` only: stacked columns on a phone must stay in normal flow, or the conversation ends up
+     * trapped in a short box inside an already-scrolling page.
+     */
+    <Container className="py-32 lg:flex lg:h-screen lg:flex-col lg:pb-6 lg:pt-24">
       {/* Back to the candidate home, at the top — the same affordance the company pages use. */}
-      <BackLink to={PATHS.CANDIDATE_HOME} label="Candidate home" className="mb-6" />
+      <BackLink to={PATHS.CANDIDATE_HOME} label="Candidate home" className="mb-6 lg:shrink-0" />
 
-      <header className="mb-8">
+      <header className="mb-8 lg:shrink-0">
         <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Messages</h1>
         <p className="mt-2 max-w-xl text-gray-600">
           Conversations with companies you have shared your profile with.
@@ -234,7 +249,7 @@ export function MessagesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[20rem_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[20rem_1fr]">
           {/*
            * The thread list is PINNED; the conversation scrolls with the page.
            *
@@ -257,7 +272,7 @@ export function MessagesPage() {
            */}
           <nav
             aria-label="Conversations"
-            className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1"
+            className="lg:min-h-0 lg:overflow-y-auto lg:pr-1"
           >
             <ul className="space-y-2">
               {list.threads.map((item) => (
@@ -320,7 +335,7 @@ export function MessagesPage() {
 
           <section
             aria-labelledby="thread-heading"
-            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
           >
             {!thread ? (
               <p id="thread-heading" className="text-sm text-gray-600">
@@ -328,7 +343,7 @@ export function MessagesPage() {
               </p>
             ) : (
               <>
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 lg:shrink-0">
                   <div className="min-w-0">
                     <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
                       {thread.recruiter?.name ?? thread.company?.name ?? 'Conversation'}
@@ -370,7 +385,7 @@ export function MessagesPage() {
                 </div>
 
                 {thread.state === 'pending' && (
-                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4">
+                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4 lg:shrink-0">
                     <p className="min-w-0 flex-1 text-sm text-blue-900">
                       {thread.company?.name ?? 'This company'} started this conversation. Would you
                       like to continue it?
@@ -397,7 +412,10 @@ export function MessagesPage() {
                   </div>
                 )}
 
-                <ol className="mb-6 space-y-4" aria-live="polite">
+                <ol
+                  className="relative mb-6 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+                  aria-live="polite"
+                >
                   {thread.messages.map((message) => (
                     <li
                       key={message.id}
@@ -440,7 +458,7 @@ export function MessagesPage() {
                 </ol>
 
                 {thread.state === 'declined' ? (
-                  <div className="rounded-xl bg-gray-50 p-4">
+                  <div className="rounded-xl bg-gray-50 p-4 lg:shrink-0">
                     <p className="text-sm text-gray-600">
                       You declined this conversation, so replies are closed. The messages stay here
                       as a record.
@@ -457,7 +475,7 @@ export function MessagesPage() {
                     </Button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSend}>
+                  <form onSubmit={handleSend} className="lg:shrink-0">
                     <label htmlFor="reply" className="mb-2 block text-sm font-medium text-gray-700">
                       Reply
                     </label>
