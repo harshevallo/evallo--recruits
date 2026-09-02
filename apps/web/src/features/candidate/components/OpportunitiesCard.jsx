@@ -22,7 +22,12 @@ export function OpportunitiesCard() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchPublicCompanies({ isCurrentlyHiring: true, limit: 3, sort: 'recent' }, {
+    /*
+     * `hiringOnly` is the filter the API actually accepts, and it means the DERIVED answer — the
+     * manual flag OR at least one active role. `isCurrentlyHiring` was not a recognised query key,
+     * so it was dropped silently and this card offered whichever companies came back, hiring or not.
+     */
+    fetchPublicCompanies({ hiringOnly: true, limit: 3, sort: 'recent' }, {
       signal: controller.signal,
     })
       .then(({ data }) => setState({ status: 'ready', companies: data ?? [] }))
