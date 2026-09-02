@@ -102,6 +102,43 @@ async function hiringCompanyClause() {
   return { $or: [{ isCurrentlyHiring: true }, { _id: { $in: withActiveRoles } }] };
 }
 
+/**
+ * "Is this company hiring?" — the single answer every surface must render.
+ *
+ * The read-side twin of `hiringCompanyClause` above: that one selects rows, this one labels one.
+ * They state the same rule — the manual flag OR at least one ACTIVE role — and they are adjacent so
+ * that changing one without the other is obviously wrong. A surface that answers this question its
+ * own way is how a page ends up showing a green "Currently hiring" badge beside a "Not hiring" row.
+ *
+ * @param {{ isCurrentlyHiring?: boolean }} company
+ * @param {boolean} hasActiveRole
+ */
+export function resolveIsHiring(company, hasActiveRole) {
+  return Boolean(company.isCurrentlyHiring) || Boolean(hasActiveRole);
+}
+
+/**
+ * Which of these companies have at least one ACTIVE role, as a Set of id strings.
+ *
+ * For callers that hold a known set of companies and need the derived status without loading each
+ * one's roles — the saved list and the company-relationship overlay. Scoped to the ids asked about
+ * rather than reusing `hiringCompanyClause`'s unbounded `distinct`, which exists to build a filter
+ * over the whole collection.
+ *
+ * @param {Array<import('mongoose').Types.ObjectId|string>} companyIds
+ * @returns {Promise<Set<string>>}
+ */
+export async function companiesWithActiveRoles(companyIds) {
+  if (!companyIds?.length) return new Set();
+
+  const ids = await HiringIntent.distinct('companyId', {
+    companyId: { $in: companyIds },
+    status: HIRING_INTENT_STATUS.ACTIVE,
+  });
+
+  return new Set(ids.map(String));
+}
+
 async function companyIdsForRoleCategories(roleCategories) {
   if (!roleCategories) return null;
 
@@ -213,7 +250,7 @@ async function attachActiveRoles(companies) {
        * because the flag and the filter would be answering the question differently. `isHiring` is
        * derived in the same place the roles are counted, so the two cannot disagree.
        */
-      isHiring: Boolean(company.isCurrentlyHiring) || roles.length > 0,
+      isHiring: resolveIsHiring(company, roles.length > 0),
     };
   });
 }
@@ -276,8 +313,8 @@ export function serialisePublicCompany(company, intents = []) {
         intent.compensation?.visibility === 'public' ? intent.compensation : undefined,
     })),
     openRoleCount: intents.length,
-    /* Same definition as the directory card and the search filter. See `hiringCompanyClause`. */
-    isHiring: Boolean(company.isCurrentlyHiring) || intents.length > 0,
+    /* Same definition as the directory card and the search filter. See `resolveIsHiring`. */
+    isHiring: resolveIsHiring(company, intents.length > 0),
   };
 }
 

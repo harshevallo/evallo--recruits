@@ -20,6 +20,14 @@ import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
 import { ExpressionOfInterest } from '../interests/expressionOfInterest.model.js';
 import { AccessGrant } from '../interests/accessGrant.model.js';
 import { SavedCompany } from './savedCompany.model.js';
+/*
+ * The one definition of "hiring", shared with the public directory and profile. Imported rather
+ * than restated so this overlay can never disagree with the page it overlays.
+ */
+import {
+  resolveIsHiring,
+  companiesWithActiveRoles,
+} from '../public/companyPublic.service.js';
 
 /** A published, unmoderated company — the only kind a candidate can act on. */
 async function publishedCompany(slug) {
@@ -85,6 +93,9 @@ export async function listSavedCompanies(profile) {
 
   const byId = new Map(companies.map((company) => [String(company._id), company]));
 
+  /* One query for the whole page, not one per row. */
+  const withActiveRoles = await companiesWithActiveRoles(companies.map((c) => c._id));
+
   return saved
     .map((row) => {
       const company = byId.get(String(row.companyId));
@@ -100,7 +111,14 @@ export async function listSavedCompanies(profile) {
           initials: companyInitials(company.name),
           tagline: company.tagline ?? null,
           organizationType: company.organizationType ?? null,
+          /*
+           * `isCurrentlyHiring` is the raw manual flag and stays for existing consumers;
+           * `isHiring` is the derived answer the UI renders, identical to the one the public
+           * directory and profile serve. Without it this list showed no "Hiring" badge for a
+           * company whose profile said "Currently hiring" one click away.
+           */
           isCurrentlyHiring: Boolean(company.isCurrentlyHiring),
+          isHiring: resolveIsHiring(company, withActiveRoles.has(String(company._id))),
         },
       };
     })
@@ -115,13 +133,14 @@ export async function listSavedCompanies(profile) {
 export async function getCompanyRelationship(profile, slug) {
   const company = await publishedCompany(slug);
 
-  const [saved, interest] = await Promise.all([
+  const [saved, interest, withActiveRoles] = await Promise.all([
     SavedCompany.findOne({ candidateId: profile._id, companyId: company._id }).lean(),
     ExpressionOfInterest.findOne({
       candidateId: profile._id,
       companyId: company._id,
       status: { $in: ACTIVE_INTEREST_STATES },
     }).lean(),
+    companiesWithActiveRoles([company._id]),
   ]);
 
   return {
@@ -146,7 +165,9 @@ export async function getCompanyRelationship(profile, slug) {
         }
       : null,
     acceptsGeneralInterest: company.acceptsGeneralInterest,
+    /* Raw flag kept for existing consumers; `isHiring` is what the UI should render. */
     isCurrentlyHiring: company.isCurrentlyHiring,
+    isHiring: resolveIsHiring(company, withActiveRoles.size > 0),
   };
 }
 

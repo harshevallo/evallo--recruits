@@ -147,7 +147,7 @@ export function SavedCompaniesPage() {
                     )}
                   </div>
 
-                  {company.isCurrentlyHiring && (
+                  {(company.isHiring ?? company.isCurrentlyHiring) && (
                     <Badge tone="successLight" size="sm" radius="full">
                       Hiring
                     </Badge>

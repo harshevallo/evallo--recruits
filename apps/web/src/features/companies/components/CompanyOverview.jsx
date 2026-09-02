@@ -257,10 +257,25 @@ export function CompanyOverview({ company, editStepHref }) {
                 ? delivery.map((m) => DELIVERY_MODE_LABELS[m] ?? m).join(', ')
                 : null}
             </DetailRow>
+            {/*
+              * The server's DERIVED answer — the manual flag OR at least one active role — the
+              * same one the hero badge and the directory filter use. Reading the raw
+              * `isCurrentlyHiring` here made this panel say "Not hiring" beside a green
+              * "Currently hiring" badge on the very same page.
+              *
+              * `?? company.isCurrentlyHiring` so a payload from an older deploy still renders
+              * sensibly rather than reading `undefined` as "not hiring".
+              */}
             <DetailRow label="Hiring">
-              {company.isCurrentlyHiring
-                ? `${company.openRoleCount} open ${company.openRoleCount === 1 ? 'role' : 'roles'}`
-                : 'Not hiring'}
+              {(() => {
+                const hiring = company.isHiring ?? company.isCurrentlyHiring;
+                if (!hiring) return 'Not hiring';
+                /* A company can be open to applications without a posted role, so the count is
+                 * only shown when there is one to show. */
+                return company.openRoleCount > 0
+                  ? `${company.openRoleCount} open ${company.openRoleCount === 1 ? 'role' : 'roles'}`
+                  : 'Currently hiring';
+              })()}
             </DetailRow>
           </dl>
         </div>

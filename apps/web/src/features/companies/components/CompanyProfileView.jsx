@@ -73,11 +73,11 @@ export function CompanyProfileView({
         */}
         <section id="open-roles" className="scroll-mt-24">
           <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-brand-dark">
-            {company.isCurrentlyHiring ? 'Currently hiring' : 'Open roles'}
+            {(company.isHiring ?? company.isCurrentlyHiring) ? 'Currently hiring' : 'Open roles'}
             {openRoles.length > 0 && (
               <span className="text-base font-medium text-gray-500">({openRoles.length})</span>
             )}
-            {company.isCurrentlyHiring && (
+            {(company.isHiring ?? company.isCurrentlyHiring) && (
               /* Decorative twin of the header badge, which already says "Currently hiring". */
               <span className="relative ml-1 flex h-2.5 w-2.5" aria-hidden="true">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
