@@ -234,8 +234,18 @@ export function MessagesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[20rem_1fr]">
-          <nav aria-label="Conversations">
+        <div className="grid grid-cols-1 gap-6 lg:h-[calc(100vh-15rem)] lg:min-h-[30rem] lg:grid-cols-[20rem_1fr]">
+          {/*
+           * Two independently scrolling columns on desktop.
+           *
+           * The grid is given a viewport-bounded height so each column can own its overflow: the
+           * thread list stays put while a long conversation scrolls beside it, instead of the whole
+           * page moving and carrying the list off-screen.
+           *
+           * Height rules are `lg:` only. On a phone the columns are stacked, and a fixed height
+           * would trap the conversation in a short box inside an already-scrolling page.
+           */}
+          <nav aria-label="Conversations" className="lg:h-full lg:overflow-y-auto lg:pr-1">
             <ul className="space-y-2">
               {list.threads.map((item) => (
                 <li key={item.id}>
@@ -297,7 +307,7 @@ export function MessagesPage() {
 
           <section
             aria-labelledby="thread-heading"
-            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden"
           >
             {!thread ? (
               <p id="thread-heading" className="text-sm text-gray-600">
@@ -305,7 +315,7 @@ export function MessagesPage() {
               </p>
             ) : (
               <>
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 lg:shrink-0">
                   <div className="min-w-0">
                     <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
                       {thread.recruiter?.name ?? thread.company?.name ?? 'Conversation'}
@@ -347,7 +357,7 @@ export function MessagesPage() {
                 </div>
 
                 {thread.state === 'pending' && (
-                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4">
+                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4 lg:shrink-0">
                     <p className="min-w-0 flex-1 text-sm text-blue-900">
                       {thread.company?.name ?? 'This company'} started this conversation. Would you
                       like to continue it?
@@ -374,7 +384,7 @@ export function MessagesPage() {
                   </div>
                 )}
 
-                <ol className="mb-6 space-y-4" aria-live="polite">
+                <ol className="mb-6 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1" aria-live="polite">
                   {thread.messages.map((message) => (
                     <li
                       key={message.id}
@@ -417,7 +427,7 @@ export function MessagesPage() {
                 </ol>
 
                 {thread.state === 'declined' ? (
-                  <div className="rounded-xl bg-gray-50 p-4">
+                  <div className="rounded-xl bg-gray-50 p-4 lg:shrink-0">
                     <p className="text-sm text-gray-600">
                       You declined this conversation, so replies are closed. The messages stay here
                       as a record.
@@ -434,7 +444,7 @@ export function MessagesPage() {
                     </Button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSend}>
+                  <form onSubmit={handleSend} className="lg:shrink-0">
                     <label htmlFor="reply" className="mb-2 block text-sm font-medium text-gray-700">
                       Reply
                     </label>
