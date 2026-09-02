@@ -42,7 +42,8 @@ const ITEMS = [
   {
     key: 'interests',
     label: 'Interest inbox',
-    icon: 'heart',
+    /* The same rocket the candidate sees on "Shortlisted companies" — one act, one symbol. */
+    icon: 'rocket',
     path: PATHS.COMPANY_INTERESTS,
     permission: PERMISSIONS.INTEREST_VIEW,
   },
