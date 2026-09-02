@@ -234,32 +234,30 @@ export function MessagesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:h-[calc(100vh-26rem)] lg:min-h-[30rem] lg:grid-cols-[20rem_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[20rem_1fr]">
           {/*
-           * Two independently scrolling columns on desktop.
+           * The thread list is PINNED; the conversation scrolls with the page.
            *
-           * The grid is bounded to the viewport MINUS the chrome above and below it, so the page
-           * itself does not scroll and neither column can be carried off-screen. That subtraction
-           * is measured, not guessed: `py-32` on the container contributes 128px top and bottom,
-           * the back link 48px and the header 100px — 404px, or 25.25rem. 26rem leaves a little
-           * slack. Subtracting too little is what made the page scroll and drag the thread list
-           * away with it.
+           * Deliberately NOT a fixed-height pair of panes. This page renders inside
+           * `CandidateWorkspaceLayout` — a `flex min-h-screen` carrying its own sidebar — beneath a
+           * fixed `h-20` navbar, so any `100vh - <chrome>` arithmetic here has to guess at wrappers
+           * it cannot see. Guessing wrong leaves either a page that still scrolls and drags the
+           * list away, or a short box stranded in dead space.
            *
-           * `min-h` wins on a short viewport, which reintroduces a small page scroll — hence the
-           * sticky list below, so it stays put even then.
+           * `sticky` needs no such arithmetic: whatever the page height turns out to be, the list
+           * stays put while the conversation moves beside it. `top-24` clears the fixed navbar —
+           * the offset the portfolio rail already uses, and `WorkspaceSidebar` pins itself the same
+           * way with `sticky top-20`.
            *
-           * Height rules are `lg:` only. On a phone the columns are stacked, and a fixed height
-           * would trap the conversation in a short box inside an already-scrolling page.
-           */}
-          {/*
-           * `self-start` keeps the list its natural height, so a short list simply sits there with
-           * no scrollbar — it only becomes scrollable once it outgrows the column. `sticky` is the
-           * belt to that braces: on a viewport short enough for `min-h` to force a page scroll, the
-           * list stays in view instead of sliding away.
+           * `self-start` is what keeps a SHORT list at its natural height, so two threads simply sit
+           * there with no scrollbar. `max-h` only bites once the list outgrows the viewport, and
+           * then the list — not the page — scrolls.
+           *
+           * `lg:` only: on a phone the columns stack and the page scroll is the right one.
            */}
           <nav
             aria-label="Conversations"
-            className="lg:sticky lg:top-6 lg:max-h-full lg:self-start lg:overflow-y-auto lg:pr-1"
+            className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1"
           >
             <ul className="space-y-2">
               {list.threads.map((item) => (
@@ -322,7 +320,7 @@ export function MessagesPage() {
 
           <section
             aria-labelledby="thread-heading"
-            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden"
+            className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
           >
             {!thread ? (
               <p id="thread-heading" className="text-sm text-gray-600">
@@ -330,7 +328,7 @@ export function MessagesPage() {
               </p>
             ) : (
               <>
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 lg:shrink-0">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
                   <div className="min-w-0">
                     <h2 id="thread-heading" className="text-lg font-bold text-brand-dark">
                       {thread.recruiter?.name ?? thread.company?.name ?? 'Conversation'}
@@ -372,7 +370,7 @@ export function MessagesPage() {
                 </div>
 
                 {thread.state === 'pending' && (
-                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4 lg:shrink-0">
+                  <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-blue-50 p-4">
                     <p className="min-w-0 flex-1 text-sm text-blue-900">
                       {thread.company?.name ?? 'This company'} started this conversation. Would you
                       like to continue it?
@@ -399,7 +397,7 @@ export function MessagesPage() {
                   </div>
                 )}
 
-                <ol className="mb-6 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1" aria-live="polite">
+                <ol className="mb-6 space-y-4" aria-live="polite">
                   {thread.messages.map((message) => (
                     <li
                       key={message.id}
@@ -442,7 +440,7 @@ export function MessagesPage() {
                 </ol>
 
                 {thread.state === 'declined' ? (
-                  <div className="rounded-xl bg-gray-50 p-4 lg:shrink-0">
+                  <div className="rounded-xl bg-gray-50 p-4">
                     <p className="text-sm text-gray-600">
                       You declined this conversation, so replies are closed. The messages stay here
                       as a record.
@@ -459,7 +457,7 @@ export function MessagesPage() {
                     </Button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSend} className="lg:shrink-0">
+                  <form onSubmit={handleSend}>
                     <label htmlFor="reply" className="mb-2 block text-sm font-medium text-gray-700">
                       Reply
                     </label>
