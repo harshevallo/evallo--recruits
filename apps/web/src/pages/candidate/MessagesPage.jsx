@@ -234,18 +234,33 @@ export function MessagesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:h-[calc(100vh-15rem)] lg:min-h-[30rem] lg:grid-cols-[20rem_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:h-[calc(100vh-26rem)] lg:min-h-[30rem] lg:grid-cols-[20rem_1fr]">
           {/*
            * Two independently scrolling columns on desktop.
            *
-           * The grid is given a viewport-bounded height so each column can own its overflow: the
-           * thread list stays put while a long conversation scrolls beside it, instead of the whole
-           * page moving and carrying the list off-screen.
+           * The grid is bounded to the viewport MINUS the chrome above and below it, so the page
+           * itself does not scroll and neither column can be carried off-screen. That subtraction
+           * is measured, not guessed: `py-32` on the container contributes 128px top and bottom,
+           * the back link 48px and the header 100px — 404px, or 25.25rem. 26rem leaves a little
+           * slack. Subtracting too little is what made the page scroll and drag the thread list
+           * away with it.
+           *
+           * `min-h` wins on a short viewport, which reintroduces a small page scroll — hence the
+           * sticky list below, so it stays put even then.
            *
            * Height rules are `lg:` only. On a phone the columns are stacked, and a fixed height
            * would trap the conversation in a short box inside an already-scrolling page.
            */}
-          <nav aria-label="Conversations" className="lg:h-full lg:overflow-y-auto lg:pr-1">
+          {/*
+           * `self-start` keeps the list its natural height, so a short list simply sits there with
+           * no scrollbar — it only becomes scrollable once it outgrows the column. `sticky` is the
+           * belt to that braces: on a viewport short enough for `min-h` to force a page scroll, the
+           * list stays in view instead of sliding away.
+           */}
+          <nav
+            aria-label="Conversations"
+            className="lg:sticky lg:top-6 lg:max-h-full lg:self-start lg:overflow-y-auto lg:pr-1"
+          >
             <ul className="space-y-2">
               {list.threads.map((item) => (
                 <li key={item.id}>
