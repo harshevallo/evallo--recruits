@@ -46,6 +46,9 @@ export function CompanyProfileView({
   topSpacing,
 }) {
   const openRoles = company.openRoles ?? [];
+  /* The server's derived answer, `?? isCurrentlyHiring` for payloads from an older deploy — the
+     same expression the hero badge reads. Named once here because it was inlined three times. */
+  const isHiring = company.isHiring ?? company.isCurrentlyHiring;
 
   return (
     <>
@@ -58,7 +61,7 @@ export function CompanyProfileView({
 
       {backTo && (
         <Container className="py-4">
-          <BackLink to={backTo} label={backLabel} className="py-4" />
+          <BackLink to={backTo} label={backLabel} />
         </Container>
       )}
 
@@ -72,26 +75,19 @@ export function CompanyProfileView({
           stays on the section, not the heading, or the scroll lands past the title.
         */}
         <section id="open-roles" className="scroll-mt-24">
-          <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-brand-dark">
-            {(company.isHiring ?? company.isCurrentlyHiring) ? 'Currently hiring' : 'Open roles'}
+          <h2 className="mb-5 flex items-baseline gap-2 text-xl font-bold text-brand-dark">
+            {isHiring ? 'Currently hiring' : 'Open roles'}
             {openRoles.length > 0 && (
               <span className="text-base font-medium text-gray-500">({openRoles.length})</span>
-            )}
-            {(company.isHiring ?? company.isCurrentlyHiring) && (
-              /* Decorative twin of the header badge, which already says "Currently hiring". */
-              <span className="relative ml-1 flex h-2.5 w-2.5" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-              </span>
             )}
           </h2>
 
           {openRoles.length > 0 ? (
-            <div className="space-y-4">
+            <ul className="divide-y divide-gray-200 border-y border-gray-200">
               {openRoles.map((role) => (
                 <OpenRoleCard key={role.id} role={role} onExpressInterest={onExpressInterest} />
               ))}
-            </div>
+            </ul>
           ) : (
             <EmptyState
               icon="filter"

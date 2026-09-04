@@ -24,7 +24,18 @@ export function PlaceholderPage({ title, description, replacedBy }) {
    *
    * Set here rather than per route so a future placeholder is titled by existing.
    */
-  usePageMeta({ title: `${title} | Evallo Recruit` });
+  /*
+   * The description mirrors what the page actually says, including that it is not published. The
+   * route's own summary alone ("Plans and pricing for education businesses.") would describe a page
+   * that does not exist yet, which is the one thing a meta description must not do. The suffix is
+   * the same sentence the body already falls back to, not new marketing copy.
+   */
+  usePageMeta({
+    title: `${title} | Evallo Recruit`,
+    description: description
+      ? `${description} This page is not available yet.`
+      : 'This page is not available yet.',
+  });
 
   const navigate = useNavigate();
   const { companySlug } = useParams();

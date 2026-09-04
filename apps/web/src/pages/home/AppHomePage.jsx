@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Badge, Button, Container, Icon, Modal } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { CreateCompanyForm } from '@/features/account/components/CreateCompanyForm';
@@ -100,29 +100,30 @@ export function AppHomePage() {
         the account's state — unlike the setup actions below, which disappear once done. Settings
         appears exactly once ("Do not duplicate account settings").
 
-        At the TOP, not the foot. This page has no rail — it is the one screen above both workspaces —
-        so these two are not rail duplicates, but navigation still belongs where the eye starts.
+        These are NAVIGATION, not actions, and they were previously two identically-weighted
+        outlined buttons sitting where the page's primary action should be — so the first thing the
+        eye met was "Account settings", competing with the setup card that actually matters. They
+        are now a quiet utility row under a hairline rule: same destinations, correct rank.
       */}
-      <nav aria-label="Account" className="mb-10 flex flex-wrap gap-3">
-        <Button
+      <nav
+        aria-label="Account"
+        className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-gray-100 pt-4"
+      >
+        <Link
           to={PATHS.COMPANY_DIRECTORY}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+          className="group inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-brand-dark"
         >
-          <Icon name="compass" />
+          <Icon name="compass" className="text-gray-400 transition-colors group-hover:text-brand-blue" />
           Explore companies
-        </Button>
+        </Link>
 
-        <Button
+        <Link
           to={PATHS.ACCOUNT_SETTINGS}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
+          className="group inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-brand-dark"
         >
-          <Icon name="gear" />
+          <Icon name="gear" className="text-gray-400 transition-colors group-hover:text-brand-blue" />
           Account settings
-        </Button>
+        </Link>
       </nav>
 
       {/*

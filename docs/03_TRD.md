@@ -124,6 +124,7 @@ would contradict ADR-001.
 /c/:companySlug/interests           → REC-11                        [+ interest:view]
 /c/:companySlug/search              → REC-12 talent search          [+ candidate:search]
 /c/:companySlug/candidates/:candidateId → REC-13                    [+ candidate:view]
+/c/:companySlug/saved               → REC-20 saved candidates       [+ candidate:view]
 /c/:companySlug/pipeline            → REC-14                        [+ pipeline:view]
 /c/:companySlug/hires               → REC-19 hires                  [+ pipeline:view]
 /c/:companySlug/messages            → REC-15                        [+ message:send]

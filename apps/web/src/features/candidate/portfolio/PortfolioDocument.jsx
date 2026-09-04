@@ -107,24 +107,42 @@ export function PortfolioSection({ id, title, subtitle, icon, empty, alwaysShow,
   if (empty && !alwaysShow) return null;
 
   return (
-    <section id={id} aria-labelledby={`${id}-heading`} className={`${CARD} scroll-mt-28 p-6 sm:p-7`}>
-      <div className="mb-5 flex items-start gap-3">
-        {icon && (
-          <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-blue-50 text-brand-blue">
-            <Icon name={icon} className="text-sm" />
-          </span>
-        )}
-        <div className="min-w-0">
-          <h2 id={`${id}-heading`} className="text-lg font-bold text-brand-dark">
-            {title}
-          </h2>
-          {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
-        </div>
+    /*
+     * A section, not a card.
+     *
+     * Every section used to carry the same `rounded-2xl border bg-white shadow-sm` as every other,
+     * which made a portfolio read as "an avatar and then N identical boxes" — the exact complaint
+     * about the profile. Identity, expertise and languages all had the same visual weight, so
+     * nothing could be more important than anything else.
+     *
+     * A rule and a heading separate sections just as clearly and cost no emphasis. The hero keeps
+     * its surface and is now the only one on the page, which is what makes the person the anchor.
+     */
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="scroll-mt-28 border-t border-gray-200 pt-7"
+    >
+      <div className="mb-5">
+        <h2
+          id={`${id}-heading`}
+          className="flex items-center gap-2.5 text-xl font-bold tracking-tight text-brand-dark"
+        >
+          {/* The icon aids wayfinding; the 32px blue tile around it was decoration repeated N times. */}
+          {icon && <Icon name={icon} className="text-base text-gray-400" />}
+          {title}
+        </h2>
+        {subtitle && <p className="mt-1.5 text-sm text-gray-500">{subtitle}</p>}
       </div>
       {empty ? (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-6 text-center">
-          <p className="text-sm text-gray-600">Nothing added yet.</p>
-        </div>
+        /*
+         * A quiet line, not a dashed box. An empty section is already the least important thing on
+         * the page; drawing a large container round it gave the gap more weight than the content
+         * beside it. Only the owner ever sees these — `showEmpty` is false for every reader.
+         */
+        <p className="text-sm text-gray-500">
+          Nothing here yet — add it from <span className="font-medium text-gray-700">Edit profile</span>.
+        </p>
       ) : (
         children
       )}
@@ -332,7 +350,7 @@ export function PortfolioHero({ header, statusSlot, actions }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-brand-dark sm:text-3xl">
+            <h1 className="text-3xl font-bold tracking-tight text-brand-dark sm:text-4xl">
               {header.name || 'Educator'}
             </h1>
             {/* Pronouns exactly as written — never inferred, never reformatted. */}
@@ -343,7 +361,9 @@ export function PortfolioHero({ header, statusSlot, actions }) {
           </div>
 
           {header.headline && (
-            <p className="mt-1.5 text-base text-gray-700 sm:text-lg">{header.headline}</p>
+            <p className="mt-2 max-w-2xl text-lg leading-snug text-gray-700 sm:text-xl">
+              {header.headline}
+            </p>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-gray-500">
@@ -362,16 +382,19 @@ export function PortfolioHero({ header, statusSlot, actions }) {
           </div>
 
           {header.targetRoles?.length > 0 && (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {header.targetRoles.map((role) => (
-                <li
-                  key={role}
-                  className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue"
-                >
-                  {CANDIDATE_ROLE_LABELS[role] ?? humanise(role)}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
+              <span className={MICRO_LABEL}>Looking for</span>
+              <ul className="flex flex-wrap gap-1.5">
+                {header.targetRoles.map((role) => (
+                  <li
+                    key={role}
+                    className="rounded-md bg-blue-50 px-2 py-0.5 text-[13px] font-medium text-brand-blue"
+                  >
+                    {CANDIDATE_ROLE_LABELS[role] ?? humanise(role)}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

@@ -235,7 +235,7 @@ export function CompanyHiringPage() {
     <Container className="py-32">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Hiring</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Open roles</h1>
           <p className="mt-2 max-w-2xl text-gray-600">
             Say what you are hiring for. No job description is required — role, engagement and
             delivery are enough for candidates to find you.

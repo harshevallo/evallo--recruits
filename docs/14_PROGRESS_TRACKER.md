@@ -162,9 +162,9 @@ Key: ✅ Complete · 🟡 Partial · 🔴 Not implemented · ⚪ Placeholder
   is not awaited.
 - **SET-01** — every endpoint works; two of them (password change, account deletion) have
   security-relevant side effects with no regression guard.
-- **REC-17 / REC-19** — `COMPANY_EDIT` and `COMPANY_SETUP` both render `CompanySetupPage`, so the
+- **REC-17** — `COMPANY_EDIT` and `COMPANY_SETUP` both render `CompanySetupPage`, so the
   company profile editor is reachable and functional but is not a distinct screen; company-level
-  settings exist as SET-02 rather than as a separate REC-19.
+  settings exist as SET-02 rather than as a separate recruiter-settings screen.
 - **CAN-11** — ~~save/unsave built but nothing reads the collection back~~ **RESOLVED 2026-08-21.**
   `GET /api/me/saved-companies` and `/me/saved` ship together; unpublished companies are dropped
   from the list rather than returned as unopenable rows.
@@ -368,7 +368,8 @@ Status key: `⏳ Pending` · `🟡 Partial` · `🔄 In Progress` · `✅ Done` 
 | REC-16 | Hiring intents | §7.6 | ✅ |
 | REC-17 | Company profile editor | §7.6 | 🟡 |
 | REC-18 | Team and permissions | §7.6, §4.2 | 🔄 |
-| REC-19 | Recruiter settings | §7.6 | 🟡 |
+| REC-19 | Hires | §7.6, §7.9 | ✅ |
+| REC-20 | Saved candidates | §7.6, §21.4 | ✅ |
 
 **REC-18 is partial.** The member list, role changes, removal and ownership transfer are built
 and behind `member:manage`; per-member permission overrides, hiring-manager intent assignment,
@@ -394,7 +395,7 @@ members and nothing could then manage them.
 | **M3** | Candidate identity | CAN-01 → CAN-04, question bank, evidence, visibility | 🔄 CAN-01…04, question bank v6, and 4 of 5 evidence collections done; **references** remain (Phase 2) |
 | **M4** | Marketplace loop | CAN-05 → CAN-08, REC-11, interest + consent + access grants | ✅ complete |
 | **M5** | Recruiting workflow | REC-12 → REC-16, search, pipeline, messaging | ✅ REC-12…16 + CAN-09 all built; audit shipped early with REC-13 |
-| **M6** | Administration & trust | REC-17 → REC-19, SET-01, SET-02, audit, moderation, notifications | 🔄 SET-01, SET-02 and audit done; REC-17/19 partial; **notifications and moderation not built** |
+| **M6** | Administration & trust | REC-17 → REC-19, SET-01, SET-02, audit, moderation, notifications | 🔄 SET-01, SET-02 and audit done; REC-17 and REC-18 partial; **notifications and moderation not built** |
 
 Milestone order follows PRD §2.3's strategic wedge — public company presence precedes
 candidate acquisition, which precedes search and workflow. It is deliberately **not** ordered
@@ -406,8 +407,8 @@ by technical convenience.
 
 Maintained in full in `13_BACKLOG.md`. Summary:
 
-**Features remaining** — 9 of 45 screens: AUTH-13, AUTH-14, CAN-10 (post-MVP), CAN-11, CAN-12,
-REC-17, REC-18, REC-19 (the last four partial), and moderation/notification surfaces.
+**Features remaining** — 6 of 48 screens: AUTH-13, AUTH-14, CAN-10 (post-MVP), CAN-12,
+REC-17, REC-18 (the last three partial), and moderation/notification surfaces.
 **Missing APIs** — notification generation and delivery (§15), a `reports` moderation queue (§16.3),
 saved searches (§10.1), and references (§20.3, Phase 2). The recruiter surface and the candidate
 evidence layer named here previously are **now built**.

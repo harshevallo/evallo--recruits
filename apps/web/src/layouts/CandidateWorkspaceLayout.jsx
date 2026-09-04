@@ -97,6 +97,24 @@ export function CandidateWorkspaceLayout() {
 
   const groups = [
     {
+      /*
+       * The candidate's OWN profile, first.
+       *
+       * It had no presence in this rail at all — the only routes into it were the account dropdown
+       * and two buttons on Your Activity. That put the one surface a candidate is here to build
+       * behind a menu, while "Saved companies" sat in permanent view. These are the same four
+       * destinations the dropdown already offers; nothing new is introduced, and the dropdown keeps
+       * them so existing muscle memory still works.
+       */
+      group: 'profile',
+      label: 'Your profile',
+      items: [
+        { to: PATHS.CANDIDATE_PORTFOLIO, label: 'Portfolio', icon: 'id-card' },
+        { to: PATHS.CANDIDATE_PROFILE_BUILDER, label: 'Edit profile', icon: 'user-pen' },
+        { to: PATHS.CANDIDATE_VISIBILITY, label: 'Who can see it', icon: 'shield-halved' },
+      ],
+    },
+    {
       group: 'daily',
       label: 'Daily',
       items: [

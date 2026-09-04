@@ -1,7 +1,6 @@
 import {
   EDUCATION_SERVICE_LABELS,
   DELIVERY_MODE_LABELS,
-  ORGANIZATION_TYPE_LABELS,
   LEARNER_SEGMENT_LABELS,
 } from '@evallo/shared';
 import { Link } from 'react-router-dom';
@@ -63,7 +62,9 @@ function Passage({ title, children }) {
   return (
     <div>
       <h3 className="mb-1 text-sm font-bold text-brand-dark">{title}</h3>
-      <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{children}</p>
+      <p className="max-w-prose whitespace-pre-line text-sm leading-relaxed text-gray-600">
+        {children}
+      </p>
     </div>
   );
 }
@@ -72,9 +73,9 @@ function Passage({ title, children }) {
 function ChipCard({ icon, title, chips }) {
   if (chips.length === 0) return null;
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div>
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-brand-dark">
-        <Icon name={icon} className="text-brand-blue" /> {title}
+        <Icon name={icon} className="text-gray-400" /> {title}
       </h3>
       <div className="flex flex-wrap gap-2">
         {chips.map((chip) => (
@@ -133,10 +134,6 @@ export function CompanyOverview({ company, editStepHref }) {
   const perks = company.perks ?? [];
   const quote = company.pullQuote;
 
-  const location = [company.location?.city, company.location?.region, company.location?.country]
-    .filter(Boolean)
-    .join(', ');
-
   const hasContact = company.publicContact?.email || company.publicContact?.phone;
   const about = description.full || description.short;
 
@@ -147,19 +144,25 @@ export function CompanyOverview({ company, editStepHref }) {
   const segmentChips = segments.map((segment) => LEARNER_SEGMENT_LABELS[segment] ?? segment);
 
   /* The culture block is several optional parts; it is only worth a heading if one of them exists. */
+  /* See the panel below: it now holds only what the hero does not already state, so for a sparse
+     company it can legitimately have no rows at all. */
+  const hasDetails = Boolean(company.foundingYear || delivery.length > 0);
+
+  const hasAside = hasDetails || hasContact;
+
   const hasCulture = Boolean(
     quote?.text || description.philosophy || description.culture || description.mission ||
       description.values || perks.length > 0,
   );
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
+    <div className={`grid grid-cols-1 gap-8 ${hasAside ? 'lg:grid-cols-[1fr_320px]' : ''}`}>
       <div className="space-y-16">
         <Section id="overview" title="Company overview" editHref={editHref('brand')}>
           {about ? (
-            <div className="whitespace-pre-line leading-relaxed text-gray-600">{about}</div>
+            <div className="max-w-prose whitespace-pre-line leading-relaxed text-gray-600">{about}</div>
           ) : (
-            <p className="text-sm text-gray-400">This company has not added a description yet.</p>
+            <p className="text-sm text-gray-500">This company has not added a description yet.</p>
           )}
 
           {/*
@@ -176,7 +179,7 @@ export function CompanyOverview({ company, editStepHref }) {
               {metrics.map((metric) => (
                 <div
                   key={`${metric.value}-${metric.label}`}
-                  className="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm"
+                  className="rounded-xl border border-gray-200 bg-white p-4 text-center"
                 >
                   <dd className="mb-1 text-2xl font-bold text-brand-dark">{metric.value}</dd>
                   <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -203,7 +206,7 @@ export function CompanyOverview({ company, editStepHref }) {
               {quote?.text && (
                 <figure className="rounded-xl bg-brand-blue p-6 text-white shadow-sm">
                   <Icon name="quote" className="mb-3 text-blue-200" />
-                  <blockquote className="text-sm font-semibold leading-relaxed">
+                  <blockquote className="max-w-prose text-base font-medium leading-relaxed sm:text-lg">
                     {quote.text}
                   </blockquote>
                   {quote.attribution && (
@@ -237,73 +240,50 @@ export function CompanyOverview({ company, editStepHref }) {
         )}
       </div>
 
-      <aside className="space-y-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-brand-dark">Company details</h2>
-            {editStepHref && <EditLink to={editHref('basics')} label="Company details" />}
-          </div>
-          <dl>
-            <DetailRow label="Industry">
-              {ORGANIZATION_TYPE_LABELS[company.organizationType] ?? company.organizationType}
-            </DetailRow>
-            <DetailRow label="Location">{location}</DetailRow>
-            <DetailRow label="Company size">
-              {company.sizeRange ? `${company.sizeRange} employees` : null}
-            </DetailRow>
-            <DetailRow label="Founded">{company.foundingYear}</DetailRow>
-            <DetailRow label="Work model">
-              {delivery.length > 0
-                ? delivery.map((m) => DELIVERY_MODE_LABELS[m] ?? m).join(', ')
-                : null}
-            </DetailRow>
-            {/*
-              * The server's DERIVED answer — the manual flag OR at least one active role — the
-              * same one the hero badge and the directory filter use. Reading the raw
-              * `isCurrentlyHiring` here made this panel say "Not hiring" beside a green
-              * "Currently hiring" badge on the very same page.
-              *
-              * `?? company.isCurrentlyHiring` so a payload from an older deploy still renders
-              * sensibly rather than reading `undefined` as "not hiring".
-              */}
-            <DetailRow label="Hiring">
-              {(() => {
-                const hiring = company.isHiring ?? company.isCurrentlyHiring;
-                if (!hiring) return 'Not hiring';
-                /* A company can be open to applications without a posted role, so the count is
-                 * only shown when there is one to show. */
-                return company.openRoleCount > 0
-                  ? `${company.openRoleCount} open ${company.openRoleCount === 1 ? 'role' : 'roles'}`
-                  : 'Currently hiring';
-              })()}
-            </DetailRow>
-          </dl>
-        </div>
+      {hasAside && (
+        <aside className="space-y-6">
+          {hasDetails && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-brand-dark">Company details</h2>
+                {editStepHref && <EditLink to={editHref('basics')} label="Company details" />}
+              </div>
+              <dl>
+                <DetailRow label="Founded">{company.foundingYear}</DetailRow>
+                <DetailRow label="Work model">
+                  {delivery.length > 0
+                    ? delivery.map((m) => DELIVERY_MODE_LABELS[m] ?? m).join(', ')
+                    : null}
+                </DetailRow>
+              </dl>
+            </div>
+          )}
 
-        {/* PRD §11.2 — in-platform contact is the default, so this block is often absent. */}
-        {hasContact && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-3 text-lg font-bold text-brand-dark">Contact</h2>
-            <ul className="space-y-2 text-sm">
-              {company.publicContact.email && (
-                <li>
-                  <a
-                    href={`mailto:${company.publicContact.email}`}
-                    className="flex items-center gap-2 break-all text-brand-blue hover:underline"
-                  >
-                    <Icon name="comments" className="shrink-0" /> {company.publicContact.email}
-                  </a>
-                </li>
-              )}
-              {company.publicContact.phone && (
-                <li className="flex items-center gap-2 text-gray-600">
-                  <Icon name="comments" className="shrink-0" /> {company.publicContact.phone}
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
-      </aside>
+          {/* PRD §11.2 — in-platform contact is the default, so this block is often absent. */}
+          {hasContact && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-3 text-lg font-bold text-brand-dark">Contact</h2>
+              <ul className="space-y-2 text-sm">
+                {company.publicContact.email && (
+                  <li>
+                    <a
+                      href={`mailto:${company.publicContact.email}`}
+                      className="flex items-center gap-2 break-all text-brand-blue hover:underline"
+                    >
+                      <Icon name="comments" className="shrink-0" /> {company.publicContact.email}
+                    </a>
+                  </li>
+                )}
+                {company.publicContact.phone && (
+                  <li className="flex items-center gap-2 text-gray-600">
+                    <Icon name="comments" className="shrink-0" /> {company.publicContact.phone}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </aside>
+      )}
     </div>
   );
 }

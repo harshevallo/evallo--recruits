@@ -185,6 +185,11 @@ const CompanyHiringPage = lazy(() =>
 const CompanyPipelinePage = lazy(() =>
   import('@/pages/company/CompanyPipelinePage').then((m) => ({ default: m.CompanyPipelinePage })),
 );
+const CompanySavedCandidatesPage = lazy(() =>
+  import('@/pages/company/CompanySavedCandidatesPage').then((m) => ({
+    default: m.CompanySavedCandidatesPage,
+  })),
+);
 const CompanyHiresPage = lazy(() =>
   import('@/pages/company/CompanyHiresPage').then((m) => ({ default: m.CompanyHiresPage })),
 );
@@ -464,6 +469,9 @@ export const router = createBrowserRouter([
                    * is membership; the button-level guard is the permission.
                    */
                   { path: PATHS.COMPANY_HIRING, element: <CompanyHiringPage /> },
+                  /* REC-20. `candidate:view` to read, `pipeline:edit` for the add — both enforced
+                     by the server, which is what the surrounding routes rely on too. */
+                  { path: PATHS.COMPANY_SAVED, element: <CompanySavedCandidatesPage /> },
                   { path: PATHS.COMPANY_PIPELINE, element: <CompanyPipelinePage /> },
                   { path: PATHS.COMPANY_HIRES, element: <CompanyHiresPage /> },
                   { path: PATHS.COMPANY_MESSAGES, element: <CompanyMessagesPage /> },

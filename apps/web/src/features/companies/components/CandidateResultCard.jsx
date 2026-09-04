@@ -86,9 +86,9 @@ export function CandidateResultCard({
   ].filter(Boolean);
 
   return (
-    <li className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl">
-      <div className="flex-1 p-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
+    <li className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 hover:border-gray-300 hover:shadow-md">
+      <div className="flex-1 p-5">
+        <div className="mb-3.5 flex items-start justify-between gap-3">
           <div className="flex min-w-0 gap-4">
             <div className="relative flex-none">
               <Avatar
@@ -158,20 +158,17 @@ export function CandidateResultCard({
         </div>
 
         {card.expertise?.subjects?.length > 0 && (
-          <div className="mb-5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Subjects
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {card.expertise.subjects.slice(0, 6).map((subject) => (
-                <span
-                  key={subject}
-                  className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
-                >
-                  {SUBJECT_LABELS[subject] ?? subject}
-                </span>
-              ))}
-            </div>
+          /* No "SUBJECTS" label: chips already read as subjects, and that label was one of four
+             identical [10px] uppercase rows repeated down every card in the grid. */
+          <div className="mb-3.5 flex flex-wrap gap-1.5">
+            {card.expertise.subjects.slice(0, 6).map((subject) => (
+              <span
+                key={subject}
+                className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
+              >
+                {SUBJECT_LABELS[subject] ?? subject}
+              </span>
+            ))}
           </div>
         )}
 
@@ -181,8 +178,10 @@ export function CandidateResultCard({
           `explainMatch`. Same two-tone chip treatment, real content.
         */}
         {matchReasons.length > 0 && (
-          <div className="mb-5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          /* The one micro-label that earns its place: a two-tone chip needs saying what it is,
+             and §21.4 requires the recruiter be told why this record matched. */
+          <div className="mb-3.5">
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Why they match your search
             </p>
             <div className="flex flex-wrap gap-2">
@@ -208,61 +207,74 @@ export function CandidateResultCard({
           video — see the note on this component about why evidence is not on a search card.
         */}
         {card.introduction && (
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              In their words
-            </p>
-            <p className="line-clamp-3 text-sm leading-relaxed text-gray-700">
-              {card.introduction}
-            </p>
-          </div>
+          /* A card inside a card, with its own border, fill and label. The quote reads perfectly
+             well as quiet prose against a rule, and costs ~60px less on every result. */
+          <p className="line-clamp-2 border-l-2 border-gray-200 pl-3 text-sm leading-relaxed text-gray-600">
+            {card.introduction}
+          </p>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-3 border-t border-gray-100 bg-gray-50/50 p-4">
+      {/*
+        One row, one primary.
+
+        This was a filled bar carrying THREE actions: "View full profile" and "Message educator"
+        both `flex-1` — identical width, identical weight, so neither was the primary — above a
+        full-width "Add to pipeline". Three chances to choose, repeated on every result in the
+        grid, is how a scannable list turns into a wall of buttons.
+
+        Ranked by what a recruiter actually does: message is the intent, the profile is the
+        obvious next click, the pipeline is bookkeeping. Nothing was removed.
+      */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-5 py-3">
         <Button
           to={profileHref}
-          variant="outlineDark"
+          variant="link"
           size="none"
           radius="lg"
-          className="flex-1 justify-center px-4 py-2 text-sm font-semibold !border-gray-300 !text-brand-dark hover:!bg-gray-50"
+          className="px-1 py-1 text-sm font-semibold"
         >
-          View full profile
+          View profile
+          <span className="sr-only"> of {name}</span>
         </Button>
 
-        <Button
-          type="button"
-          variant="primary"
-          size="none"
-          radius="lg"
-          className="flex-1 justify-center px-4 py-2 text-sm font-semibold"
-          onClick={onMessage}
-        >
-          Message educator
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {/*
+            Not in the reference, and kept: the pipeline is how a recruiter actually works a
+            shortlist, and dropping a working control to match a picture would be a real
+            regression. It reads as state once they are in one, rather than offering twice.
+          */}
+          {pipelineStage ? (
+            <span className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">
+              In {PIPELINE_STAGE_LABELS[pipelineStage] ?? 'pipeline'}
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="link"
+              size="none"
+              radius="lg"
+              className="px-2 py-1 text-xs font-semibold"
+              disabled={busy}
+              onClick={onAddToPipeline}
+            >
+              <Icon name="plus" className="text-[10px]" /> Add to pipeline
+              <span className="sr-only"> — {name}</span>
+            </Button>
+          )}
 
-        {/*
-          Not in the reference, and kept: the pipeline is how a recruiter actually works a
-          shortlist, and dropping a working control to match a picture would be a real regression.
-          It reads as state once they are in one, rather than offering to add them twice.
-        */}
-        {pipelineStage ? (
-          <span className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-center text-xs font-semibold text-gray-600">
-            In {PIPELINE_STAGE_LABELS[pipelineStage] ?? 'pipeline'}
-          </span>
-        ) : (
           <Button
             type="button"
-            variant="link"
+            variant="primary"
             size="none"
             radius="lg"
-            className="w-full justify-center px-4 py-1.5 text-xs font-semibold"
-            disabled={busy}
-            onClick={onAddToPipeline}
+            className="justify-center px-3.5 py-2 text-sm font-semibold"
+            onClick={onMessage}
           >
-            <Icon name="plus" className="text-[10px]" /> Add to pipeline
+            Message
+            <span className="sr-only"> {name}</span>
           </Button>
-        )}
+        </div>
       </div>
     </li>
   );

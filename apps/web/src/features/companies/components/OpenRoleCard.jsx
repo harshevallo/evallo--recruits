@@ -110,7 +110,7 @@ export function OpenRoleCard({ role, onExpressInterest }) {
   const subjects = role.specializations?.subjects ?? [];
 
   return (
-    <article className="group flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:border-brand-blue/50 sm:flex-row sm:items-center sm:justify-between">
+    <li className="group flex flex-col gap-4 px-1 py-5 transition-colors hover:bg-gray-50/70 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-2">
       <div className="min-w-0">
         {(chip || posted) && (
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -123,7 +123,7 @@ export function OpenRoleCard({ role, onExpressInterest }) {
           </div>
         )}
 
-        <h3 className="text-base font-bold text-brand-dark transition-colors group-hover:text-brand-blue">
+        <h3 className="text-lg font-bold leading-snug text-brand-dark">
           {roleTitle(role)}
         </h3>
 
@@ -142,7 +142,7 @@ export function OpenRoleCard({ role, onExpressInterest }) {
         )}
 
         {role.description && (
-          <p className="mt-3 text-sm leading-relaxed text-gray-600">{role.description}</p>
+          <p className="mt-3 max-w-prose text-sm leading-relaxed text-gray-600">{role.description}</p>
         )}
 
         {subjects.length > 0 && (
@@ -161,15 +161,18 @@ export function OpenRoleCard({ role, onExpressInterest }) {
 
       {onExpressInterest && (
         <Button
-          variant="outlineDark"
+          variant="primary"
           size="none"
           radius="lg"
-          className="w-full shrink-0 justify-center !border-gray-200 px-5 py-2 text-sm font-semibold !text-brand-dark hover:!bg-gray-50 sm:w-auto"
+          className="w-full shrink-0 justify-center px-5 py-2 text-sm font-semibold sm:w-auto"
           onClick={() => onExpressInterest(role.id)}
         >
           Apply
+          {/* Several of these sit in one list; "Apply" alone is unusable in a screen reader's
+              button list. The visible word is unchanged, so voice control still matches it. */}
+          <span className="sr-only"> for {roleTitle(role)}</span>
         </Button>
       )}
-    </article>
+    </li>
   );
 }

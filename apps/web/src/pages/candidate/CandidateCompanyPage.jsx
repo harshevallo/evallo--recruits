@@ -157,11 +157,10 @@ export function CandidateCompanyPage() {
   const relationshipReady = Boolean(relationship?.companyId);
 
   /* Shared by the two secondary controls, which are outline buttons on a light surface. */
-  const secondary =
-    'justify-center px-4 py-2 text-sm font-semibold !border-gray-300 !text-brand-dark hover:!bg-gray-50';
+  const secondary = 'justify-center px-4 py-2 text-sm font-semibold';
 
   const actions = (
-    <div className="flex flex-wrap gap-2 sm:justify-end">
+    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
       <Button
         variant="outlineDark"
         size="none"
@@ -185,10 +184,10 @@ export function CandidateCompanyPage() {
         and leaves the state unreachable.
       */}
       <Button
-        variant="outlineDark"
+        variant="link"
         size="none"
         radius="lg"
-        className={secondary}
+        className="justify-center px-3 py-2 text-sm font-medium text-gray-500 hover:text-brand-dark"
         disabled={busy || !relationshipReady}
         onClick={isBlocked ? handleUnblock : () => setBlockOpen(true)}
       >

@@ -33,16 +33,15 @@ const TONE_STYLES = {
   default: 'border-gray-200 bg-white',
 };
 
-/** A single headline number. `null` renders as "—" because withheld is not zero. */
-function StatCard({ label, value, hint }) {
+/** One fact in the header's summary row. `null` renders as "—" because withheld is not zero. */
+function Fact({ label, value }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-brand-dark">
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-base font-bold tracking-tight text-brand-dark">
         {value === null || value === undefined ? '—' : value}
-      </p>
-      {hint && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
-    </div>
+      </span>
+      <span className="text-gray-500">{label}</span>
+    </span>
   );
 }
 
@@ -123,9 +122,22 @@ export function CompanyHomePage() {
           <p className="mt-2 max-w-2xl text-gray-600">
             {company.tagline || 'Your recruiting activity for this company.'}
           </p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             You are {COMPANY_ROLE_LABELS[yourRole] ?? yourRole} here.
           </p>
+
+        {/*
+          Was four `rounded-2xl border shadow-sm` tiles occupying the top of the page, above the
+          only section that asks for anything. These are context for the heading, not the work.
+        */}
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm">
+          <Fact label={overview.activeRoles === 1 ? 'active role' : 'active roles'} value={overview.activeRoles} />
+          {permissions.canViewInterest && (
+            <Fact label="awaiting a response" value={overview.activeInterest} />
+          )}
+          <Fact label={overview.memberCount === 1 ? 'team member' : 'team members'} value={overview.memberCount} />
+        </div>
+
         </div>
 
         {overview.isPublished && (
@@ -133,39 +145,11 @@ export function CompanyHomePage() {
             to={company.publicUrl}
             variant="outlineDark"
             size="md"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
           >
             View public page
           </Button>
         )}
       </header>
-
-      {/* Recruiting overview — the four numbers that describe this company right now. */}
-      <section aria-labelledby="overview-heading" className="mb-10">
-        <h2 id="overview-heading" className="sr-only">
-          Recruiting overview
-        </h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard
-            label="Page"
-            value={overview.isPublished ? 'Live' : 'Draft'}
-            hint={overview.isPublished ? 'Findable in the directory' : 'Not publicly visible'}
-          />
-          <StatCard
-            label="Active roles"
-            value={overview.activeRoles}
-            hint={company.isCurrentlyHiring ? 'Marked as hiring' : 'Not marked as hiring'}
-          />
-          <StatCard
-            label="Open interest"
-            value={overview.activeInterest}
-            hint={
-              permissions.canViewInterest ? 'People awaiting a response' : 'Not shown for your role'
-            }
-          />
-          <StatCard label="Team" value={overview.memberCount} hint="Active members" />
-        </div>
-      </section>
 
       {/* Pending actions — the only part of this page that asks for something. */}
       <section aria-labelledby="actions-heading" className="mb-10">
@@ -177,10 +161,21 @@ export function CompanyHomePage() {
         </p>
 
         {pendingActions.length === 0 ? (
+          /*
+            An empty inbox is the normal state of a healthy workspace, not a fault — but "nothing
+            here" with no way forward reads as a dead end. It now names the one thing that is
+            always worth doing and that works on day one with an empty account.
+          */
           <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center">
-            <p className="text-sm text-gray-600">
-              Nothing needs your attention right now. New interest will appear here as it arrives.
+            <p className="mx-auto max-w-md text-sm text-gray-600">
+              Nothing needs your attention right now. New interest will appear here as it arrives —
+              in the meantime, searching is how you reach candidates who have not found you yet.
             </p>
+            {permissions.canSearch && (
+              <Button to={path(PATHS.COMPANY_SEARCH)} variant="primary" size="sm" className="mt-4">
+                Find candidates
+              </Button>
+            )}
           </div>
         ) : (
           <ul className="space-y-3">
@@ -219,8 +214,8 @@ export function CompanyHomePage() {
               <h2 id="interest-heading" className="text-lg font-bold text-brand-dark">
                 Inbound interest
               </h2>
-              <Button to={path(PATHS.COMPANY_INTERESTS)} variant="primary" size="sm">
-                Open inbox
+              <Button to={path(PATHS.COMPANY_INTERESTS)} variant="link" size="none" className="text-sm font-semibold">
+                Open inbox <Icon name="arrow-right" className="text-[10px]" />
               </Button>
             </div>
 
@@ -230,22 +225,18 @@ export function CompanyHomePage() {
                 makes this fill up.
               </p>
             ) : (
-              <dl className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-gray-100 p-3">
-                  <dt className="text-xs text-gray-500">New</dt>
-                  <dd className="text-xl font-semibold text-brand-dark">{interests.new}</dd>
+              <dl className="space-y-2 text-sm">
+                <div className="flex items-baseline justify-between gap-4 border-b border-gray-100 pb-2">
+                  <dt className="font-medium text-brand-dark">New</dt>
+                  <dd className="text-xl font-bold text-brand-dark">{interests.new}</dd>
                 </div>
-                <div className="rounded-xl border border-gray-100 p-3">
-                  <dt className="text-xs text-gray-500">Open</dt>
-                  <dd className="text-xl font-semibold text-brand-dark">{interests.active}</dd>
+                <div className="flex items-baseline justify-between gap-4 border-b border-gray-100 pb-2">
+                  <dt className="text-gray-600">Open</dt>
+                  <dd className="font-semibold text-brand-dark">{interests.active}</dd>
                 </div>
-                <div className="rounded-xl border border-gray-100 p-3">
-                  <dt className="text-xs text-gray-500">Withdrawn</dt>
-                  <dd className="text-xl font-semibold text-brand-dark">{interests.withdrawn}</dd>
-                </div>
-                <div className="rounded-xl border border-gray-100 p-3">
-                  <dt className="text-xs text-gray-500">All time</dt>
-                  <dd className="text-xl font-semibold text-brand-dark">{interests.total}</dd>
+                {/* Archive figures — kept, at the weight of archive figures. */}
+                <div className="flex items-baseline justify-between gap-4 text-xs text-gray-500">
+                  <dt>Withdrawn {interests.withdrawn} · All time {interests.total}</dt>
                 </div>
               </dl>
             )}
@@ -257,9 +248,14 @@ export function CompanyHomePage() {
           aria-labelledby="hiring-heading"
           className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
         >
-          <h2 id="hiring-heading" className="mb-4 text-lg font-bold text-brand-dark">
-            Hiring
-          </h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 id="hiring-heading" className="text-lg font-bold text-brand-dark">
+              Open roles
+            </h2>
+            <Button to={path(PATHS.COMPANY_HIRING)} variant="link" size="none" className="text-sm font-semibold">
+              Manage <Icon name="arrow-right" className="text-[10px]" />
+            </Button>
+          </div>
 
           {hiring.activeCount === 0 ? (
             <p className="text-sm text-gray-600">
@@ -267,9 +263,9 @@ export function CompanyHomePage() {
               be contacted.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-gray-100 border-t border-gray-100">
               {hiring.active.map((intent) => (
-                <li key={intent.id} className="rounded-xl border border-gray-100 p-3">
+                <li key={intent.id} className="py-2.5">
                   <span className="block text-sm font-medium text-brand-dark">
                     {intent.title || intent.roleCategories[0] || 'Untitled role'}
                   </span>
@@ -281,7 +277,7 @@ export function CompanyHomePage() {
                 </li>
               ))}
               {hiring.activeCount > hiring.active.length && (
-                <li className="text-xs text-gray-500">
+                <li className="pt-2.5 text-xs text-gray-500">
                   and {hiring.activeCount - hiring.active.length} more
                 </li>
               )}

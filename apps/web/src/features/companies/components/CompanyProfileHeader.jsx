@@ -127,7 +127,7 @@ export function CompanyProfileHeader({
                     `break-words` because a company name is user-supplied and unbounded — a single
                     long unbroken word (a domain-style name) would otherwise overflow the row.
                   */}
-                  <h1 className="break-words text-3xl font-bold tracking-tight text-brand-dark">
+                  <h1 className="break-words text-3xl font-bold tracking-tight text-brand-dark sm:text-4xl">
                     {company.name}
                   </h1>
                   {company.isVerified && (
@@ -138,7 +138,9 @@ export function CompanyProfileHeader({
                 </div>
 
                 {company.tagline && (
-                  <p className="mb-4 text-base font-medium text-gray-600">{company.tagline}</p>
+                  <p className="mb-4 max-w-2xl text-lg font-medium leading-snug text-gray-600">
+                    {company.tagline}
+                  </p>
                 )}
 
                 {/*
@@ -186,19 +188,21 @@ export function CompanyProfileHeader({
                 general interest while not actively hiring.
               */}
               <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-                {isHiring ? (
-                  <Badge tone="successLight" size="sm" radius="full" weight="bold">
-                    <span className="relative flex h-2 w-2" aria-hidden="true">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-                    </span>
-                    Currently hiring
-                  </Badge>
-                ) : (
-                  <Badge tone="neutral" size="sm" radius="full">
-                    Not hiring right now
-                  </Badge>
-                )}
+                <span className="self-start sm:self-auto">
+                  {isHiring ? (
+                    <Badge tone="successLight" size="sm" radius="full" weight="bold">
+                      <span
+                        className="inline-flex h-2 w-2 rounded-full bg-green-500"
+                        aria-hidden="true"
+                      />
+                      Currently hiring
+                    </Badge>
+                  ) : (
+                    <Badge tone="neutral" size="sm" radius="full">
+                      Not hiring right now
+                    </Badge>
+                  )}
+                </span>
 
                 {actions ??
                   (canExpressInterest && (

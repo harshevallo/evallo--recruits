@@ -129,6 +129,11 @@ export const PATHS = Object.freeze({
   COMPANY_INTERESTS: '/c/:companySlug/interests',
   COMPANY_SEARCH: '/c/:companySlug/search',
   COMPANY_CANDIDATE: '/c/:companySlug/candidates/:candidateId',
+  /*
+   * REC-20 — the shortlist. `saved`, mirroring the candidate side's `CANDIDATE_SAVED: '/me/saved'`:
+   * both are the private bookmark, neither tells the other party anything.
+   */
+  COMPANY_SAVED: '/c/:companySlug/saved',
   COMPANY_PIPELINE: '/c/:companySlug/pipeline',
   COMPANY_HIRES: '/c/:companySlug/hires',
   COMPANY_MESSAGES: '/c/:companySlug/messages',

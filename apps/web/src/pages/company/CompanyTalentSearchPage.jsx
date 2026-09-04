@@ -401,6 +401,17 @@ export function CompanyTalentSearchPage() {
       for (const v of remaining) next.append(chip.param, v);
     });
 
+  /*
+   * One definition, two callers: the rail header and the no-results state. The empty state is
+   * where a recruiter most needs it — that is the moment their filters have over-narrowed — and
+   * telling them to "remove a filter" while the only control sat at the top of a long rail was
+   * advice without a button.
+   */
+  function clearAllFilters() {
+    setDraftQuery('');
+    setSearchParams(new URLSearchParams());
+  }
+
   const chips = activeFilterChips(searchParams);
 
   return (
@@ -544,10 +555,7 @@ export function CompanyTalentSearchPage() {
                 <button
                   type="button"
                   className="rounded text-sm font-medium text-brand-blue hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
-                  onClick={() => {
-                    setDraftQuery('');
-                    setSearchParams(new URLSearchParams());
-                  }}
+                  onClick={clearAllFilters}
                 >
                   Clear all
                 </button>
@@ -560,7 +568,7 @@ export function CompanyTalentSearchPage() {
                 key={facet.key}
                 className="mb-6 border-b border-gray-100 pb-6 last:mb-0 last:border-b-0 last:pb-0"
               >
-                <legend className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-900">
+                <legend className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   {facet.label}
                 </legend>
                 <FacetOptions
@@ -572,7 +580,7 @@ export function CompanyTalentSearchPage() {
             ))}
 
             <fieldset className="mb-6 border-b border-gray-100 pb-6">
-              <legend className="mb-3 text-sm font-bold uppercase tracking-wider text-gray-900">
+              <legend className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Experience (years)
               </legend>
               <div className="flex items-center gap-2">
@@ -609,7 +617,7 @@ export function CompanyTalentSearchPage() {
             <div>
               <label
                 htmlFor="talent-region"
-                className="mb-3 block text-sm font-bold uppercase tracking-wider text-gray-900"
+                className="mb-3 block text-xs font-semibold uppercase tracking-wide text-gray-500"
               >
                 Region
               </label>
@@ -645,20 +653,26 @@ export function CompanyTalentSearchPage() {
             </div>
           ) : (
             <>
-              <p role="status" aria-live="polite" className="mb-4 text-sm text-gray-600">
-                {meta?.total === 0
-                  ? 'No candidates match'
-                  : `${meta?.total} ${meta?.total === 1 ? 'candidate' : 'candidates'}`}
-                {hasCriteria ? ' for your criteria' : ' discoverable to your company'}
-              </p>
 
               {results.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center">
-                  <p className="text-sm text-gray-600">
+                  <p className="mx-auto max-w-md text-sm text-gray-600">
                     {hasCriteria
                       ? 'Nobody matches every criterion. Removing a filter usually widens this quickly — filters combine, so each one narrows the result.'
                       : 'No educators are discoverable yet. People appear here once they publish a profile and choose to be found.'}
                   </p>
+                  {hasCriteria && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="none"
+                      radius="lg"
+                      className="mt-5 px-4 py-2 text-sm font-semibold"
+                      onClick={clearAllFilters}
+                    >
+                      Clear all filters
+                    </Button>
+                  )}
                 </div>
               ) : (
                 /*
@@ -667,12 +681,6 @@ export function CompanyTalentSearchPage() {
                   filter rail, so splitting at `lg` would leave two columns of roughly 300px and
                   wrap every candidate name. `flex flex-col` on the card keeps cards in a row the
                   same height when their content differs.
-                */
-                /*
-                  Two columns from `xl`, per the reference — not a single stacked list.
-                  Deliberately `xl:` rather than `lg:`: this grid already sits beside an 18rem
-                  filter rail, so splitting at `lg` would leave two columns of roughly 300px and
-                  wrap every candidate name.
                 */
                 <ul className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                   {results.map((card) => (

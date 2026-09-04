@@ -95,7 +95,14 @@ export function SettingsNotificationsPage() {
         </StatusRegion>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      {/*
+        `overflow-x-auto`, not `overflow-hidden`. Measured at 320px the table is 4px wider than this
+        container: the two fixed `w-24` channel columns plus the label column's padding stop
+        shrinking before the viewport does. Clipping hid that edge with no way to reach it; scrolling
+        keeps it reachable. Rounded corners still clip, and nothing changes at 375px and above, where
+        the table already fits.
+      */}
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
         {/* A real table: this is tabular data, and a screen reader should read it as one. */}
         <table className="w-full">
           <caption className="sr-only">Notification preferences by channel</caption>

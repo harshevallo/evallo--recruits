@@ -189,7 +189,10 @@ export function WorkspaceSidebar({ label, items, expanded, onToggle, mobileOpen,
           }`}
         >
           {expanded && (
-            <span className="pl-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            <span
+              className="min-w-0 truncate pl-2 text-[11px] font-bold uppercase tracking-wider text-gray-400"
+              title={label}
+            >
               {label}
             </span>
           )}
@@ -220,8 +223,11 @@ export function WorkspaceSidebar({ label, items, expanded, onToggle, mobileOpen,
             aria-label={label}
             className="absolute bottom-0 left-0 top-20 flex w-64 flex-col border-r border-gray-200 bg-white shadow-xl"
           >
-            <div className="flex flex-none items-center justify-between border-b border-gray-100 px-4 py-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            <div className="flex flex-none items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+              <span
+                className="min-w-0 truncate text-[11px] font-bold uppercase tracking-wider text-gray-400"
+                title={label}
+              >
                 {label}
               </span>
               <button
@@ -313,9 +319,10 @@ export function SidebarTrigger({ onOpen, label, badge }) {
     <button
       type="button"
       onClick={onOpen}
-      className="mb-6 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-brand-dark shadow-sm md:hidden"
+      className="mb-6 inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-brand-dark shadow-sm md:hidden"
     >
-      <Icon name="bars" className="text-xs" /> {label}
+      <Icon name="bars" className="shrink-0 text-xs" />
+      <span className="min-w-0 truncate">{label}</span>
       {/*
         The rail is off-canvas on a phone, so anything waiting inside it is invisible until the
         trigger is pressed. The dot is the only signal that opening it is worth doing.
