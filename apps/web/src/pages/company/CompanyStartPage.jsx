@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { COMPANY_ROLE_LABELS } from '@evallo/shared';
-import { Avatar, Button, Container, Icon } from '@/components/ui';
+import { Avatar, BackLink, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { CreateCompanyForm } from '@/features/account/components/CreateCompanyForm';
@@ -76,6 +76,9 @@ export function CompanyStartPage() {
 
   return (
     <Container className="py-32">
+      {/* Same as the other drill-down screens: one step up, at the top, via `BackLink`. */}
+      <BackLink to={PATHS.APP_HOME} label="Back to home" className="mb-6" />
+
       <header className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Post a job</h1>
         <p className="mt-2 max-w-xl text-gray-600">
@@ -206,18 +209,6 @@ export function CompanyStartPage() {
             </ul>
           )}
         </section>
-      </div>
-
-      <div className="mt-10">
-        <Button
-          to={PATHS.APP_HOME}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="arrow-right" className="rotate-180 text-xs" />
-          Back to home
-        </Button>
       </div>
     </Container>
   );

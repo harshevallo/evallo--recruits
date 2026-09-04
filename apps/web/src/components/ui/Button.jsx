@@ -19,6 +19,18 @@ const VARIANTS = {
   /** Outlined on a dark surface. Hero secondary. */
   outlineDark:
     'bg-transparent border border-gray-600 text-white hover:border-gray-400 hover:bg-gray-800',
+  /**
+   * Outlined on a LIGHT surface — the secondary action on any normal page.
+   *
+   * `outlineDark` is `text-white`, for the marketing hero's dark band. Every in-app secondary
+   * button was reaching for it anyway and then overriding three of its colours with `!important`
+   * (`!border-gray-300 !text-brand-dark hover:!bg-gray-50`) — around forty call sites carry that
+   * hack. It works, but it is invisible failure waiting to happen: drop the override and you get
+   * white text on a white page, a button that is there, focusable, clickable and unreadable.
+   * This variant is what those call sites actually wanted.
+   */
+  outline:
+    'bg-white border border-gray-300 text-brand-dark hover:bg-gray-50 hover:border-gray-400',
   /** White on a dark surface. "Claim Your Company Profile". */
   white: 'bg-white text-brand-dark hover:bg-gray-100',
   /** Near-black. Early-access form submit. */

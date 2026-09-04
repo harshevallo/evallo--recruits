@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { COMPANY_ROLES, COMPANY_ROLE_LABELS, PERMISSIONS, can } from '@evallo/shared';
-import { Badge, Button, Container, Icon, Modal } from '@/components/ui';
+import { BackLink, Badge, Button, Container, Icon, Modal } from '@/components/ui';
 import { FormField, TextInput, SelectInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -305,6 +305,18 @@ export function CompanyTeamPage() {
 
   return (
     <Container className="py-32">
+      {/*
+        One step up out of this screen, at the TOP — the affordance SET-01 established and that
+        `BackLink` exists for. It was a bordered button at the very bottom of the page, which is
+        the one place a "go back" control is no use: you have to read or scroll past everything
+        first to find out how to leave.
+      */}
+      <BackLink
+        to={buildPath(PATHS.COMPANY_HOME, { companySlug })}
+        label="Back to company"
+        className="mb-6"
+      />
+
       <header className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight text-brand-dark">Team</h1>
         <p className="mt-2 max-w-2xl text-gray-600">
@@ -709,18 +721,6 @@ export function CompanyTeamPage() {
           </Button>
         </div>
       </Modal>
-
-      <div className="mt-10">
-        <Button
-          to={buildPath(PATHS.COMPANY_HOME, { companySlug })}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="arrow-right" className="rotate-180 text-xs" />
-          Back to company
-        </Button>
-      </div>
     </Container>
   );
 }

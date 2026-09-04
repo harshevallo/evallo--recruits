@@ -162,7 +162,7 @@ export function CandidateCompanyPage() {
   const actions = (
     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
       <Button
-        variant="outlineDark"
+        variant="outline"
         size="none"
         radius="lg"
         className={secondary}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Badge, Button, Container, Icon } from '@/components/ui';
+import { BackLink, Badge, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { CompanyProfileView } from '@/features/companies/components/CompanyProfileView';
@@ -105,6 +105,14 @@ export function CompanyPreviewPage() {
 
   return (
     <Container className="py-32">
+      {/*
+        One step up out of this screen, at the TOP — the affordance SET-01 established and that
+        `BackLink` exists for. It was a bordered button at the very bottom of the page, which is
+        the one place a "go back" control is no use: you have to read or scroll past everything
+        first to find out how to leave.
+      */}
+      <BackLink to={PATHS.APP_HOME} label="Back to home" className="mb-6" />
+
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-3">
@@ -248,18 +256,6 @@ export function CompanyPreviewPage() {
           topSpacing="none"
           editStepHref={stepHref}
         />
-      </div>
-
-      <div className="mt-8">
-        <Button
-          to={PATHS.APP_HOME}
-          variant="outlineDark"
-          size="md"
-          className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-        >
-          <Icon name="arrow-right" className="rotate-180 text-xs" />
-          Back to home
-        </Button>
       </div>
     </Container>
   );

@@ -143,7 +143,7 @@ export function CompanyHomePage() {
         {overview.isPublished && (
           <Button
             to={company.publicUrl}
-            variant="outlineDark"
+            variant="outline"
             size="md"
           >
             View public page
