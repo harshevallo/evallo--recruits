@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
 import { PATHS } from '@/router/paths';
+import { usePageMeta } from '@/utils/pageMeta';
 
 export function NotFoundPage() {
+  /* Without this a missing page is titled as though it were the marketing home page. */
+  usePageMeta({ title: 'Page not found | Evallo Recruit' });
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
       <p className="text-sm font-semibold uppercase tracking-wide text-brand-blue">404</p>

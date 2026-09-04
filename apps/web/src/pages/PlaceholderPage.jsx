@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Container } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { PATHS, buildPath } from '@/router/paths';
+import { usePageMeta } from '@/utils/pageMeta';
 
 /**
  * Temporary destination for routes whose feature or content is not built yet.
@@ -15,6 +16,16 @@ import { PATHS, buildPath } from '@/router/paths';
  * context they are in.
  */
 export function PlaceholderPage({ title, description, replacedBy }) {
+  /*
+   * Every placeholder route otherwise inherited the marketing title from `index.html`, so eight
+   * distinct pages all read "Evallo Recruit | The Premier Hiring Platform for Educators" in the
+   * tab and in a search result. Naming the page is not a claim that its content exists — the body
+   * still says what is missing.
+   *
+   * Set here rather than per route so a future placeholder is titled by existing.
+   */
+  usePageMeta({ title: `${title} | Evallo Recruit` });
+
   const navigate = useNavigate();
   const { companySlug } = useParams();
   const { isAuthenticated } = useAuth();
