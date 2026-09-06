@@ -12,3 +12,4 @@ export * from './public.api.js';
 export * from './users.api.js';
 export * from './companies.api.js';
 export * from './settings.api.js';
+export * from './messaging.api.js';

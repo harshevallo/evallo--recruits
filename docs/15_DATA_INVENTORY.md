@@ -106,8 +106,9 @@ This is the group that needs the most care, in both the policy and the deletion 
 |---|---|---|---|---|
 | `expressionsOfInterest` | candidate id, **contact name and email captured at submission**, message, consent record (`grantedAt`, `scope`), **IP**, **user agent** | Candidate | Candidate → company | Indefinite |
 | `accessGrants` | candidate id, company id, `withdrawnAt` | Candidate | System | Indefinite |
-| `conversations` | candidate id, company id, state, mute/report flags | Both | Both | Indefinite |
-| `messages` | **message body (up to 5 000 chars)**, sender type, sender user id, read receipts | Both | Both | Indefinite |
+| `conversations` | **two participant user ids**, who started it, request state, per-person unread/mute/read position, the company it began through, report flag with reporter (ADR-025) | Both | The two participants only — never the company | Indefinite |
+| `messages` | **message body (up to 5 000 chars)**, sender user id, read receipts | Both | The two participants only | Indefinite |
+| `companyMembers.showOnPublicTeam` | a member's consent to be listed by name and photo on the public company page, which makes them messageable by candidates (ADR-025) | Member | Public (anonymous visitors see name + photo; `userId` is exposed as the message address) | Until switched off |
 | `notes` | **free-text recruiter notes about the candidate**, author user id | Candidate | Company staff | Indefinite |
 | `pipelineEntries` | candidate id, stage, stage history, rejection reason code and note, owner | Candidate | Company staff | Indefinite |
 | `savedCandidates` | candidate id, company id, saving user | Candidate | Company staff | Indefinite |

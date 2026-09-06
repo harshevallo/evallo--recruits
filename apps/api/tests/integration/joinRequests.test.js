@@ -115,7 +115,11 @@ beforeEach(async () => {
   await Promise.all([
     CompanyJoinRequest.deleteMany({ $or: [{ userId: { $in: userIds } }, { companyId: { $in: companyIds } }] }),
     CompanyMember.deleteMany({ $or: [{ userId: { $in: userIds } }, { companyId: { $in: companyIds } }] }),
-    Conversation.deleteMany({ companyId: { $in: companyIds } }),
+    /*
+     * By PARTICIPANT, never by a legacy field: `strictQuery` drops filter paths the schema no longer
+     * declares, so `deleteMany({ companyId })` would silently become `deleteMany({})`.
+     */
+    Conversation.deleteMany({ participants: { $in: userIds } }),
     CandidateProfile.deleteMany({ userId: { $in: userIds } }),
     Session.deleteMany({ userId: { $in: userIds } }),
     VerificationToken.deleteMany({ userId: { $in: userIds } }),
@@ -406,15 +410,12 @@ describe('REC-01 join requests', () => {
 });
 
 /**
- * Updated for ADR-024: threads are candidate-to-one-employee, not candidate-to-company.
+ * Updated for ADR-025: a conversation is between two PEOPLE, keyed on the pair of user ids.
  *
- * Both tests below previously asserted the shared-thread model — one thread for two recruiters, and
- * an owner reading a thread a recruiter had started. That is the behaviour ADR-024 reverses, so the
- * structural assertions are inverted here.
- *
- * What they were really protecting is kept exactly as it was: the candidate sees an individual's
- * NAME and never an email address, and each message names the teammate who sent it. Those are PRD
- * §11.2 guarantees and are unaffected by who owns a thread.
+ * Two employees who each write to one candidate hold two separate conversations, the company is
+ * context on each, and the owner cannot open the recruiter's — reported as absent, not forbidden.
+ * The PRD §11.2 guarantees these tests always protected are unchanged: the candidate sees an
+ * individual's NAME and never an email address.
  */
 describe('Recruiter identity in chat (PRD §11.2)', () => {
   test('the candidate sees the individual recruiter name, and never their email', async () => {
@@ -427,46 +428,51 @@ describe('Recruiter identity in chat (PRD §11.2)', () => {
       headline: 'SAT maths tutor',
     });
 
-    // Two different employees write to the same candidate — now two separate threads (ADR-024).
-    await authPost(`/api/companies/${published.id}/conversations`, owner.accessToken, {
+    // Two different employees write to the same candidate — two conversations, one per person.
+    await authPost('/api/me/conversations', owner.accessToken, {
       candidateId: String(profile._id),
+      companyId: published.id,
       body: 'Hello from the owner.',
     });
-    await authPost(`/api/companies/${published.id}/conversations`, recruiterToken, {
+    await authPost('/api/me/conversations', recruiterToken, {
       candidateId: String(profile._id),
+      companyId: published.id,
       body: 'And a follow-up from me.',
     });
 
-    const list = await bodyOf(await authGet('/api/me/conversations', candidate.accessToken));
-    assert.equal(list.length, 2, 'one thread per person, not per company');
+    const { conversations: list } = await bodyOf(
+      await authGet('/api/me/conversations', candidate.accessToken),
+    );
+    assert.equal(list.length, 2, 'one conversation per person, not per company');
 
     /* Each is titled by the person it is with, with the company kept alongside as context. */
     assert.deepEqual(
-      list.map((row) => row.recruiter?.name).sort(),
+      list.map((row) => row.other.name).sort(),
       ['Olive Owner', 'Rita Recruiter'],
-      'the candidate is talking to people, and each thread names one',
+      'the candidate is talking to people, and each conversation names one',
     );
     for (const row of list) {
       assert.equal(row.company.name, PUBLISHED_NAME, 'company context is kept, not replaced');
+      assert.equal(row.isRequest, true, 'a first message from a stranger is a request');
     }
 
-    /* Each thread carries only its own author's message. */
+    /* Each conversation carries only its own author's message. */
     for (const [name, body] of [
       ['Olive Owner', 'Hello from the owner.'],
       ['Rita Recruiter', 'And a follow-up from me.'],
     ]) {
-      const row = list.find((item) => item.recruiter?.name === name);
+      const row = list.find((item) => item.other.name === name);
       const thread = await bodyOf(
         await authGet(`/api/me/conversations/${row.id}`, candidate.accessToken),
       );
 
-      const fromCompany = thread.messages.filter((m) => !m.mine);
+      const theirs = thread.messages.filter((m) => !m.mine);
       assert.deepEqual(
-        fromCompany.map((m) => m.senderName),
+        theirs.map((m) => m.senderName),
         [name],
         'each message names the individual who sent it',
       );
-      assert.equal(fromCompany[0].body, body, "and no one else's message is in this thread");
+      assert.equal(theirs[0].body, body, "and no one else's message is in this conversation");
 
       // Names only. The recruiter's address must not travel with the thread.
       const serialised = JSON.stringify(thread);
@@ -475,7 +481,7 @@ describe('Recruiter identity in chat (PRD §11.2)', () => {
     }
   });
 
-  test('the company side names which teammate wrote each message', async () => {
+  test("a colleague's conversation is private — absent to the owner, not forbidden", async () => {
     const candidate = await onboard(CANDIDATE, { name: 'Chris Candidate' });
     const profile = await CandidateProfile.create({
       userId: candidate.user._id,
@@ -486,43 +492,39 @@ describe('Recruiter identity in chat (PRD §11.2)', () => {
     });
 
     const { conversationId } = await bodyOf(
-      await authPost(`/api/companies/${published.id}/conversations`, recruiterToken, {
+      await authPost('/api/me/conversations', recruiterToken, {
         candidateId: String(profile._id),
+        companyId: published.id,
         body: 'Opening message.',
       }),
     );
 
     /*
-     * The recruiter's own thread is private now — the owner is told it is absent, not forbidden,
-     * because a 403 would confirm this candidate is in conversation with this teammate.
+     * The recruiter's conversation is theirs. The owner is told it does not exist — a 403 would
+     * confirm that this candidate is in conversation with this teammate.
      */
     assert.equal(
-      (await authGet(`/api/companies/${published.id}/conversations/${conversationId}`, owner.accessToken))
-        .status,
+      (await authGet(`/api/me/conversations/${conversationId}`, owner.accessToken)).status,
       404,
-      "an owner does not inherit a colleague's private thread (ADR-024)",
+      "an owner does not inherit a colleague's conversation (ADR-025)",
+    );
+    const { conversations: ownerInbox } = await bodyOf(
+      await authGet('/api/me/conversations', owner.accessToken),
+    );
+    assert.equal(ownerInbox.length, 0, "the owner's inbox does not list a colleague's chat");
+
+    /* The company-scoped routes are gone, not merely restricted. */
+    assert.equal(
+      (await authGet(`/api/companies/${published.id}/conversations`, owner.accessToken)).status,
+      404,
     );
 
-    /*
-     * Teammate attribution still matters, and is still asserted — on a LEGACY shared thread, which
-     * is where more than one employee can now appear. Written with no owner, exactly as every
-     * conversation predating ADR-024 is.
-     */
-    const legacy = await Conversation.create({
-      candidateId: profile._id,
-      companyId: published.id,
-    });
-    await authPost(
-      `/api/companies/${published.id}/conversations/${legacy._id}/messages`,
-      recruiterToken,
-      { body: 'Opening message.' },
+    /* The two people see the same conversation, each from their own side. */
+    const asRecruiter = await bodyOf(
+      await authGet(`/api/me/conversations/${conversationId}`, recruiterToken),
     );
-
-    const shared = await bodyOf(
-      await authGet(`/api/companies/${published.id}/conversations/${legacy._id}`, owner.accessToken),
-    );
-
-    assert.equal(shared.messages[0].mine, true, 'a teammate’s message is still our side');
-    assert.equal(shared.messages[0].senderName, 'Rita Recruiter');
+    assert.equal(asRecruiter.messages[0].mine, true);
+    assert.equal(asRecruiter.messages[0].senderName, 'Rita Recruiter');
+    assert.equal(asRecruiter.conversation.other.name, 'Chris Candidate');
   });
 });

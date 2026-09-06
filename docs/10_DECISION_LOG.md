@@ -1512,3 +1512,120 @@ Messaging is low-volume; it is performed in one step at a quiet hour, not left o
   (without replying to) each other's threads?** This ADR assumes not, per *"chat private"*. If the
   answer changes, only the `listCompanyConversations` filter in step 3 changes — which is why the
   question does not block steps 1 and 2.
+
+
+## ADR-025 — Direct messaging: a conversation is between two people, and either may start it
+
+**Status:** ✅ Accepted, 2026-09-06. **Supersedes ADR-024** (which never fully shipped — steps 1–3
+landed, the per-employee thread was still keyed on the company) and the company-scoped design it
+was amending. Implemented in the same commit.
+
+### Context
+
+Messaging had been rebuilt twice on the same key. A thread was first one per
+`{ candidateId, companyId }` — a candidate talking to "a company", with every recruiter at that
+company reading and writing the same thread. ADR-024 narrowed it to one per
+`{ candidateId, companyId, recruiterUserId }`, so two colleagues no longer shared, but the company
+stayed in the key, a candidate could still only *reply*, and a legacy "shared" mode survived beside
+the new one.
+
+On the call of **5 Sep 2026** the CTO rejected both, and set the model in plain terms:
+
+> *"It should be pretty much the same as LinkedIn. I can message you while you're still working at
+> [a company], and somebody can message me while I'm working at [one]. Your chats are your chats.
+> My chats are my chats. Irrespective of whether we are both working for the same company. There's
+> only one-to-one chat and the company that they belong to doesn't affect that."*
+
+> *"Chat is one to one. Two people should be part of the same chat, not three people."*
+
+and the product owner's summary: *"we need one-on-one conversation. Candidate can also initiate the
+conversation, and companies can also."* Company-page (shared) chat was explicitly **deferred**:
+*"we don't have to worry about that at the moment."* The remaining questions the CTO named were the
+restrictions: *"who should be receiving the message request, who should be able to send the
+messages, how many messages can be sent out."*
+
+What the production data looked like at the time is in §Migration below: 9 conversations,
+575 messages — of which 552 were orphans of conversations deleted long ago.
+
+### Decision
+
+1. **A conversation is between exactly two user accounts.** It is keyed on the pair
+   (`participants: [a, b]`, sorted; `pairKey: "a:b"`, unique). The same two people hold one thread
+   whichever company either of them acts for and whichever of them wrote first. A colleague, owner or
+   admin never reads it: there is no company-level read of conversations at all.
+2. **Either side may start it.** A recruiter starts one *through* a company they hold `message:send`
+   at, with a candidate that company may see (`resolveCandidateAccess`, unchanged) or with a
+   colleague there. A candidate starts one with a person who has **opted in** to appear on a
+   **published** company page (`CompanyMember.showOnPublicTeam`). Anyone else is "cannot be
+   messaged" — a 404, never a 403, so the endpoint cannot be used to discover accounts.
+3. **The first message is a request.** `status: pending` until the recipient accepts, declines, or
+   simply replies (replying accepts). While pending, the starter may send at most
+   `MESSAGING_LIMITS.PENDING_REQUEST_MESSAGE_CAP` (3) messages. Declining closes the thread to the
+   starter without deleting anything; the decliner reopens it by accepting or writing back. Reporting
+   closes it to the reported party and keeps the record.
+4. **Limits are per person** and enforced in the service against the database, not per IP in
+   memory: 20 new conversations per rolling 24 h, 30 messages per rolling minute, both `429`.
+5. **Blocking stays company-level** (CAN-04) and bites on every person at the blocked company, in
+   both directions, checked on every send — so a block placed mid-conversation closes it.
+6. **Unread, mute and read receipts are per person.** The company a first message went through is
+   kept as `origin.companyId` — context for "Ana · Acme Tutoring" — never as authority.
+7. **All routes live on the personal surface** (`/api/me/conversations…`). The company-scoped
+   `/api/companies/:companyId/conversations*` routes are removed, not restricted. Both workspaces
+   render the same inbox component; the Messages item in the company rail needs no permission.
+8. **Audit:** `conversation.started` and `message.sent` are recorded (PRD §14.3 lists message send),
+   with the company context and message length — never the body.
+
+### Why these paths and not others
+
+- **Public-team opt-in as the candidate's route.** The CTO's mental model was "people can see that
+  there are certain people" on a company page. Listing is consent about oneself, so any active
+  member may set their own flag and nobody may set a colleague's; an unpublished page lists nobody.
+  It is the smallest thing that makes "candidate can initiate" true without letting anyone message
+  any account.
+- **A cap on pending requests rather than a hard one-message rule.** LinkedIn allows one; recruiters
+  routinely send a follow-up. Three is enough for a nudge and too few for a monologue.
+- **404 for unreachable people.** Same reasoning as `CANDIDATE_NOT_VISIBLE` everywhere else in this
+  API: a 403 confirms the account exists.
+- **No naming of the other party in the data export.** Carried over from ADR-024: a third party's
+  name in a file the exporter keeps is a privacy decision about them, not a formatting choice.
+
+### Migration
+
+`apps/api/scripts/migrate-conversations-to-direct.mjs` — dry run by default, `--apply` to write.
+Rehearsed against a copy of production on 2026-09-06 before being trusted:
+
+| Legacy row | Outcome |
+|---|---|
+| One attributable person on the company side | Rewritten in place, `_id` kept, so every link still resolves |
+| Two people wrote on the company side (1 row, 11 messages) | **Split**: one thread per person, each with that person's own messages and a copy of the candidate's. Nobody's words go under someone else's name; nobody loses what they wrote or received |
+| Two legacy rows for the same pair (2 pairs) | **Merged**, messages moved, unread summed, status ratcheted |
+| No attributable sender (1 row) · the same account on both sides (2 rows) | Left in place, flagged `legacy.unmigrated` with the reason, invisible to the app |
+
+The rehearsal found and fixed two ordering bugs the dry run could not show: the legacy unique index
+must be dropped **before** any row is rewritten (a rewritten row keys as `(null, null, null)` under
+it, and the second one is refused), and a split target must be recounted **after** the other
+person's messages have moved out of the in-place row. The dry run now tracks pairs claimed during the
+run so it reports merges the apply run will perform.
+
+**Rollout order:** stop every pre-ADR-025 API instance (an old instance recreates the legacy indexes
+on boot via `autoIndex`) → run `--apply` → deploy. The new service detects the un-migrated state —
+a duplicate-key error with no pair to blame — and answers with a clear 500 rather than a mysterious
+one. **The migration has not been run against production; that is an operator step.**
+
+Separately observed, not caused by this change: **552 of 575 live messages are orphans** whose
+conversations no longer exist — almost certainly test suites that ran against the shared database
+and deleted conversations without their messages. A one-line cleanup, listed in `13_BACKLOG.md`.
+
+### Consequences
+
+- `04_API_DOCUMENTATION.md` §6c rewritten; §7f (company messaging) removed. `05_DATABASE_SCHEMA.md`
+  §9 rewritten. `03_TRD.md` route table: `/c/:companySlug/messages` needs membership only.
+- Tests: `directMessaging.test.js` (new, 26 cases) is the reference suite; `joinRequests`,
+  `candidateJourney`, `recruiterWorkflow`, `candidateBlocking` rewritten to the new API;
+  `messagingPerPerson` and `conversationRecruiterId` deleted with the design they pinned. **Every
+  test cleanup that touched conversations was rewritten to filter by `participants`**: with
+  `strictQuery` on, a filter on a path the schema no longer declares is silently dropped, and
+  `deleteMany({ candidateId })` would have become `deleteMany({})` against a shared database.
+- Open for the CTO, deliberately not decided here: company-page (shared) chat; whether a candidate
+  should also be able to reach a recruiter who has *viewed* their profile; email notification of new
+  messages (the `message` preference exists, nothing sends yet — `13_BACKLOG.md`).

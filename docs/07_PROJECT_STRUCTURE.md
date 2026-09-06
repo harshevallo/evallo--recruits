@@ -597,7 +597,7 @@ Created only when their milestone arrives.
 |---|---|---|
 | `api/src/modules/candidates/` | **built** | Profile, builder, visibility, and interest services (CAN-01…08) |
 | `api/src/modules/question-bank/` | **built** | Versioned bank model, definition, and resolution service (ADR-007) |
-| `api/src/modules/messaging/` | **built, both sides** | `conversations` + `messages`, the candidate service (CAN-09) and `companyMessaging.service.js` (REC-15) over the same rows |
+| `api/src/modules/messaging/` | **built — one service, both directions (ADR-025)** | `conversation.model.js` (two participants, `pairKey`), `message.model.js`, `messagingPolicy.js` (who may reach whom, limits), `messaging.service.js`, `messaging.controller.js`, `messaging.validation.js`. Routes live on the personal surface (`/api/me/conversations…`); the former `companyMessaging.*` files are gone |
 | ~~`api/src/modules/evidence/`~~ | **built inside `modules/candidates/`** | The evidence layer shipped as `profileEntry.{model,service,controller,validation}.js` rather than its own module: one route family serves all four collections (`experiences`, `educationEntries`, `credentials`, `evidenceItems`), so a separate module would have added a boundary with nothing on the other side of it. `references` is still unbuilt (PRD §20.3, Phase 2) |
 | `api/src/modules/interests/` | **built** | `expressionsOfInterest` + `accessGrants` (CAN-07/08); the recruiter inbox is REC-11 |
 | `api/src/modules/search/` `pipeline/` | **built** | REC-12 search (ADR-010: all query construction confined here) and REC-14 pipeline + `savedCandidates`. Search queries the profile's flat fields — the `facets` subdocument this document once anticipated was never built |

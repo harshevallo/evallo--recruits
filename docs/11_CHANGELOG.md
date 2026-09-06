@@ -9,6 +9,48 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Changed — 2026-09-06 · Messaging rebuilt as direct, two-person conversations (ADR-025)
+
+Set by the CTO on the call of 5 Sep 2026: *"Chat is one to one. Two people should be part of the
+same chat, not three."* A conversation is now keyed on the **pair of user ids** — the same two people
+hold one thread whichever company either acts for and whichever wrote first — and **either side may
+start it**. Supersedes both the company-scoped thread and ADR-024's per-employee variant.
+
+- **API:** all messaging on the personal surface, `GET/POST /api/me/conversations`,
+  `GET /api/me/conversations/summary`, `…/:id`, `…/:id/messages`, `…/:id/respond`, `…/:id/mute`,
+  `…/:id/report`. **Removed** `/api/companies/:companyId/conversations*`. **Added**
+  `PATCH /api/companies/:companyId/members/me` (own public-page listing); the public company payload
+  and the REC-06 preview carry `team[]`; the dashboard reports `yourMembership.showOnPublicTeam`.
+- **Rules:** first message is a request (`pending`) — reply accepts, decline closes it to the starter
+  and is reopened by the decliner; at most 3 messages into an unanswered request; 20 new
+  conversations / 24 h and 30 messages / minute per person (`429`); a sender needs a name; a
+  candidate can reach only people listed on a published company page (else `404`); a recruiter
+  reaches a candidate through a company where they hold `message:send` and which may see the
+  candidate; company blocks close threads in both directions on every send; report closes the thread
+  to the reported party. Audit: `conversation.started`, `message.sent`.
+- **Data:** `conversations` → `{ participants, pairKey (unique, partial), startedBy, status, origin,
+  members[] }`; `messages.senderUserId` required, `senderType` gone. New indexes; legacy indexes
+  dropped by `scripts/migrate-conversations-to-direct.mjs` (dry run by default; rehearsed on a copy of
+  production — 9 rows → 5 in place, 1 split, 2 merged, 3 flagged `legacy.unmigrated`). **Not yet run
+  against production** — `13_BACKLOG.md` B-12.
+- **Web:** one `ConversationsInbox` for `/me/messages` and `/c/:slug/messages`;
+  `StartConversationModal` shared by talent search, the candidate viewer and the candidate's company
+  page; "People you can message" team section on company pages; "Let candidates message you" switch
+  on the company home; "On company page" badge on the team roster; unread badge on both rails from
+  `/me/conversations/summary`; Messages item in the company rail needs no permission.
+- **Shared:** `CONVERSATION_STATUS`, `MESSAGING_LIMITS`.
+- **Tests:** `directMessaging.test.js` (new, 26); `joinRequests`, `candidateJourney`,
+  `recruiterWorkflow`, `candidateBlocking` rewritten; `messagingPerPerson`, `conversationRecruiterId`
+  deleted. Every test cleanup now filters conversations by `participants` — under `strictQuery` a
+  legacy-field filter would have silently become `deleteMany({})`. Full API run: 651 pass, 0 fail
+  (against a local MongoDB).
+- **Fixed in passing:** the settings export queried conversations by `candidateId` and would have
+  returned everyone's conversations once that field left the schema; a recruiter's conversations
+  are now exported too, with the other party unnamed. `node_modules/@evallo/*` were dangling symlinks
+  to the repository's old location and were recreated as junctions.
+- **Docs:** ADR-025; `04` §6c/§7f, `05` §9, `03` route table, `06`, `07`, `12` I-10 + I-19, `13`
+  B-12…B-17, `14`, `15`.
+
 ### Documentation
 - **2026-08-27 — full audit of `docs/` against the working tree.** Every one of the sixteen
   documents was checked; trees and counts were re-read out of the code rather than trusted.

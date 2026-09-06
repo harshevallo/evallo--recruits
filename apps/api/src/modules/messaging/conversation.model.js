@@ -1,125 +1,174 @@
 /**
- * conversations — CAN-09 (PRD §8.2, §11.2).
+ * conversations — one private chat between exactly two people (PRD §11.2; ADR-025).
  *
- * A conversation is always between a CANDIDATE and a COMPANY, never two users: the company side
- * is a context, so a recruiter leaving does not orphan the thread and their replacement inherits
- * it (PRD §21.6). Messages live in their own collection because a thread grows unboundedly and an
- * embedded array would rewrite the whole document on every reply.
+ * ── The one rule ──────────────────────────────────────────────────────────────────────────────
  *
- * ADR-024 reverses that first sentence — threads become candidate-to-one-employee — and corrects
- * its citation: §21.6 actually mandates a departing recruiter's *immediate loss* of message access,
- * not inheritance. Only `recruiterUserId` below has landed so far; the behaviour is unchanged.
+ * A conversation has TWO participants, both of them user accounts. Not a candidate and a company;
+ * not a candidate and "whoever at the company answers". Two people — the same way a LinkedIn
+ * message is between you and one other person, whichever employer either of you has today.
  *
- * Internal recruiter notes are deliberately NOT here — they belong in a separate collection so
- * leaking one into a candidate-visible payload is structurally impossible rather than one
- * serialisation bug away.
+ * That is why the key is the PAIR of user ids and nothing else. Two colleagues who each message
+ * the same candidate hold two separate conversations, and neither can read the other's. A recruiter
+ * who changes company keeps their own chats, because the chats were never the company's. The
+ * company a conversation started through is recorded in `origin` as CONTEXT — "Ana, at Acme" — and
+ * never as an owner or a reader.
+ *
+ * This supersedes the company-scoped thread (one per `{ candidateId, companyId }`) and the
+ * per-employee thread ADR-024 layered onto it (`recruiterUserId`). Both encoded the company in the
+ * key, and both were rejected on the call of 5 Sep 2026: "Chat is one to one. Two people should be
+ * part of the same chat, not three."
+ *
+ * Messages live in their own collection because a thread grows unboundedly and an embedded array
+ * would rewrite the whole document on every reply. Internal recruiter notes are deliberately NOT
+ * here — they belong in a separate collection so leaking one into a candidate-visible payload is
+ * structurally impossible rather than one serialisation bug away.
+ *
+ * ── Legacy rows ───────────────────────────────────────────────────────────────────────────────
+ *
+ * Documents written under the old shapes carry `candidateId` / `companyId` / `recruiterUserId` and
+ * no `participants`. `scripts/migrate-conversations-to-direct.mjs` rewrites the ones whose two
+ * people can be determined and marks the rest `legacy.unmigrated`. Nothing in this module queries
+ * by a legacy field — and it must not: `strictQuery` is on, so a filter on a path this schema no
+ * longer declares is silently dropped, and `find({ candidateId })` would become `find({})`.
  */
 
 import mongoose from 'mongoose';
+import { CONVERSATION_STATUS, MESSAGING_LIMITS } from '@evallo/shared';
 
-/** PRD §11.2 candidate-side conversation states. */
-export const CANDIDATE_CONVERSATION_STATES = Object.freeze({
-  PENDING: 'pending',
-  ACCEPTED: 'accepted',
-  DECLINED: 'declined',
-});
+export { CONVERSATION_STATUS };
+
+/**
+ * The two participants in a canonical order, so the same pair always produces the same key
+ * whichever side started the conversation.
+ */
+export function sortedPair(a, b) {
+  return [String(a), String(b)].sort();
+}
+
+/** `"<lower id>:<higher id>"` — the uniqueness key for a pair of people. */
+export function pairKeyFor(a, b) {
+  return sortedPair(a, b).join(':');
+}
+
+/**
+ * One participant's own view of the conversation — theirs alone, never the other side's.
+ *
+ * Unread counts, mute and read position are PER PERSON: opening a thread clears my count and
+ * nobody else's. There are always exactly two of these, one per participant.
+ */
+const memberStateSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    unread: { type: Number, default: 0, min: 0 },
+    /** Muted threads stay fully readable; they only stop generating notifications (PRD §15). */
+    mutedAt: { type: Date, default: null },
+    lastReadAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
 
 const conversationSchema = new mongoose.Schema(
   {
-    candidateId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'CandidateProfile',
+    /** Exactly two distinct user ids, stored in `sortedPair` order. */
+    participants: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       required: true,
+      validate: {
+        validator: (value) =>
+          Array.isArray(value) && value.length === 2 && String(value[0]) !== String(value[1]),
+        message: 'A conversation is between exactly two different people.',
+      },
     },
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Company',
-      required: true,
-    },
-    /**
-     * The employee who owns this thread — ADR-024 step 1. **Nothing reads this yet.**
-     *
-     * Reserved, deliberately inert. ADR-024 moves messaging from one thread per
-     * `{ candidateId, companyId }` to one per candidate-and-individual-employee, and the field has
-     * to exist before the unique index can include it: an index built over a field no document
-     * carries is the one ordering of that migration that cannot work.
-     *
-     * `null` means "shared company thread", which is every conversation today and every conversation
-     * written before the behaviour change ships. That is why it is nullable rather than required —
-     * 8 live threads predate it, and 2 of them have no determinable owner, so there is no backfill
-     * to write. Legacy threads keep reading and replying exactly as they do now.
-     */
-    recruiterUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
-    /** What started the thread. Today always an expression of interest. */
-    interestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExpressionOfInterest' },
+    /** `pairKeyFor(participants)`. Unique, so a pair of people can only ever hold one thread. */
+    pairKey: { type: String, required: true },
 
-    lastMessageAt: Date,
-    lastMessagePreview: { type: String, maxlength: 200 },
+    /** Who sent the first message. The other participant is the one whose answer `status` records. */
+    startedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
     /**
-     * Who wrote the last message, denormalised alongside the preview it belongs to.
+     * PRD §11.2 — "accept, decline, mute, report". The RECIPIENT's answer to a request.
      *
-     * The candidate is talking to a PERSON at a company (PRD §11.2), and several recruiters can
-     * share one thread, so the thread list has to be able to name them. Denormalised for the same
-     * reason `lastMessagePreview` is: rendering a list of threads must not cost one query per row.
-     *
-     * Null on threads written before this existed, and on candidate-authored last messages — the
-     * candidate does not need their own name read back to them.
+     * `pending` until they reply, accept or decline. Declining closes the thread to the starter
+     * without deleting anything, because the content is a record (§16.3). Replying accepts.
      */
-    lastMessageSenderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    lastMessageSenderType: { type: String, default: null },
-
-    /** Unread counts are per side, so one party's read state never affects the other's. */
-    candidateUnread: { type: Number, default: 0 },
-    companyUnread: { type: Number, default: 0 },
-
-    /**
-     * PRD §11.2 — "Candidates can accept, decline, mute, report, or block a company conversation."
-     *
-     * `pending` until the candidate responds to a company-initiated thread. Declining closes the
-     * thread to further candidate replies without deleting it, because the content is a record.
-     */
-    candidateState: {
+    status: {
       type: String,
-      enum: Object.values(CANDIDATE_CONVERSATION_STATES),
-      default: CANDIDATE_CONVERSATION_STATES.PENDING,
+      enum: Object.values(CONVERSATION_STATUS),
+      default: CONVERSATION_STATUS.PENDING,
     },
-    candidateRespondedAt: Date,
+    respondedAt: Date,
 
-    /** Muted threads stay readable; they simply stop generating notifications (PRD §15). */
-    mutedAt: Date,
+    /**
+     * How the conversation began — context, never authority.
+     *
+     * A recruiter writing from talent search is writing as a person at a company about a role, and
+     * PRD §11.2 requires that first message to identify the company. Recording the company lets
+     * both inboxes show "Ana · Acme Tutoring" for as long as the thread lives, even after Ana moves
+     * on. It grants Acme nothing: no colleague, owner or admin can read this thread through it.
+     */
+    origin: {
+      companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', default: null },
+      candidateId: { type: mongoose.Schema.Types.ObjectId, ref: 'CandidateProfile', default: null },
+      interestId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ExpressionOfInterest',
+        default: null,
+      },
+    },
 
-    /** PRD §8.2 CAN-09 — "safety/reporting". */
+    members: {
+      type: [memberStateSchema],
+      validate: {
+        validator: (value) => Array.isArray(value) && value.length === 2,
+        message: 'A conversation carries state for exactly two participants.',
+      },
+    },
+
+    /* Denormalised so an inbox renders without one query per row. */
+    lastMessageAt: Date,
+    lastMessagePreview: { type: String, maxlength: MESSAGING_LIMITS.PREVIEW_LENGTH },
+    lastMessageSenderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    messageCount: { type: Number, default: 0 },
+
+    /**
+     * PRD §8.2 "safety/reporting". Either participant may report. A reported thread is closed to
+     * the person who was reported; the reporter keeps reading, because the content is the evidence.
+     */
     reportedAt: Date,
-    reportReason: { type: String, maxlength: 500 },
+    reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    reportReason: { type: String, maxlength: MESSAGING_LIMITS.REPORT_REASON_MAX_LENGTH },
+
+    /**
+     * Set by the migration on a pre-ADR-025 row whose two people could not be determined. Such a
+     * row has no `participants`, so no query in this module ever returns it; the flag exists so an
+     * operator can find and review it.
+     */
+    legacy: {
+      unmigrated: { type: Boolean, default: undefined },
+      reason: { type: String, default: undefined },
+    },
   },
   { timestamps: true, collection: 'conversations' },
 );
 
 /**
- * One thread per candidate per company **per employee** — ADR-024 step 2.
+ * One conversation per pair of people.
  *
- * Was `{ candidateId, companyId }`. The third key is what will let Employee A and Employee B hold
- * separate threads with the same candidate; until step 3 writes a non-null `recruiterUserId`,
- * nothing can create that combination and the behaviour is identical to before.
- *
- * **Legacy threads are still protected.** MongoDB indexes a missing path and an explicit `null` as
- * the same value, so the 7 existing shared threads — some of which lack the path entirely — all key
- * as `(candidate, company, null)`. A second shared thread for one pair is still rejected, which is
- * the whole of the old index's guarantee.
- *
- * Widening a unique index is strictly permissive: every document legal under the two-key index is
- * legal under this one. That is why step 2 cannot fail on existing data, and why the migration
- * creates this index BEFORE dropping the old one rather than after.
- *
- * Mongoose does not drop indexes it no longer declares, and this project never calls
- * `syncIndexes()`. Editing this line alone would therefore leave the old two-key unique index in
- * place, silently forbidding the per-person threads step 3 exists to create. The drop lives in
- * `scripts/migrate-conversation-indexes.mjs` and must be run against every database.
+ * PARTIAL, on purpose: rows the migration could not convert have no `pairKey`, and a plain unique
+ * index would let exactly one of them exist. (The old `{ candidateId, companyId, recruiterUserId }`
+ * unique index is NOT declared here and is dropped by the migration — every new document would
+ * otherwise index as `(null, null, null)` and the second one would be refused.)
  */
-conversationSchema.index({ candidateId: 1, companyId: 1, recruiterUserId: 1 }, { unique: true });
-conversationSchema.index({ candidateId: 1, lastMessageAt: -1 });
-conversationSchema.index({ companyId: 1, lastMessageAt: -1 });
+conversationSchema.index(
+  { pairKey: 1 },
+  { unique: true, partialFilterExpression: { pairKey: { $type: 'string' } } },
+);
+
+/** The inbox: "my conversations, newest activity first". Multikey over the two participants. */
+conversationSchema.index({ participants: 1, lastMessageAt: -1 });
+
+/** The daily new-conversation cap (MESSAGING_LIMITS). */
+conversationSchema.index({ startedBy: 1, createdAt: -1 });
 
 export const Conversation = mongoose.model('Conversation', conversationSchema);

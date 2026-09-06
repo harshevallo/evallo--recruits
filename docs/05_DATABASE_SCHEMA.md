@@ -560,52 +560,72 @@ A separate collection from `pipelineEntries` because saving is **silent to the c
 entering a workflow is not (§21.4). Sharing one collection would make that distinction a field
 every future query has to remember.
 
-### `conversations` · `messages` — **built (CAN-09 + REC-15)**
+### `conversations` · `messages` — **built (ADR-025: direct, two-person messaging)**
 
-`conversations`: `{ candidateId, companyId, interestId, lastMessageAt, lastMessagePreview,
-candidateUnread, companyUnread, candidateState, candidateRespondedAt, mutedAt, reportedAt,
-reportReason }`, unique on `{ candidateId, companyId }` so a reply continues the thread rather than
-starting another.
+`messaging/conversation.model.js`, collection `conversations`:
 
-`candidateState` is `pending | accepted | declined` — PRD §11.2's candidate-side actions. Declining
-closes the thread to further candidate replies and sets `mutedAt`; it never deletes messages,
-because the content is the record (§16.3).
+```js
+{
+  participants: [ObjectId, ObjectId],   // exactly two DISTINCT user ids, in sorted order
+  pairKey: 'a:b',                       // sortedPair(participants).join(':')
+  startedBy: ObjectId,                  // who sent the first message
+  status: 'pending' | 'accepted' | 'declined',   // the RECIPIENT's answer to the request
+  respondedAt: Date,
+  origin: { companyId, candidateId, interestId }, // how it began — context, never authority
+  members: [{ userId, unread, mutedAt, lastReadAt }],  // one per participant; per PERSON state
+  lastMessageAt, lastMessagePreview, lastMessageSenderId, messageCount,
+  reportedAt, reportedBy, reportReason,
+  legacy: { unmigrated, reason },       // migration flag on a pre-ADR-025 row it could not convert
+  timestamps,
+}
+```
 
-A conversation is between a **candidate and a company**, never two users: the company side is a
-context, so a recruiter leaving does not orphan the thread and their replacement inherits it
-(PRD §21.6). Unread counts are per side.
+A conversation is between **two people**, whichever companies either of them works for — the same
+model as a LinkedIn message. That is why the key is the pair of user ids and nothing else: two
+colleagues who each write to one candidate hold two separate threads, a recruiter keeps their chats
+when they change company, and no owner or admin can read a colleague's. Blocking stays
+company-level (CAN-04) and is checked on every send against the participants' current memberships.
 
-> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
-> behaviour.** Two corrections to the paragraph above. First, **the §21.6 citation is wrong** —
-> §21.6 says a departing recruiter suffers *"immediate loss of candidate/search/message access"*,
-> which is the opposite of inheritance, and the PRD never uses the word "conversation".
-> Company-scoping was a house engineering decision, not a PRD requirement. Second, ADR-024 replaces
-> it: new conversations are private between a candidate and **one individual employee**, keyed
-> `{ candidateId, companyId, recruiterUserId }`. Existing rows keep `recruiterUserId = null` and
-> stay shared — there is no backfill, because 2 of 8 live threads have no determinable owner. This
-> section is rewritten when that ships, not before.
+`status` is the request model of PRD §11.2: `pending` until the recipient replies, accepts or
+declines; declining closes the thread to the starter without deleting anything (§16.3); the decliner
+reopens it by accepting or writing back. While pending, the starter may send at most
+`MESSAGING_LIMITS.PENDING_REQUEST_MESSAGE_CAP` messages.
 
 Indexes:
 ```js
-{ candidateId: 1, companyId: 1 }   // unique
-{ candidateId: 1, lastMessageAt: -1 }
-{ companyId: 1, lastMessageAt: -1 }
+{ pairKey: 1 }                          // UNIQUE, partialFilterExpression: { pairKey: { $type: 'string' } }
+{ participants: 1, lastMessageAt: -1 }  // the inbox (multikey)
+{ startedBy: 1, createdAt: -1 }         // the daily new-conversation cap
 ```
 
-`messages`: `{ conversationId, senderType, senderUserId, body, attachments[], readAt }`, indexed
-`{ conversationId: 1, createdAt: 1 }`. A separate collection because a thread grows unboundedly and
-an embedded array would rewrite the whole document on every reply.
+The unique index is **partial** so rows the migration flagged `legacy.unmigrated` (which have no
+`pairKey`) can coexist. The old `{ candidateId, companyId, recruiterUserId }` unique index is dropped
+by the migration — every new row would key as `(null, null, null)` under it.
 
-**`attachments` is reserved and always empty.** The field exists on the model and both serializers
-emit `attachments: []`, but there is no upload endpoint for it, no general storage backend and no
-validation — file storage is undecided (TRD §14 Q2 / D-02). The shape is forward-compatible; the
-capability is not implemented. (The one upload that *does* exist, profile photos under ADR-020,
-writes to `mediaAssets` and is deliberately scoped to that single kind — it is not a general
-attachment store.)
+> ⚠️ **Never query this collection by a legacy field** (`candidateId`, `companyId`,
+> `recruiterUserId`, `candidateUnread`, …). `strictQuery` is on, so a filter on a path the schema no
+> longer declares is silently dropped — `find({ candidateId })` becomes `find({})`. Filter by
+> `participants`.
 
-Although a conversation belongs to the company, `senderUserId` is retained and resolved, so the
-candidate sees **which individual recruiter** wrote each message rather than only the company name
-(pinned by `joinRequests.test.js`).
+`messaging/message.model.js`, collection `messages`: `{ conversationId, senderUserId (required),
+body ≤ 5000, attachments[], readAt, timestamps }`, indexed `{ conversationId: 1, createdAt: 1 }` and
+`{ senderUserId: 1, createdAt: -1 }` (the per-minute send rate). There is no `senderType` any more:
+whether a message is "mine" is decided at read time by comparing `senderUserId` with the reader. A
+separate collection because a thread grows unboundedly and an embedded array would rewrite the whole
+document on every reply.
+
+**`attachments` is reserved and always empty.** The field exists on the model and the serialiser
+emits `attachments: []`, but there is no upload endpoint for it, no general storage backend and no
+validation — file storage is undecided (TRD §14 Q2 / D-02).
+
+**Migration** — `scripts/migrate-conversations-to-direct.mjs` (dry run by default, `--apply`).
+Converts each pre-ADR-025 row into one or more two-person threads: in place when one person wrote on
+the company side; **split** into one thread per person when several did (each keeps their own
+messages and a copy of the candidate's); **merged** when two rows already map to one pair; flagged
+`legacy.unmigrated` when nobody can be attributed or the same account was on both sides. Backfills
+`senderUserId`, removes `senderType`, replaces the indexes. Rehearsed on a copy of production
+(9 rows → 5 converted, 1 split, 2 merged, 3 flagged) on 2026-09-06; **not yet applied to production**
+(`13_BACKLOG.md` B-12).
 
 ### `notes` — **built (REC-14)**
 
@@ -645,35 +665,10 @@ exists; REC-12 holds filter state in the URL instead (see `04_API_DOCUMENTATION.
 ### `savedCompanies` — **built (CAN-06)**
 See §8.
 
-### `conversations` · `messages` — **built (CAN-09)**
+### `conversations` · `messages` — **built (ADR-025)**
 
-`conversations`: `{ candidateId, companyId, interestId, lastMessageAt, lastMessagePreview,
-candidateUnread, companyUnread, candidateState, candidateRespondedAt, mutedAt, reportedAt,
-reportReason }`, unique on `{ candidateId, companyId }` so a reply continues the thread rather than
-starting another.
-
-`candidateState` is `pending | accepted | declined` — PRD §11.2's candidate-side actions. Declining
-closes the thread to further candidate replies and sets `mutedAt`; it never deletes messages,
-because the content is the record (§16.3).
-
-A conversation is between a **candidate and a company**, never two users: the company side is a
-context, so a recruiter leaving does not orphan the thread and their replacement inherits it
-(PRD §21.6). Unread counts are per side.
-
-> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
-> behaviour.** Two corrections to the paragraph above. First, **the §21.6 citation is wrong** —
-> §21.6 says a departing recruiter suffers *"immediate loss of candidate/search/message access"*,
-> which is the opposite of inheritance, and the PRD never uses the word "conversation".
-> Company-scoping was a house engineering decision, not a PRD requirement. Second, ADR-024 replaces
-> it: new conversations are private between a candidate and **one individual employee**, keyed
-> `{ candidateId, companyId, recruiterUserId }`. Existing rows keep `recruiterUserId = null` and
-> stay shared — there is no backfill, because 2 of 8 live threads have no determinable owner. This
-> section is rewritten when that ships, not before.
-
-`messages`: `{ conversationId, senderType, senderUserId, body, attachments[], readAt }`, indexed
-`{ conversationId, createdAt }`. A separate collection because a thread grows unboundedly and an
-embedded array would rewrite the whole document on every reply. `attachments` exists and stays
-empty until file storage is decided (TRD §14 Q2), so the shape does not change later.
+Two-person direct messaging; described in full in §9 above ("built (ADR-025: direct, two-person
+messaging)"). The company-scoped shape this section once described no longer exists.
 
 ### `notes`
 `notes` is a **separate collection from `messages`**, not a flag on it. PRD §11.2 and §21.4

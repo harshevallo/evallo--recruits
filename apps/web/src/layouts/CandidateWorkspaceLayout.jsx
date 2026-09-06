@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { RouteFallback } from '@/router/RouteFallback';
 import {
@@ -6,7 +6,7 @@ import {
   SidebarTrigger,
   useSidebarState,
 } from './partials/WorkspaceSidebar';
-import { fetchConversations } from '@/services';
+import { useConversationsBadge } from '@/features/messaging/useConversationsBadge';
 import { PATHS } from '@/router/paths';
 
 /**
@@ -44,56 +44,19 @@ import { PATHS } from '@/router/paths';
  */
 const LABEL = 'Candidate';
 
-/**
- * The one count worth badging.
+/*
+ * The one count worth badging is unread messages — `useConversationsBadge`, shared with the company
+ * rail because the inbox is the same one (ADR-025).
  *
- * `/me/conversations` is the only candidate endpoint that reports something the candidate has not
- * yet acted on: unread messages, and threads a company opened that they have neither accepted nor
- * declined (PRD §11.2). Both are answered on the Messages screen, so both feed one badge — the
- * number means "conversations wanting you", which is the unit a person acts in.
- *
- * There is deliberately no badge on Shortlisted companies. An interest moves through
- * recruiter-set states
- * (`viewed`, `contacted`, `progressed`) and none of them asks the candidate for anything, so a
- * count there would be activity theatre rather than a pending action. When a real candidate-side
+ * There is deliberately no badge on Shortlisted companies. An interest moves through recruiter-set
+ * states (`viewed`, `contacted`, `progressed`) and none of them asks the candidate for anything, so
+ * a count there would be activity theatre rather than a pending action. When a real candidate-side
  * interest action exists, it gets a badge; inventing one now would train people to ignore them.
- *
- * Failure is silent on purpose: a badge is an enhancement, and a rail that rendered no navigation
- * because a count did not load would be a far worse outcome than a missing number.
  */
-function useMessagesBadge() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-
-    fetchConversations({ signal: controller.signal })
-      .then((threads) => {
-        if (cancelled) return;
-        setCount(
-          (threads ?? []).filter(
-            (thread) => thread.unread > 0 || thread.state === 'pending',
-          ).length,
-        );
-      })
-      .catch(() => {
-        /* No badge. The rail still works, which is the part that matters. */
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, []);
-
-  return count;
-}
-
 export function CandidateWorkspaceLayout() {
   const { expanded, toggle } = useSidebarState();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const messagesBadge = useMessagesBadge();
+  const messagesBadge = useConversationsBadge();
 
   const groups = [
     {
@@ -127,7 +90,7 @@ export function CandidateWorkspaceLayout() {
           label: 'Messages',
           icon: 'comments',
           badge: messagesBadge,
-          badgeLabel: 'conversations need you',
+          badgeLabel: 'unread messages',
         },
       ],
     },

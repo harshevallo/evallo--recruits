@@ -38,14 +38,6 @@ import {
   rotateShare,
   disableShare,
 } from './share.service.js';
-import {
-  listConversations,
-  getConversation,
-  replyToConversation,
-  reportConversation,
-  respondToConversation,
-  setConversationMuted,
-} from '../messaging/messaging.service.js';
 
 /**
  * Sections CAN-01 reports on (PRD §18.3 — "profile completeness by section").
@@ -333,33 +325,11 @@ export async function withdrawInterestForUser(user, interestId) {
   return withdrawInterest(await requireProfile(user._id), interestId);
 }
 
-/* ── CAN-09 messages ───────────────────────────────────────────────────────────────────────── */
-
-export async function listConversationsForUser(user) {
-  return listConversations(await requireProfile(user._id));
-}
-
-export async function getConversationForUser(user, conversationId) {
-  return getConversation(await requireProfile(user._id), conversationId);
-}
-
-export async function replyForUser(user, conversationId, body) {
-  return replyToConversation(await requireProfile(user._id), user, conversationId, body);
-}
-
-export async function reportConversationForUser(user, conversationId, reason) {
-  return reportConversation(await requireProfile(user._id), conversationId, reason);
-}
-
-/** PRD §11.2 — accept or decline a company-initiated conversation. */
-export async function respondToConversationForUser(user, conversationId, accepted) {
-  return respondToConversation(await requireProfile(user._id), conversationId, accepted);
-}
-
-/** PRD §11.2 — mute or unmute a conversation. */
-export async function setConversationMutedForUser(user, conversationId, muted) {
-  return setConversationMuted(await requireProfile(user._id), conversationId, muted);
-}
+/*
+ * CAN-09 messaging no longer routes through the candidate profile: a conversation belongs to two
+ * PEOPLE, and a person without a candidate profile (a recruiter) has an inbox too. See
+ * `modules/messaging/messaging.service.js` (ADR-025).
+ */
 
 export async function createCandidateProfile(userId, input = {}) {
   const existing = await findByUserId(userId);

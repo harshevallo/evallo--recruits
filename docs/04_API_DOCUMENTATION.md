@@ -229,12 +229,14 @@ logs. Check it first after any deployment.
 | `POST` | `/api/me/companies/:slug/interest` | Bearer | CAN-07 |
 | `GET` | `/api/me/interests` | Bearer | CAN-08 |
 | `POST` | `/api/me/interests/:interestId/withdraw` | Bearer | CAN-08 |
-| `GET` | `/api/me/conversations` | Bearer | CAN-09 |
-| `GET` | `/api/me/conversations/:conversationId` | Bearer | CAN-09 |
-| `POST` | `/api/me/conversations/:conversationId/messages` | Bearer | CAN-09 |
-| `POST` | `/api/me/conversations/:conversationId/respond` | Bearer | CAN-09 |
-| `PUT` | `/api/me/conversations/:conversationId/mute` | Bearer | CAN-09 |
-| `POST` | `/api/me/conversations/:conversationId/report` | Bearer | CAN-09 |
+| `GET` | `/api/me/conversations` | Bearer | CAN-09 · REC-15 (ADR-025) |
+| `GET` | `/api/me/conversations/summary` | Bearer | CAN-09 · REC-15 |
+| `POST` | `/api/me/conversations` | Bearer (+ `message:send` at `companyId` when given) | CAN-09 · REC-15 |
+| `GET` | `/api/me/conversations/:conversationId` | Bearer | CAN-09 · REC-15 |
+| `POST` | `/api/me/conversations/:conversationId/messages` | Bearer | CAN-09 · REC-15 |
+| `POST` | `/api/me/conversations/:conversationId/respond` | Bearer | CAN-09 · REC-15 |
+| `PUT` | `/api/me/conversations/:conversationId/mute` | Bearer | CAN-09 · REC-15 |
+| `POST` | `/api/me/conversations/:conversationId/report` | Bearer | CAN-09 · REC-15 |
 | `POST` | `/api/companies` | Bearer | REC-01 / HOME-01 |
 | `GET` | `/api/me/invitations` | Bearer | REC-01 |
 | `POST` | `/api/me/invitations/:invitationId/accept` | Bearer | REC-01 |
@@ -286,10 +288,7 @@ logs. Check it first after any deployment.
 | `GET` | `/api/companies/:companyId/candidates/:candidateId/notes` | Bearer + `candidate:view` | REC-14 notes |
 | `POST` | `/api/companies/:companyId/candidates/:candidateId/notes` | Bearer + `note:write` | REC-14 notes |
 | `DELETE` | `/api/companies/:companyId/notes/:noteId` | Bearer + `note:write` | REC-14 notes |
-| `GET` | `/api/companies/:companyId/conversations` | Bearer + `candidate:view` | REC-15 |
-| `GET` | `/api/companies/:companyId/conversations/:conversationId` | Bearer + `candidate:view` | REC-15 |
-| `POST` | `/api/companies/:companyId/conversations` | Bearer + `message:send` | REC-15 |
-| `POST` | `/api/companies/:companyId/conversations/:conversationId/messages` | Bearer + `message:send` | REC-15 |
+| `PATCH` | `/api/companies/:companyId/members/me` | Bearer + membership (no permission — consent about oneself) | ADR-025 public listing |
 | `GET` | `/api/companies/:companyId/audit` | Bearer + `company:settings` | REC-13 audit trail |
 | `GET` | `/api/me/settings/notifications` | Bearer | SET-01 |
 | `PATCH` | `/api/me/settings/notifications` | Bearer | SET-01 |
@@ -863,29 +862,65 @@ actually withdraw anything.
 > Statuses beyond `submitted` are set by the recruiter's interest inbox (REC-11), which is not
 > built. Records therefore stay at "Submitted" — that is the accurate current state.
 
-### `GET /api/me/conversations` · `GET /api/me/conversations/:id` · `POST .../messages` · `POST .../respond` · `PUT .../mute` · `POST .../report`
+### Direct messaging — `/api/me/conversations…` (CAN-09 and REC-15, one inbox; ADR-025)
 
-Thread list, thread with messages, reply, and the PRD §11.2 candidate actions.
+A conversation is between **two people** and belongs to both of them. Every messaging route is
+therefore on the personal surface, for candidates and recruiters alike; there are no company-scoped
+messaging routes. A conversation the caller is not part of is `404`, never `403`.
 
-**`POST .../respond`** — `{ "accepted": true | false }`. Accepting records the state; **declining
-closes the thread to further candidate replies and mutes it, without deleting anything** — the
-messages are the record a moderation or audit review would need (§16.3). Accepting again reopens
-replies. Replying to a `pending` thread accepts it implicitly, since asking someone to click
-"accept" before a message they have already written would be ceremony.
+**`GET /api/me/conversations`** → `{ conversations: [row], unreadTotal, pendingRequests }`, newest
+activity first. A row: `{ id, other: { name, photoUrl, initials }, company: { id, name, slug, logoUrl,
+initials } | null, status: 'pending' | 'accepted' | 'declined', startedByMe, isRequest, unread, muted,
+reported, reportedByMe, closed, closedReason: null | 'declined' | 'awaiting_reply' | 'reported',
+lastMessageAt, lastMessagePreview, lastMessageFromMe, messageCount, createdAt }`. `other` is name
+and photo only — never an email or id. `company` is the context the conversation began through.
 
-**`PUT .../mute`** — `{ "muted": true | false }`. Idempotent. A muted thread stays fully listed and
-readable; only notifications stop, so nothing is hidden from the candidate.
+**`GET /api/me/conversations/summary`** → `{ unreadTotal, pendingRequests }` — the badge counts.
 
-**Block** is deliberately not here: PRD §8.2 assigns company blocking to CAN-04, and a block is
-company-wide rather than per-thread.
+**`POST /api/me/conversations`** — start a conversation, or continue the one the two of you already
+have (idempotent on the pair). Body: `{ body, recipientUserId? , candidateId?, companyId?, interestId? }`
+with **exactly one** of `recipientUserId` / `candidateId`:
 
-Both endpoints return `404` for a thread the caller does not own — never `403`.
+- `recipientUserId` — a person **listed on a published company page** (`showOnPublicTeam`). The
+  candidate → recruiter route. Anyone not listed is `404 That person cannot be messaged.`
+- `candidateId` + `companyId` (id or slug) — a candidate reached **through a company** the caller is
+  an active member of with `message:send` (`403` without it; `404` for a company the caller is not a
+  member of), and whom that company may see (`resolveCandidateAccess`, else `404`). A colleague at
+  the same company may also be addressed this way.
 
-**A candidate may only reply inside a thread a company opened.** Unsolicited candidate-to-company
-messaging is not a missing feature — it would make the platform a cold-outreach channel, which PRD
-§11.2 does not describe. Until REC-15 ships, the inbox is legitimately empty. Opening a thread
-clears the candidate's unread count only; read state is per side. Reporting flags a thread for
-moderation without deleting it, because the content is the evidence.
+Returns `201 { conversationId, created, status, message }`. The first message is a **request**
+(`status: 'pending'`). Limits (PRD §16.3), all `429 RATE_LIMITED`: 20 new conversations per person
+per rolling 24 h; 30 messages per person per rolling minute. A sender must have a name (`400`).
+
+**`GET /api/me/conversations/:id`** → `{ conversation: row, messages: [{ id, mine, senderName, body,
+attachments, sentAt, readAt }], you, limits }`. Opening it clears **my** unread count and stamps
+`readAt` on the other person's messages; their side is untouched. `readAt` is only reported on my
+own messages.
+
+**`POST .../messages`** — `{ body }` → `201 { conversationId, status, message }`. The recipient
+writing back **accepts** a pending or declined request. Refused with: `400` while the request is
+pending and the starter has already sent `MESSAGING_LIMITS.PENDING_REQUEST_MESSAGE_CAP` (3)
+messages (`details.body` explains); `403` when the recipient declined (starter only), when the
+thread was reported by the other participant, or when a company block sits between the two people —
+checked on every send, so a block placed mid-conversation closes it in both directions.
+
+**`POST .../respond`** — `{ accepted }`. Only the **recipient** may answer (`400` for the starter).
+Declining closes the thread to the starter and mutes it for the decliner, without deleting anything
+(§16.3); accepting — or simply replying — reopens it.
+
+**`PUT .../mute`** — `{ muted }`, idempotent, **per person**. A muted thread stays fully readable.
+
+**`POST .../report`** — `{ reason }`. Flags the thread (`reportedAt`, `reportedBy`, `reportReason`)
+and closes it to the other participant; the reporter keeps the record.
+
+**Block** is not here: blocking is company-level (CAN-04) and applies to every person at the company.
+
+**Audit:** `conversation.started` and `message.sent` are recorded with the company context and the
+message length — never the body.
+
+**Tests** — `directMessaging.test.js` (26 cases) is the reference suite; the candidate half is also in
+`candidateJourney.test.js`, the company-workspace half in `recruiterWorkflow.test.js`, blocks in
+`candidateBlocking.test.js`, colleague privacy in `joinRequests.test.js`.
 
 ---
 
@@ -1283,37 +1318,26 @@ deletion are audited.
 
 ---
 
-## 7f. Endpoints — company messaging (REC-15)
+## 7f. Company messaging (REC-15) — removed (ADR-025)
 
-### `GET /api/companies/:companyId/conversations` · `GET .../:conversationId` · `POST .../conversations` · `POST .../:conversationId/messages`
+`/api/companies/:companyId/conversations*` no longer exists. A conversation belongs to its two
+people, so there is nothing a company can list, read or write. A recruiter starts one from the
+personal surface — `POST /api/me/conversations` with `companyId` in the body — and the same checks
+these routes used to make (`message:send` at that company; the candidate visible to it) are made
+there. See §6c. An owner or admin cannot open a colleague's conversation; that is the point.
 
-Reads need `candidate:view`; sending needs `message:send`.
+### `PATCH /api/companies/:companyId/members/me` — my public-page listing
 
-Mirrors the candidate-side service over the **same** `conversations`/`messages` rows, so the two
-sides cannot disagree about a thread. Threads belong to the **company**, so a departing recruiter's
-replacement inherits them (§21.6). Unread counts and read receipts are **per side**.
-
-`POST .../conversations` is **upsert-shaped**: a second "message" to the same candidate continues
-the existing thread rather than forking a new one.
-
-`senderUserId` is retained and resolved, so the candidate sees **which individual recruiter** wrote
-each message, never only the company name.
-
-> ⚠️ **Superseded in principle by [ADR-024](10_DECISION_LOG.md#adr-024); still accurate as
-> behaviour.** The §21.6 citation above is wrong — §21.6 mandates a departing recruiter's
-> *"immediate loss of candidate/search/message access"*, not inheritance. Under ADR-024 a thread
-> belongs to **one employee**, `listCompanyConversations` returns the caller's own threads plus
-> legacy shared ones rather than every thread at the company, and `POST .../conversations` upserts
-> on `{ candidateId, companyId, recruiterUserId }` — so a *different* employee messaging the same
-> candidate opens a new thread instead of continuing an existing one. Rewritten when that ships.
-
-An invisible candidate cannot be messaged. A viewer cannot send; an outsider cannot read the thread.
+Body `{ showOnPublicTeam: boolean }` → `{ showOnPublicTeam }`. Any **active member**, no permission:
+being listed on the published company page is consent about oneself, and it is what lets a
+candidate start a conversation with that person (`POST /api/me/conversations` with
+`recipientUserId`). Deliberately not on the `:memberId` route, so nobody can list a colleague. Listed
+people appear as `team: [{ userId, name, photoUrl, initials }]` in `GET /api/public/companies/:slug`
+and in the REC-06 preview; `GET /api/companies/:companyId/dashboard` reports the caller's own flag as
+`yourMembership.showOnPublicTeam`.
 
 `attachments` is present in every message payload and **always empty** — the field is reserved and
 there is no upload path (see `05_DATABASE_SCHEMA.md` §9).
-
-**Tests** — pipeline, shortlist, notes and messaging are covered by `recruiterWorkflow.test.js`,
-29 cases.
 
 ---
 

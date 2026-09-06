@@ -28,8 +28,7 @@ import {
 } from '../candidates/profileEntry.model.js';
 import { SavedCompany } from '../candidates/savedCompany.model.js';
 import { ExpressionOfInterest } from '../interests/expressionOfInterest.model.js';
-import { Conversation } from '../messaging/conversation.model.js';
-import { Message } from '../messaging/message.model.js';
+import { exportConversationsForUser } from '../messaging/messaging.service.js';
 import { CompanyMember } from '../memberships/companyMember.model.js';
 
 /**
@@ -310,6 +309,12 @@ export async function exportAccountData(userId) {
      * their own professional content. Each block is scoped to the caller's own candidate profile.
      */
     ...(profile ? await exportCandidateContent(profile._id) : emptyCandidateContent()),
+
+    /*
+     * Conversations are the PERSON's, not the candidate profile's (ADR-025): a recruiter with no
+     * profile has an inbox too, so this sits beside the candidate content rather than inside it.
+     */
+    conversations: await exportConversationsForUser(userId),
   };
 }
 
@@ -323,7 +328,6 @@ function emptyCandidateContent() {
     portfolioItems: [],
     savedCompanies: [],
     expressionsOfInterest: [],
-    conversations: [],
   };
 }
 
@@ -335,7 +339,7 @@ function emptyCandidateContent() {
  * anything candidate-facing. Messages ARE included: the person wrote and received them.
  */
 async function exportCandidateContent(candidateId) {
-  const [answers, experiences, education, credentials, media, saved, interests, conversations] =
+  const [answers, experiences, education, credentials, media, saved, interests] =
     await Promise.all([
       CandidateAnswer.find({ candidateId }).lean(),
       Experience.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
@@ -344,14 +348,7 @@ async function exportCandidateContent(candidateId) {
       EvidenceItem.find({ candidateId }).sort({ sortOrder: 1 }).lean(),
       SavedCompany.find({ candidateId }).populate('companyId', 'name slug').lean(),
       ExpressionOfInterest.find({ candidateId }).populate('companyId', 'name slug').lean(),
-      Conversation.find({ candidateId }).populate('companyId', 'name slug').lean(),
     ]);
-
-  const messages = conversations.length
-    ? await Message.find({ conversationId: { $in: conversations.map((c) => c._id) } })
-        .sort({ createdAt: 1 })
-        .lean()
-    : [];
 
   const strip = ({ _id, candidateId: _c, __v, ...rest }) => rest;
 
@@ -373,14 +370,6 @@ async function exportCandidateContent(candidateId) {
       message: interest.message ?? null,
       consentGrantedAt: interest.consent?.grantedAt ?? null,
       submittedAt: interest.createdAt,
-    })),
-    conversations: conversations.map((conversation) => ({
-      company: conversation.companyId?.name ?? null,
-      slug: conversation.companyId?.slug ?? null,
-      startedAt: conversation.createdAt,
-      messages: messages
-        .filter((m) => String(m.conversationId) === String(conversation._id))
-        .map((m) => ({ from: m.senderType, body: m.body, sentAt: m.createdAt })),
     })),
   };
 }

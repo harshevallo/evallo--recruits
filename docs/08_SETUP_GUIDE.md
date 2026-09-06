@@ -217,3 +217,19 @@ npm run lint
       link (with `MAIL_PROVIDER=console`)
 - [ ] Opening that link lands on Set password → name → first-action router → `/home`
 - [ ] Editing a file in `packages/shared` is picked up by both apps
+
+## Running the tests against a local database (added 2026-09-06)
+
+`npm test` reads the same `MONGODB_CLOUD` as the server, and the checked-in `.env` points at the shared
+Atlas cluster. The suites create and delete fixture users, companies and conversations; run them
+against a **local** MongoDB instead. `dotenv` never overrides a variable that is already set, so an
+inline override is enough:
+
+```bash
+cd apps/api && MONGODB_CLOUD="mongodb://127.0.0.1:27017/evallo-recruit-test?directConnection=true" NODE_ENV=test node --test
+```
+
+The `api-local` configuration in `.claude/launch.json` starts the dev API the same way (database
+`evallo-recruit-local`) for a browser check that must not touch live data. A standalone `mongod`
+cannot run the four transaction-dependent operations (`05_DATABASE_SCHEMA.md` §11); everything else,
+including messaging, is fine.

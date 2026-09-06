@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   CANDIDATE_SEARCH_SORT_OPTIONS,
   CANDIDATE_SEARCH_ARRAY_FILTERS,
@@ -19,9 +19,11 @@ import {
   LANGUAGE_LABELS,
 } from '@evallo/shared';
 import { PIPELINE_STAGE_LABELS } from '@evallo/shared';
-import { Button, Container, Icon, Modal, Pagination } from '@/components/ui';
-import { SelectInput, TextInput, Checkbox, Textarea } from '@/components/form';
+import { Button, Container, Icon, Pagination } from '@/components/ui';
+import { SelectInput, TextInput, Checkbox } from '@/components/form';
 import { CandidateResultCard } from '@/features/companies/components/CandidateResultCard';
+import { StartConversationModal } from '@/features/messaging/StartConversationModal';
+import { useCompany } from '@/context/CompanyContext';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import {
@@ -31,7 +33,6 @@ import {
   unsaveCandidate,
   addToPipeline,
   fetchPipeline,
-  startCompanyConversation,
 } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
 import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
@@ -314,28 +315,22 @@ export function CompanyTalentSearchPage() {
     }
   }
 
-  /**
-   * Opening a conversation.
+  /*
+   * Opening a conversation (ADR-025).
    *
-   * PRD §11.2 requires a first message to a merely-discoverable candidate to identify the company
-   * and the role context, so the composer is pre-filled with that framing rather than an empty box
-   * — a recruiter can edit it, but the default is the compliant one.
+   * The composer is `StartConversationModal`, shared with the candidate viewer and the candidate's
+   * own company page. The message starts a person-to-person conversation THROUGH this company —
+   * PRD §11.2's "first message identifies the company" — and the recruiter lands in the thread it
+   * created, rather than being told it exists somewhere else.
    */
-  async function sendFirstMessage() {
-    if (!composing?.body.trim()) return;
-    setActionBusy(composing.card.id);
-    try {
-      await startCompanyConversation(companySlug, {
-        candidateId: composing.card.id,
-        body: composing.body.trim(),
-      });
-      setComposing(null);
-      setActionFeedback({ tone: 'success', text: 'Message sent. It is now in your Messages.' });
-    } catch (error) {
-      setActionFeedback({ tone: 'error', text: error.message ?? 'We could not send that.' });
-    } finally {
-      setActionBusy(null);
-    }
+  const navigate = useNavigate();
+  const { activeCompany } = useCompany();
+
+  function onConversationStarted(result) {
+    setComposing(null);
+    navigate(
+      `${buildPath(PATHS.COMPANY_MESSAGES, { companySlug })}?conversation=${result.conversationId}`,
+    );
   }
 
   useEffect(() => {
@@ -723,54 +718,18 @@ export function CompanyTalentSearchPage() {
       </div>
 
       {/*
-        First contact. PRD §11.2: a first message to a merely-discoverable candidate must clearly
-        identify the company and the role context, so the composer opens with that framing already
-        written rather than leaving compliance to whoever is typing.
+        First contact (PRD §11.2): the message goes out as a person-to-person conversation started
+        through this company, so the candidate sees who is writing and for whom.
       */}
-      <Modal
+      <StartConversationModal
         open={Boolean(composing)}
         onClose={() => setComposing(null)}
-        title={`Message ${composing?.card.header?.name ?? 'this candidate'}`}
-        description="They will see your company name with this message. Keep it about the role."
-      >
-        <label htmlFor="first-message" className="mb-1.5 block text-sm font-semibold text-gray-700">
-          Your message
-        </label>
-        <Textarea
-          id="first-message"
-          name="first-message"
-          rows={5}
-          placeholder="Introduce your company and the role you have in mind…"
-          value={composing?.body ?? ''}
-          disabled={actionBusy === composing?.card.id}
-          onChange={(event) =>
-            setComposing((current) => ({ ...current, body: event.target.value }))
-          }
-        />
-
-        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5">
-          <Button
-            type="button"
-            variant="outlineDark"
-            size="sm"
-            radius="lg"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-            onClick={() => setComposing(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            radius="lg"
-            disabled={!composing?.body?.trim() || actionBusy === composing?.card.id}
-            onClick={sendFirstMessage}
-          >
-            {actionBusy === composing?.card.id ? 'Sending…' : 'Send message'}
-          </Button>
-        </div>
-      </Modal>
+        recipientName={composing?.card.header?.name}
+        recipient={{ candidateId: composing?.card.id }}
+        companyId={companySlug}
+        companyName={activeCompany?.name}
+        onSent={onConversationStarted}
+      />
     </Container>
   );
 }

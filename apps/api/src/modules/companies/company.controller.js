@@ -7,6 +7,7 @@ import {
   serialisePublicCompany,
   findActiveIntents,
 } from '../public/companyPublic.service.js';
+import { listPublicTeam } from '../memberships/member.service.js';
 import { getCompanyDashboard } from './dashboard.service.js';
 
 async function requireAppUser(req) {
@@ -72,10 +73,13 @@ export async function saveCompanyStep(req, res) {
  */
 export async function getCompanyPreview(req, res) {
   const company = await companyService.findCompany(req.params.companyId);
-  const intents = await findActiveIntents(company._id);
+  const [intents, team] = await Promise.all([
+    findActiveIntents(company._id),
+    listPublicTeam(company._id),
+  ]);
 
   return sendSuccess(res, {
-    preview: serialisePublicCompany(company.toObject(), intents),
+    preview: serialisePublicCompany(company.toObject(), intents, team),
     publish: companyService.buildPublishChecklist(company),
     status: company.status,
     publishedAt: company.publishedAt ?? null,

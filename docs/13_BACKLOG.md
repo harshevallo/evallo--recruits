@@ -102,3 +102,14 @@ Highest-impact if reversed:
 | I-04 | Recruiter saved-search sharing within a company | Extends §10.1 saved searches |
 | I-05 | Candidate "open to work" reminder when a profile goes stale | Supports §10.1 freshness signals |
 | I-06 | Public directory filtering by active hiring role | Extends PUB-01 |
+
+## Added 2026-09-06 — with ADR-025 (direct messaging)
+
+| # | Item | Why deferred | Owner |
+|---|---|---|---|
+| B-12 | **Run `scripts/migrate-conversations-to-direct.mjs --apply` against production** and deploy. Rehearsed on a copy; three legacy rows will be flagged `legacy.unmigrated` for a human to review (one with no attributable sender, two where one account was on both sides). | An operator step on the live database, not something to run from a development session | Ops |
+| B-13 | **Purge orphan messages.** 552 of 575 live `messages` reference conversations that no longer exist — almost certainly test suites run against the shared database. `Message.deleteMany({ conversationId: { $nin: <all conversation ids> } })` after a backup. | Destructive on live data; wants a backup and a second pair of eyes | Ops |
+| B-14 | **Company-page (shared) chat** — "message the company" as LinkedIn pages allow, read by every member. | Explicitly deferred by the CTO on 5 Sep 2026: "we don't have to worry about that at the moment" | CTO |
+| B-15 | **Email notification for a new message / request.** The `message` notification preference exists (SET-01) and nothing sends. Needs a template that respects "previews only according to privacy preference" (PRD §11.2) and deep-links into the thread. | Notifications module (M6) is not built; a one-off email would be the first of many | Engineering |
+| B-16 | **Second candidate → recruiter route:** let a candidate write to a recruiter who has *viewed* their profile, not only to publicly listed people. | Product call: it reveals to the candidate who looked at them, which CAN-01 currently only counts | CTO |
+| B-17 | **Moderation queue for reported conversations.** Reports still live on the conversation (`reportedAt`, `reportedBy`, `reportReason`); there is no list, status or appeal. | Same gap as before ADR-025 (PRD §16.3), now with the reporter recorded | Engineering |

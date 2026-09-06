@@ -102,3 +102,9 @@ export const changeMemberRoleValidation = {
     }),
   }),
 };
+
+/** ADR-025 — a member's own opt-in to the public team listing. */
+export const publicListingValidation = {
+  params: companyParamValidation.params,
+  body: z.object({ showOnPublicTeam: z.boolean() }),
+};

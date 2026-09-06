@@ -66,12 +66,16 @@ import {
   companySlugValidation,
   candidateInterestValidation,
   withdrawInterestValidation,
-  conversationParamValidation,
-  replyValidation,
-  reportConversationValidation,
-  respondConversationValidation,
-  muteConversationValidation,
 } from '../candidates/candidate.validation.js';
+import * as messaging from '../messaging/messaging.controller.js';
+import {
+  conversationParamValidation,
+  startConversationValidation,
+  sendMessageValidation,
+  respondValidation,
+  muteValidation,
+  reportValidation,
+} from '../messaging/messaging.validation.js';
 
 const router = Router();
 
@@ -244,33 +248,51 @@ router.post(
   asyncHandler(candidate.withdrawInterest),
 );
 
-// CAN-09 — messages. A candidate replies within a thread; opening one is the company's action.
-router.get('/conversations', asyncHandler(candidate.listConversations));
+/*
+ * Direct messaging — CAN-09 and REC-15 are the SAME inbox now (ADR-025).
+ *
+ * A conversation is between two people and belongs to both of them, so every messaging route is on
+ * the personal surface: a recruiter's chats are theirs whichever company they act for, and a
+ * candidate can start one as well as reply. The company a first message goes THROUGH travels in the
+ * body of `POST /conversations` (`companyId`), where the service checks the sender's `message:send`
+ * at that company and the candidate's visibility to it — the same rules the old company-scoped
+ * routes enforced, applied to the one place a company context still exists.
+ *
+ * `/summary` is declared before `/:conversationId` on purpose: the param route validates its id as
+ * an ObjectId and would otherwise answer 400 for the literal word.
+ */
+router.get('/conversations', asyncHandler(messaging.listConversations));
+router.get('/conversations/summary', asyncHandler(messaging.getConversationSummary));
+router.post(
+  '/conversations',
+  validate(startConversationValidation),
+  asyncHandler(messaging.postStartConversation),
+);
 router.get(
   '/conversations/:conversationId',
   validate(conversationParamValidation),
-  asyncHandler(candidate.getConversation),
+  asyncHandler(messaging.getConversation),
 );
 router.post(
   '/conversations/:conversationId/messages',
-  validate(replyValidation),
-  asyncHandler(candidate.replyToConversation),
+  validate(sendMessageValidation),
+  asyncHandler(messaging.postMessage),
 );
-// PRD §11.2 — accept, decline, mute. Block lives in CAN-04; report is below.
+// PRD §11.2 — accept, decline, mute, report. Block stays company-level in CAN-04.
 router.post(
   '/conversations/:conversationId/respond',
-  validate(respondConversationValidation),
-  asyncHandler(candidate.respondToConversation),
+  validate(respondValidation),
+  asyncHandler(messaging.postRespond),
 );
 router.put(
   '/conversations/:conversationId/mute',
-  validate(muteConversationValidation),
-  asyncHandler(candidate.setConversationMuted),
+  validate(muteValidation),
+  asyncHandler(messaging.putMute),
 );
 router.post(
   '/conversations/:conversationId/report',
-  validate(reportConversationValidation),
-  asyncHandler(candidate.reportConversation),
+  validate(reportValidation),
+  asyncHandler(messaging.postReport),
 );
 
 /*

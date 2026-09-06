@@ -245,3 +245,66 @@ export async function transferOwnership({ company, actorMembership, memberId }) 
     you: await hydrate(outgoing),
   };
 }
+
+/* ── Public team listing (ADR-025) ────────────────────────────────────────────────────────── */
+
+/**
+ * A member's own choice to appear on the company's public page — and, through it, to be
+ * messageable by candidates (`messagingPolicy.publicListingOf`).
+ *
+ * Only the caller's OWN membership: `showOnPublicTeam` is consent about oneself, which is why the
+ * argument is the resolved membership and not a member id someone else could supply.
+ */
+export async function setOwnPublicListing({ membership, showOnPublicTeam }) {
+  const updated = await CompanyMember.findOneAndUpdate(
+    { _id: membership._id, status: MEMBERSHIP_STATUS.ACTIVE },
+    { $set: { showOnPublicTeam: Boolean(showOnPublicTeam) } },
+    { new: true },
+  ).lean();
+
+  if (!updated) throw ApiError.notFound('Membership not found.');
+
+  return { showOnPublicTeam: Boolean(updated.showOnPublicTeam) };
+}
+
+/**
+ * The people a company shows on its public page: active members who opted in, name and photo only.
+ *
+ * `userId` is included because it is the address a candidate messages — `POST /api/me/conversations`
+ * takes a `recipientUserId` — and an opaque id discloses nothing a listed name does not. Email and
+ * role are deliberately absent: the listing exists so a candidate can start an in-platform
+ * conversation, not to hand out contact details.
+ */
+export async function listPublicTeam(companyId) {
+  const memberships = await CompanyMember.find({
+    companyId,
+    status: MEMBERSHIP_STATUS.ACTIVE,
+    showOnPublicTeam: true,
+    userId: { $type: 'objectId' },
+  })
+    .select('userId acceptedAt createdAt')
+    .sort({ acceptedAt: 1, createdAt: 1 })
+    .lean();
+  if (memberships.length === 0) return [];
+
+  const users = await User.find({ _id: { $in: memberships.map((m) => m.userId) } })
+    .select('name profilePicture status deletedAt')
+    .lean();
+  const byId = new Map(users.map((user) => [String(user._id), user]));
+
+  return memberships
+    .map((membership) => byId.get(String(membership.userId)))
+    .filter((user) => user && !user.deletedAt && user.name)
+    .map((user) => ({
+      userId: String(user._id),
+      name: user.name,
+      photoUrl: user.profilePicture ?? null,
+      initials: String(user.name)
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join('')
+        .toUpperCase(),
+    }));
+}

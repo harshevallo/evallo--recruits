@@ -19,8 +19,15 @@ import { CandidateAnswer } from '../../src/modules/candidates/candidateAnswer.mo
 import { SavedCompany } from '../../src/modules/candidates/savedCompany.model.js';
 import { ExpressionOfInterest } from '../../src/modules/interests/expressionOfInterest.model.js';
 import { AccessGrant } from '../../src/modules/interests/accessGrant.model.js';
-import { Conversation } from '../../src/modules/messaging/conversation.model.js';
+import mongoose from 'mongoose';
+import {
+  Conversation,
+  pairKeyFor,
+  sortedPair,
+} from '../../src/modules/messaging/conversation.model.js';
 import { Message } from '../../src/modules/messaging/message.model.js';
+import { sendMessage } from '../../src/modules/messaging/messaging.service.js';
+import { CompanyMember } from '../../src/modules/memberships/companyMember.model.js';
 import { VerificationToken } from '../../src/modules/auth/verificationToken.model.js';
 import { Session } from '../../src/modules/auth/session.model.js';
 
@@ -137,27 +144,35 @@ after(async () => {
 async function cleanup() {
   const user = await User.findOne({ email: EMAIL });
   if (user) {
+    /*
+     * Conversations belong to the PERSON, so they are found by participant (ADR-025) — never by a
+     * legacy field: `strictQuery` drops filter paths the schema no longer declares, and
+     * `find({ candidateId })` would silently become `find({})`. Messages first — deleting their
+     * conversation would otherwise orphan them.
+     */
+    const threads = await Conversation.find({ participants: user._id }).select('_id').lean();
+    if (threads.length > 0) {
+      await Message.deleteMany({ conversationId: { $in: threads.map((t) => t._id) } });
+    }
+    await Conversation.deleteMany({ participants: user._id });
+
     const profile = await CandidateProfile.findOne({ userId: user._id });
     if (profile) {
-      // Messages first — deleting their conversation would otherwise orphan them.
-      const threads = await Conversation.find({ candidateId: profile._id }).select('_id').lean();
-      if (threads.length > 0) {
-        await Message.deleteMany({ conversationId: { $in: threads.map((t) => t._id) } });
-      }
-
       await Promise.all([
         CandidateAnswer.deleteMany({ candidateId: profile._id }),
         SavedCompany.deleteMany({ candidateId: profile._id }),
         ExpressionOfInterest.deleteMany({ candidateId: profile._id }),
         AccessGrant.deleteMany({ candidateId: profile._id }),
-        Conversation.deleteMany({ candidateId: profile._id }),
       ]);
     }
     await CandidateProfile.deleteMany({ userId: user._id });
     await Session.deleteMany({ userId: user._id });
     await VerificationToken.deleteMany({ userId: user._id });
   }
-  await User.deleteMany({ email: EMAIL });
+  /* The CAN-09 fixtures add a recruiter at the company; they leave with it. */
+  const company = await Company.findOne({ slug: SLUG }).select('_id').lean();
+  if (company) await CompanyMember.deleteMany({ companyId: company._id });
+  await User.deleteMany({ email: { $in: [EMAIL, 'journey-recruiter@example.com'] } });
   await Company.deleteMany({ slug: SLUG });
 }
 
@@ -667,46 +682,80 @@ describe('CAN-08 my interests', () => {
 });
 
 describe('CAN-09 messages', () => {
-  /** The company side (REC-15) is not built, so a thread is created directly. */
+  const RECRUITER_EMAIL = 'journey-recruiter@example.com';
+
+  /**
+   * A recruiter at the company writes to the candidate.
+   *
+   * Written directly in the ADR-025 shape — two participants, keyed on the pair — because this
+   * suite proves the CANDIDATE's half of messaging; the recruiter's half has its own suite
+   * (`directMessaging.test.js`).
+   */
   async function companyOpensThread(profile, company, body = 'Hello, are you available?') {
-    const conversation = await Conversation.create({
-      candidateId: profile._id,
+    /* A sender needs a name (the other person must know who is writing); the fixture has none. */
+    await User.updateOne({ _id: profile.userId }, { $set: { name: 'Jo Journey' } });
+
+    await User.deleteMany({ email: RECRUITER_EMAIL });
+    const recruiter = await User.create({
+      email: RECRUITER_EMAIL,
+      name: 'Rae Recruiter',
+      emailVerified: true,
+    });
+    await CompanyMember.create({
+      userId: recruiter._id,
       companyId: company._id,
-      lastMessageAt: new Date(),
+      role: 'recruiter',
+      status: 'active',
+      showOnPublicTeam: true,
+    });
+
+    const now = new Date();
+    const conversation = await Conversation.create({
+      participants: sortedPair(recruiter._id, profile.userId),
+      pairKey: pairKeyFor(recruiter._id, profile.userId),
+      startedBy: recruiter._id,
+      origin: { companyId: company._id, candidateId: profile._id },
+      members: [{ userId: recruiter._id }, { userId: profile.userId, unread: 1 }],
+      lastMessageAt: now,
       lastMessagePreview: body,
-      candidateUnread: 1,
+      lastMessageSenderId: recruiter._id,
+      messageCount: 1,
     });
-    await Message.create({
-      conversationId: conversation._id,
-      senderType: 'company',
-      body,
-    });
-    return conversation;
+    await Message.create({ conversationId: conversation._id, senderUserId: recruiter._id, body });
+
+    return { conversation, recruiter };
   }
 
-  test('the inbox is empty until a company opens a thread', async () => {
+  const memberOf = (conversation, userId) =>
+    conversation.members.find((member) => String(member.userId) === String(userId));
+
+  test('the inbox is empty until someone writes', async () => {
     const { accessToken } = await readyCandidate();
     const body = await (await authGet('/api/me/conversations', accessToken)).json();
-    assert.deepEqual(body.data, []);
+    assert.deepEqual(body.data, { conversations: [], unreadTotal: 0, pendingRequests: 0 });
   });
 
-  test('lists a thread with its company, preview and unread count', async () => {
+  test('lists a conversation with the person, their company, preview and unread count', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
     await companyOpensThread(profile, company);
 
     const body = await (await authGet('/api/me/conversations', accessToken)).json();
-    const [thread] = body.data;
+    const [thread] = body.data.conversations;
 
-    assert.equal(thread.company.name, 'Journey Academy');
+    assert.equal(thread.other.name, 'Rae Recruiter', 'the conversation is with a person');
+    assert.equal(thread.company.name, 'Journey Academy', 'the company is context');
     assert.equal(thread.unread, 1);
+    assert.equal(thread.isRequest, true, 'a first message from a stranger is a request');
     assert.equal(thread.lastMessagePreview, 'Hello, are you available?');
+    assert.equal(body.data.unreadTotal, 1);
+    assert.equal(body.data.pendingRequests, 1);
   });
 
-  test('opening a thread returns its messages and clears the unread count', async () => {
+  test('opening a conversation returns its messages and clears MY unread count only', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation, recruiter } = await companyOpensThread(profile, company);
 
     const body = await (
       await authGet(`/api/me/conversations/${conversation._id}`, accessToken)
@@ -714,15 +763,17 @@ describe('CAN-09 messages', () => {
 
     assert.equal(body.data.messages.length, 1);
     assert.equal(body.data.messages[0].mine, false);
+    assert.equal(body.data.messages[0].senderName, 'Rae Recruiter');
 
     const after = await Conversation.findById(conversation._id);
-    assert.equal(after.candidateUnread, 0);
+    assert.equal(memberOf(after, profile.userId).unread, 0);
+    assert.equal(memberOf(after, recruiter._id).unread, 0, 'the other side was never touched');
   });
 
-  test('replying appends to the thread and marks it unread for the company', async () => {
+  test('replying appends to the conversation, accepts it, and marks it unread for the other person', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation, recruiter } = await companyOpensThread(profile, company);
 
     const res = await authPost(
       `/api/me/conversations/${conversation._id}/messages`,
@@ -731,16 +782,19 @@ describe('CAN-09 messages', () => {
     );
 
     assert.equal(res.status, 201);
+    assert.equal((await res.json()).data.status, 'accepted', 'writing back is acceptance');
 
     const after = await Conversation.findById(conversation._id);
-    assert.equal(after.companyUnread, 1);
+    assert.equal(memberOf(after, recruiter._id).unread, 1);
+    assert.equal(after.status, 'accepted');
+    assert.equal(after.messageCount, 2);
     assert.equal(await Message.countDocuments({ conversationId: conversation._id }), 2);
   });
 
   test('an empty reply is rejected', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation } = await companyOpensThread(profile, company);
 
     const res = await authPost(
       `/api/me/conversations/${conversation._id}/messages`,
@@ -750,13 +804,16 @@ describe('CAN-09 messages', () => {
     assert.equal(res.status, 400);
   });
 
-  test('cannot read or reply to another candidate’s thread', async () => {
+  test("cannot read or reply to other people's conversation", async () => {
     const { accessToken } = await readyCandidate();
-    const company = await makeCompany();
+    const a = new mongoose.Types.ObjectId();
+    const b = new mongoose.Types.ObjectId();
 
     const foreign = await Conversation.create({
-      candidateId: company._id, // deliberately not this candidate
-      companyId: company._id,
+      participants: sortedPair(a, b),
+      pairKey: pairKeyFor(a, b),
+      startedBy: a,
+      members: [{ userId: a }, { userId: b }],
     });
 
     try {
@@ -767,7 +824,7 @@ describe('CAN-09 messages', () => {
         404,
       );
     } finally {
-      // Owned by nobody real, so the suite's candidate-scoped cleanup cannot reach it.
+      // Owned by nobody real, so the suite's user-scoped cleanup cannot reach it.
       await Conversation.deleteOne({ _id: foreign._id });
     }
   });
@@ -775,7 +832,7 @@ describe('CAN-09 messages', () => {
   test('accepting records the state (PRD §11.2)', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation } = await companyOpensThread(profile, company);
 
     const res = await authPost(`/api/me/conversations/${conversation._id}/respond`, accessToken, {
       accepted: true,
@@ -783,31 +840,31 @@ describe('CAN-09 messages', () => {
     const body = await res.json();
 
     assert.equal(res.status, 200);
-    assert.equal(body.data.state, 'accepted');
+    assert.equal(body.data.status, 'accepted');
 
     const after = await Conversation.findById(conversation._id);
-    assert.equal(after.candidateState, 'accepted');
-    assert.ok(after.candidateRespondedAt);
+    assert.equal(after.status, 'accepted');
+    assert.ok(after.respondedAt);
   });
 
-  test('declining closes the thread to replies but keeps the messages (PRD §16.3)', async () => {
+  test('declining closes the conversation to the other person but keeps the messages (PRD §16.3)', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation, recruiter } = await companyOpensThread(profile, company);
 
     const declined = await authPost(
       `/api/me/conversations/${conversation._id}/respond`,
       accessToken,
       { accepted: false },
     );
-    assert.equal((await declined.json()).data.state, 'declined');
+    assert.equal((await declined.json()).data.status, 'declined');
 
-    const reply = await authPost(
-      `/api/me/conversations/${conversation._id}/messages`,
-      accessToken,
-      { body: 'Actually, hello again' },
+    /* The person who started it can no longer write. */
+    await assert.rejects(
+      sendMessage(recruiter.toObject(), String(conversation._id), 'Hello again?'),
+      (error) => error.status === 403,
+      'a declined conversation refuses the starter',
     );
-    assert.equal(reply.status, 400, 'a declined conversation refuses further replies');
 
     assert.equal(
       await Message.countDocuments({ conversationId: conversation._id }),
@@ -816,10 +873,10 @@ describe('CAN-09 messages', () => {
     );
   });
 
-  test('declining also mutes, and accepting again re-opens replies', async () => {
+  test('declining also mutes, and accepting again re-opens it', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation, recruiter } = await companyOpensThread(profile, company);
 
     const declined = await authPost(
       `/api/me/conversations/${conversation._id}/respond`,
@@ -832,31 +889,27 @@ describe('CAN-09 messages', () => {
       accepted: true,
     });
 
-    const reply = await authPost(
-      `/api/me/conversations/${conversation._id}/messages`,
-      accessToken,
-      { body: 'Happy to talk after all' },
-    );
-    assert.equal(reply.status, 201);
+    const reopened = await sendMessage(recruiter.toObject(), String(conversation._id), 'Thank you.');
+    assert.equal(reopened.status, 'accepted');
   });
 
   test('replying accepts a pending conversation implicitly', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation } = await companyOpensThread(profile, company);
 
     await authPost(`/api/me/conversations/${conversation._id}/messages`, accessToken, {
       body: 'Yes, I am interested',
     });
 
     const after = await Conversation.findById(conversation._id);
-    assert.equal(after.candidateState, 'accepted');
+    assert.equal(after.status, 'accepted');
   });
 
-  test('mute toggles and is idempotent, without hiding the thread', async () => {
+  test('mute toggles and is idempotent, without hiding the conversation', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation } = await companyOpensThread(profile, company);
 
     const muted = await authPut(`/api/me/conversations/${conversation._id}/mute`, accessToken, {
       muted: true,
@@ -870,8 +923,8 @@ describe('CAN-09 messages', () => {
 
     // Still listed and readable — muting suppresses notifications, not the conversation.
     const list = await (await authGet('/api/me/conversations', accessToken)).json();
-    assert.equal(list.data.length, 1);
-    assert.equal(list.data[0].muted, true);
+    assert.equal(list.data.conversations.length, 1);
+    assert.equal(list.data.conversations[0].muted, true);
 
     const unmuted = await authPut(`/api/me/conversations/${conversation._id}/mute`, accessToken, {
       muted: false,
@@ -903,10 +956,10 @@ describe('CAN-09 messages', () => {
     );
   });
 
-  test('reporting flags the thread without deleting it (PRD §16.3)', async () => {
+  test('reporting flags the conversation without deleting it (PRD §16.3)', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
-    const conversation = await companyOpensThread(profile, company);
+    const { conversation } = await companyOpensThread(profile, company);
 
     const res = await authPost(`/api/me/conversations/${conversation._id}/report`, accessToken, {
       reason: 'Inappropriate content',
@@ -916,7 +969,55 @@ describe('CAN-09 messages', () => {
 
     const after = await Conversation.findById(conversation._id);
     assert.ok(after.reportedAt);
+    assert.equal(String(after.reportedBy), String(profile.userId));
     assert.equal(await Message.countDocuments({ conversationId: conversation._id }), 1);
+  });
+
+  /* ── The candidate can start one too (ADR-025) ─────────────────────────────────────────── */
+
+  test('a candidate can start a conversation with a person listed on a company page', async () => {
+    const { accessToken, profile, user } = await readyCandidate();
+    const company = await makeCompany();
+    const { conversation: earlier, recruiter } = await companyOpensThread(profile, company);
+    // Start from a clean slate: the fixture's own thread is not the one under test.
+    await Message.deleteMany({ conversationId: earlier._id });
+    await Conversation.deleteOne({ _id: earlier._id });
+
+    const res = await authPost('/api/me/conversations', accessToken, {
+      recipientUserId: String(recruiter._id),
+      body: 'Hello — I saw your team on the Journey Academy page.',
+    });
+    assert.equal(res.status, 201);
+    const data = (await res.json()).data;
+    assert.equal(data.created, true);
+    assert.equal(data.status, 'pending', 'a first message is a request until they answer');
+
+    const stored = await Conversation.findById(data.conversationId);
+    assert.equal(String(stored.startedBy), String(user._id));
+    assert.equal(String(stored.origin.companyId), String(company._id), 'the listing is the context');
+    assert.equal(memberOf(stored, recruiter._id).unread, 1);
+
+    /* And it is the SAME conversation if the recruiter writes to this candidate next. */
+    const reply = await sendMessage(recruiter.toObject(), String(stored._id), 'Hi! Yes, let us talk.');
+    assert.equal(reply.status, 'accepted');
+    const list = await (await authGet('/api/me/conversations', accessToken)).json();
+    assert.equal(list.data.conversations.length, 1, 'one conversation per pair of people');
+  });
+
+  test('a candidate cannot start a conversation with someone who is not listed', async () => {
+    const { accessToken, profile } = await readyCandidate();
+    const company = await makeCompany();
+    const { conversation: earlier, recruiter } = await companyOpensThread(profile, company);
+    await Message.deleteMany({ conversationId: earlier._id });
+    await Conversation.deleteOne({ _id: earlier._id });
+    await CompanyMember.updateOne({ userId: recruiter._id }, { $set: { showOnPublicTeam: false } });
+
+    const res = await authPost('/api/me/conversations', accessToken, {
+      recipientUserId: String(recruiter._id),
+      body: 'Hello?',
+    });
+    assert.equal(res.status, 404, 'unreachable people are absent, not forbidden');
+    assert.equal(await Conversation.countDocuments({ participants: recruiter._id }), 0);
   });
 });
 

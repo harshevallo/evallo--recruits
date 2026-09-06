@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { COMPANY_ROLE_LABELS, COMPANY_STATUS } from '@evallo/shared';
 import { BackLink, Badge, Button, Container, Icon } from '@/components/ui';
+import { Checkbox } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
-import { fetchCompanyDashboard } from '@/services';
+import { fetchCompanyDashboard, updateMyPublicListing } from '@/services';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -48,6 +49,9 @@ function Fact({ label, value }) {
 export function CompanyHomePage() {
   const { companySlug } = useParams();
   const [state, setState] = useState({ status: 'loading' });
+  /* My own public-page listing (ADR-025): `null` until I change it, then the server's answer. */
+  const [listing, setListing] = useState(null);
+  const [listingFeedback, setListingFeedback] = useState(null);
 
   const load = useCallback(
     async (signal) => {
@@ -91,9 +95,41 @@ export function CompanyHomePage() {
     );
   }
 
-  const { company, overview, setup, interests, hiring, pendingActions, permissions, yourRole } =
-    state.data;
+  const {
+    company,
+    overview,
+    setup,
+    interests,
+    hiring,
+    pendingActions,
+    permissions,
+    yourRole,
+    yourMembership,
+  } = state.data;
   const path = (name) => buildPath(name, { companySlug });
+
+  const listedOnPage = listing ?? Boolean(yourMembership?.showOnPublicTeam);
+
+  /**
+   * Opting in or out of the public team listing (ADR-025). The server's answer is what the box
+   * shows — a failed save must not leave the page claiming a listing that does not exist.
+   */
+  async function toggleListing(event) {
+    const next = event.target.checked;
+    setListingFeedback(null);
+    try {
+      const result = await updateMyPublicListing(companySlug, next);
+      setListing(result.showOnPublicTeam);
+      setListingFeedback({
+        tone: 'success',
+        text: result.showOnPublicTeam
+          ? 'You are listed on the company page. Candidates can now message you from there.'
+          : 'You are no longer listed on the company page.',
+      });
+    } catch (error) {
+      setListingFeedback({ tone: 'error', text: error.message ?? 'We could not save that.' });
+    }
+  }
 
   return (
     <Container className="py-32">
@@ -285,6 +321,38 @@ export function CompanyHomePage() {
           )}
         </section>
       </div>
+
+      {/*
+        My listing on the public page (ADR-025).
+
+        Here rather than on the Team screen because the Team screen needs `member:manage`, and this is
+        a decision every member makes about THEMSELVES — a recruiter who cannot manage the team must
+        still be able to say "candidates may write to me". Nobody can switch it on for someone else.
+      */}
+      <section
+        aria-labelledby="listing-heading"
+        className="mt-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+      >
+        <h2 id="listing-heading" className="mb-1 text-lg font-bold text-brand-dark">
+          Let candidates message you
+        </h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Listed people appear by name and photo on {company.name}&apos;s public page, and a
+          candidate can start a conversation with them from there. Your email is never shown.
+          {!overview.isPublished && ' The page is not published yet, so nobody is listed until it is.'}
+        </p>
+        <Checkbox
+          label="Show me on the company page"
+          description="You can turn this off at any time. Existing conversations are unaffected."
+          checked={listedOnPage}
+          onChange={toggleListing}
+        />
+        {listingFeedback && (
+          <StatusRegion tone={listingFeedback.tone} className="mt-4">
+            {listingFeedback.text}
+          </StatusRegion>
+        )}
+      </section>
 
       {/* Setup checklist — only for someone who could act on it. REC-06 owns the same list. */}
       {setup && !setup.canPublish && (

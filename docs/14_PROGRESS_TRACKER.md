@@ -1,6 +1,6 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-08-27 (REC-12 talent search + REC-02 wizard rebuilt to reference; one shared company profile; role detail page)
+**Last updated:** 2026-09-06 (messaging rebuilt as direct two-person conversations, either side may start — ADR-025; production migration pending, `13_BACKLOG.md` B-12)
 **Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
 **Overall:** 36 of 45 screens complete, 4 partial, 4 pending, 1 post-MVP
 
@@ -46,7 +46,7 @@
 | **CAN-06 — company page, signed in** | 2026-08-03 | Save/unsave, interest state overlay |
 | **CAN-07 — interest submission** | 2026-08-03 | Role select, note, consent disclosure, access grant |
 | **CAN-08 — my interests** | 2026-08-03 | Status, withdraw, grant revocation |
-| **CAN-09 — messages** | 2026-08-03 | Threads, reply, safety reporting |
+| **CAN-09 — messages** | 2026-08-03 · rebuilt 2026-09-06 | Direct two-person conversations (ADR-025): the candidate can start one with anyone listed on a company page, reply, accept/decline requests, mute, report |
 | **REC-10 / REC-11 — company home + interest inbox** | 2026-08-09 | Dashboard, inbox, status advance, viewed marking |
 | **REC-18 — team management (partial)** | 2026-08-09 | Members, role change, removal, ownership transfer |
 | **REC-12 — talent search** | 2026-08-09 | Server-side facets, keyword, sorts, pagination, URL state |
@@ -54,7 +54,7 @@
 | **REC-05 / REC-16 — hiring intents** | 2026-08-10 | Guarded status transitions, 3-question cap, derived "hiring" |
 | **REC-13 — candidate viewer + audit** | 2026-08-10 | Preview-parity view, one access authority, `auditEvents` |
 | **REC-14 — pipeline + shortlist + notes** | 2026-08-10 | 9 stages, stage history, partial unique index, separate notes collection |
-| **REC-15 — company messaging** | 2026-08-10 | Company-side threads, per-side unread, individual recruiter identity |
+| **REC-15 — company messaging** | 2026-08-10 · rebuilt 2026-09-06 | The same personal inbox rendered in the company workspace (ADR-025); a recruiter starts a conversation through the company, and it is theirs — colleagues, owners and admins cannot read it. Public-team opt-in makes a member reachable by candidates |
 | **CAN-02 evidence entries** | 2026-08-10 | `experiences` · `educationEntries` · `credentials` · `evidenceItems`, per-item visibility |
 | **SET-01 / SET-02 — settings** | 2026-08-10 | Account, security, notifications, privacy, data; company settings |
 | **Workspace shell** | 2026-08-10 | One collapsible rail, two workspace layouts, navigation de-duplicated |
@@ -138,7 +138,7 @@ Key: ✅ Complete · 🟡 Partial · 🔴 Not implemented · ⚪ Placeholder
 | **Pipeline** | §7.9, §21.4 | ✅ | ✅ | ✅ | ✅ | ✅ 11 | `ownerId` is basic assignment only; no per-member scoping of who may see whose entries |
 | **Saved candidates (shortlist)** | §21.4 | ✅ | ✅ | ✅ | ✅ | ✅ 4 | — |
 | **Recruiter notes** | §11.2, §21.4 | ✅ | ✅ | ✅ | ✅ | ✅ 4 | No edit, only create/delete by author |
-| **Company messaging** | §11.2, §21.6 | ✅ | ✅ | ✅ | ✅ | ✅ 4 | `attachments` reserved and always empty (I-15) |
+| **Direct messaging (ADR-025)** | §11.2, §16.3 | ✅ | ✅ | ✅ | ✅ | ✅ 26 + 4 suites | Two-person, either side starts, request model, per-person limits. `attachments` reserved and always empty (I-15). Production migration pending (B-12) |
 | **Join requests / membership approval** | §7.2 | ✅ | ✅ | ✅ | ✅ | ✅ 17 | — |
 | **Team management (REC-18)** | §7.6, §4.2 | 🟡 | 🟡 | 🟡 | ✅ | ✅ 23 | No per-member permission overrides, no suspend/reactivate, no hiring-manager intent scoping |
 | **Company settings (SET-02)** | App. A | ✅ | ✅ | ✅ | ✅ | 🔴 **0** | Audit read + company controls; no dedicated suite |

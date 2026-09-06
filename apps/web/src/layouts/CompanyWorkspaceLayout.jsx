@@ -8,6 +8,7 @@ import {
   useSidebarState,
 } from './partials/WorkspaceSidebar';
 import { useCompany } from '@/context/CompanyContext';
+import { useConversationsBadge } from '@/features/messaging/useConversationsBadge';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -94,11 +95,17 @@ const ITEMS = [
         permission: PERMISSIONS.INTEREST_VIEW,
       },
       {
+        /*
+         * Every member, no permission (ADR-025): this is the PERSON's inbox, rendered inside the
+         * company shell — a viewer who cannot start conversations for the company can still be
+         * written to. `message:send` gates starting one, and only at the composer.
+         */
         key: 'messages',
         label: 'Messages',
         icon: 'comments',
         path: PATHS.COMPANY_MESSAGES,
-        permission: PERMISSIONS.CANDIDATE_VIEW,
+        permission: null,
+        badge: 'messages',
       },
       {
         key: 'pipeline',
@@ -174,6 +181,8 @@ export function CompanyWorkspaceLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { companySlug } = useParams();
   const { can, activeCompany } = useCompany();
+  /* Unread messages — the person's, not the company's, so the same count as the candidate rail. */
+  const messagesBadge = useConversationsBadge();
 
   const items = ITEMS.map((group) => ({
     group: group.group,
@@ -185,6 +194,9 @@ export function CompanyWorkspaceLayout() {
         label: item.label,
         icon: item.icon,
         end: item.end,
+        ...(item.badge === 'messages'
+          ? { badge: messagesBadge, badgeLabel: 'unread messages' }
+          : {}),
       })),
   })).filter((group) => group.items.length > 0);
 
@@ -223,7 +235,11 @@ export function CompanyWorkspaceLayout() {
 
       <div className="min-w-0 flex-1">
         <div className="px-4 pt-24 md:hidden">
-          <SidebarTrigger onOpen={() => setMobileOpen(true)} label={railLabel} />
+          <SidebarTrigger
+            onOpen={() => setMobileOpen(true)}
+            label={railLabel}
+            badge={messagesBadge}
+          />
         </div>
         <Suspense fallback={<RouteFallback className="py-24" />}>
           <Outlet />

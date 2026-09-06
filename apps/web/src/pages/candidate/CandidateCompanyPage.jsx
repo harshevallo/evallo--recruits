@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Container, Icon } from '@/components/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
@@ -7,6 +7,7 @@ import { CompanyProfileView } from '@/features/companies/components/CompanyProfi
 import { CompanyProfileSkeleton } from '@/features/companies/components/CompanyProfileSkeleton';
 import { CandidateInterestModal } from '@/features/candidate/components/CandidateInterestModal';
 import { BlockCompanyModal } from '@/features/candidate/components/BlockCompanyModal';
+import { StartConversationModal } from '@/features/messaging/StartConversationModal';
 import { useCompanyProfile } from '@/features/companies/hooks/useCompanyProfile';
 import {
   fetchCompanyRelationship,
@@ -49,6 +50,9 @@ export function CandidateCompanyPage() {
   const [feedback, setFeedback] = useState(null);
   const [interestOpen, setInterestOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
+  /* The listed team member the candidate is writing to (ADR-025), or null. */
+  const [messaging, setMessaging] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -250,6 +254,21 @@ export function CandidateCompanyPage() {
           header button says which of the two it is.
         */
         onExpressInterest={hasInterest || isBlocked ? undefined : () => setInterestOpen(true)}
+        /*
+          Messaging a listed person (ADR-025). Withheld while the company is blocked: a block closes
+          every conversation with people there, so offering to start one would only fail.
+        */
+        onMessageMember={isBlocked ? undefined : (member) => setMessaging(member)}
+      />
+
+      <StartConversationModal
+        open={Boolean(messaging)}
+        onClose={() => setMessaging(null)}
+        recipientName={messaging?.name}
+        recipient={{ recipientUserId: messaging?.userId }}
+        onSent={(result) =>
+          navigate(`${PATHS.CANDIDATE_MESSAGES}?conversation=${result.conversationId}`)
+        }
       />
 
       <CandidateInterestModal

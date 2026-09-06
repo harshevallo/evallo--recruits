@@ -1,8 +1,65 @@
-import { BackLink, Button, Container } from '@/components/ui';
+import { Avatar, BackLink, Button, Container, Icon } from '@/components/ui';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { CompanyProfileHeader } from './CompanyProfileHeader';
 import { CompanyOverview } from './CompanyOverview';
 import { OpenRoleCard } from './OpenRoleCard';
+
+/**
+ * The people who chose to be listed on this page (ADR-025).
+ *
+ * Renders nothing when nobody opted in, so a page without a listed team closes up rather than
+ * showing a heading over an empty space. `onMessageMember` is what makes a listing actionable: a
+ * signed-in candidate gets a Message button per person; an anonymous visitor sees the names and a
+ * line saying that signing in is how you write to them.
+ */
+function TeamSection({ team, onMessageMember, signInHref }) {
+  if (!team?.length) return null;
+
+  return (
+    <section id="team" className="scroll-mt-24">
+      <h2 className="mb-1 text-xl font-bold text-brand-dark">People you can message</h2>
+      <p className="mb-5 text-sm text-gray-600">
+        {onMessageMember
+          ? 'Start a conversation with someone on the team. Your first message reaches them as a request.'
+          : 'Sign in to start a conversation with someone on the team.'}
+      </p>
+
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {team.map((member) => (
+          <li
+            key={member.userId}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <Avatar src={member.photoUrl ?? undefined} initials={member.initials ?? '?'} size="md" alt="" />
+              <span className="truncate text-sm font-semibold text-brand-dark">{member.name}</span>
+            </span>
+            {onMessageMember ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="none"
+                radius="lg"
+                className="shrink-0 px-3.5 py-2 text-sm font-semibold"
+                onClick={() => onMessageMember(member)}
+              >
+                <Icon name="comments" className="text-xs" />
+                Message
+                <span className="sr-only"> {member.name}</span>
+              </Button>
+            ) : (
+              signInHref && (
+                <Button to={signInHref} variant="link" size="none" radius="none" className="shrink-0 text-sm font-medium">
+                  Sign in to message
+                </Button>
+              )
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * THE company profile. One component, every surface that shows a company.
@@ -42,6 +99,10 @@ export function CompanyProfileView({
   actions,
   banner,
   onExpressInterest,
+  /** Called with a listed team member; omit it and the team renders without Message buttons. */
+  onMessageMember,
+  /** Where an anonymous visitor goes to sign in before messaging a listed person. */
+  signInHref,
   editStepHref,
   topSpacing,
 }) {
@@ -69,6 +130,8 @@ export function CompanyProfileView({
 
       <Container className="space-y-16 pb-20">
         <CompanyOverview company={company} editStepHref={editStepHref} />
+
+        <TeamSection team={company.team} onMessageMember={onMessageMember} signInHref={signInHref} />
 
         {/*
           `#open-roles` is a linked anchor from role search results — see `RoleResultCard`. The id

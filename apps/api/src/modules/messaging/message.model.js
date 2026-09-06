@@ -1,13 +1,14 @@
 /**
- * messages — one message in a conversation (PRD §11.2).
+ * messages — one message in a conversation (PRD §11.2; ADR-025).
+ *
+ * Every message names the PERSON who sent it. There is no "side" any more: a conversation has two
+ * participants, and `senderUserId` is one of them. Whether a message is "mine" is decided at read
+ * time by comparing it with the reader — the same row is "mine" to its author and "theirs" to the
+ * other participant.
  */
 
 import mongoose from 'mongoose';
-
-export const MESSAGE_SENDERS = Object.freeze({
-  CANDIDATE: 'candidate',
-  COMPANY: 'company',
-});
+import { MESSAGING_LIMITS } from '@evallo/shared';
 
 const messageSchema = new mongoose.Schema(
   {
@@ -17,15 +18,14 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
-    /** Which SIDE sent it. The individual recruiter is recorded separately, for audit. */
-    senderType: {
+    senderUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+
+    body: {
       type: String,
       required: true,
-      enum: Object.values(MESSAGE_SENDERS),
+      trim: true,
+      maxlength: MESSAGING_LIMITS.BODY_MAX_LENGTH,
     },
-    senderUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-
-    body: { type: String, required: true, trim: true, maxlength: 5000 },
 
     /**
      * PRD §8.2 lists attachments for CAN-09. File storage is undecided (TRD §14 Q2), so the field
@@ -41,11 +41,15 @@ const messageSchema = new mongoose.Schema(
       },
     ],
 
+    /** Stamped when the OTHER participant opens the thread. Never set by the sender. */
     readAt: Date,
   },
   { timestamps: true, collection: 'messages' },
 );
 
 messageSchema.index({ conversationId: 1, createdAt: 1 });
+
+/** The per-person send rate (MESSAGING_LIMITS.MESSAGES_PER_MINUTE). */
+messageSchema.index({ senderUserId: 1, createdAt: -1 });
 
 export const Message = mongoose.model('Message', messageSchema);

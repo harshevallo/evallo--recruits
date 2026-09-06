@@ -93,6 +93,8 @@ export function CompanyProfilePage() {
         company={company}
         backTo={PATHS.COMPANY_DIRECTORY}
         onExpressInterest={openInterest}
+        /* Listed team members are shown; messaging one needs an account (ADR-025). */
+        signInHref={PATHS.SIGN_IN}
       />
 
       <ExpressInterestModal

@@ -612,9 +612,19 @@ export function CompanyTeamPage() {
                       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 p-4"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-brand-dark">
-                          {nameOf(member)}
-                          {isYou && <span className="ml-2 text-xs text-gray-400">(you)</span>}
+                        <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-brand-dark">
+                          <span className="truncate">{nameOf(member)}</span>
+                          {isYou && <span className="text-xs text-gray-400">(you)</span>}
+                          {/*
+                            Listed on the public page, so candidates can message them (ADR-025). Shown,
+                            not editable: the listing is each person's own choice, made from their
+                            company home.
+                          */}
+                          {member.showOnPublicTeam && (
+                            <Badge tone="brandOutline" size="xs" radius="full">
+                              On company page
+                            </Badge>
+                          )}
                         </span>
                         {member.user?.name && (
                           <span className="block truncate text-xs text-gray-500">

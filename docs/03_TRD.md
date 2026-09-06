@@ -127,7 +127,7 @@ would contradict ADR-001.
 /c/:companySlug/saved               → REC-20 saved candidates       [+ candidate:view]
 /c/:companySlug/pipeline            → REC-14                        [+ pipeline:view]
 /c/:companySlug/hires               → REC-19 hires                  [+ pipeline:view]
-/c/:companySlug/messages            → REC-15                        [+ message:send]
+/c/:companySlug/messages            → REC-15 (same inbox as /me/messages, ADR-025) [auth + membership]
 /c/:companySlug/hiring              → REC-16 hiring intents         [+ hiring:manage]
 /c/:companySlug/team                → REC-18                        [+ member:manage]
 /c/:companySlug/settings            → SET-02                        [+ company:settings]

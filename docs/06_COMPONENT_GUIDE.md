@@ -454,3 +454,16 @@ replacing the previous 2 px ring. All three consume `hasError`; their APIs are o
 
 Every token used is a **light-theme value**, so the planned dark theme becomes a `dark:` pass over
 these same tokens rather than a second set of components to keep in sync.
+
+## Added 2026-09-06 — direct messaging (ADR-025)
+
+| Component | Where | Purpose | Props | Notes |
+|---|---|---|---|---|
+| `ConversationsInbox` | `features/messaging/ConversationsInbox.jsx` | **The** inbox: list, thread, composer, request Accept/Decline, mute, report | `backTo`, `backLabel`, `title`, `description`, `emptyDescription`, `emptyAction` | Rendered by both `MessagesPage` and `CompanyMessagesPage` — one person, one inbox. Open thread is `?conversation=<id>`. Explains closed states (`declined`, `awaiting_reply`, reported) from the server's `closedReason`; never decides them itself |
+| `StartConversationModal` | `features/messaging/StartConversationModal.jsx` | The first message to someone; also silently continues an existing thread for the same pair | `open`, `onClose`, `recipientName`, `recipient` (`{ recipientUserId }` or `{ candidateId }`), `companyId`, `companyName`, `interestId`, `onSent` | Used by the candidate viewer, talent search and the candidate's company page. States the pending-request cap up front |
+| `useConversationsBadge` | `features/messaging/useConversationsBadge.js` | Unread count for the workspace rails | — | Polls `/me/conversations/summary` on mount, every 60 s and on window focus; fails silent |
+| `TeamSection` (internal to `CompanyProfileView`) | `features/companies/components/CompanyProfileView.jsx` | "People you can message" — members who opted in | via `CompanyProfileView` props `onMessageMember`, `signInHref` | Renders nothing when nobody is listed; Message buttons only when a handler is supplied (signed-in candidate), otherwise "Sign in to message" |
+
+`MessagesPage` and `CompanyMessagesPage` are now thin wrappers around `ConversationsInbox`. `CompanyHomePage`
+gained the "Let candidates message you" card (the member's own `showOnPublicTeam` switch); `CompanyTeamPage`
+shows an "On company page" badge for listed members.

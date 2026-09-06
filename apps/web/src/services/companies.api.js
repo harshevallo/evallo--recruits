@@ -21,6 +21,19 @@ export async function fetchCompanyMembers(companyIdOrSlug, options = {}) {
   return unwrap(response);
 }
 
+/**
+ * My own listing on this company's public page (ADR-025).
+ *
+ * Any active member may set it; it is consent about oneself. Being listed is what lets a candidate
+ * start a conversation with me from the company page.
+ */
+export async function updateMyPublicListing(companyIdOrSlug, showOnPublicTeam) {
+  const response = await apiClient.patch(`/companies/${companyIdOrSlug}/members/me`, {
+    showOnPublicTeam,
+  });
+  return unwrap(response);
+}
+
 /** Start a candidate profile for the current user. */
 export async function createCandidateProfile(payload = {}) {
   const response = await apiClient.post('/me/candidate-profile', payload);
@@ -183,43 +196,7 @@ export async function withdrawInterest(interestId) {
   return unwrap(response);
 }
 
-/* ── CAN-09 messages ───────────────────────────────────────────────────────────────────────── */
-
-export async function fetchConversations(options = {}) {
-  const response = await apiClient.get('/me/conversations', { signal: options.signal });
-  return unwrap(response);
-}
-
-export async function fetchConversation(conversationId, options = {}) {
-  const response = await apiClient.get(`/me/conversations/${conversationId}`, {
-    signal: options.signal,
-  });
-  return unwrap(response);
-}
-
-export async function sendReply(conversationId, body) {
-  const response = await apiClient.post(`/me/conversations/${conversationId}/messages`, { body });
-  return unwrap(response);
-}
-
-export async function reportConversation(conversationId, reason) {
-  const response = await apiClient.post(`/me/conversations/${conversationId}/report`, { reason });
-  return unwrap(response);
-}
-
-/** CAN-09 — PRD §11.2 accept / decline a company-initiated conversation. */
-export async function respondToConversation(conversationId, accepted) {
-  const response = await apiClient.post(`/me/conversations/${conversationId}/respond`, {
-    accepted,
-  });
-  return unwrap(response);
-}
-
-/** CAN-09 — PRD §11.2 mute / unmute. A muted thread stays readable. */
-export async function setConversationMuted(conversationId, muted) {
-  const response = await apiClient.put(`/me/conversations/${conversationId}/mute`, { muted });
-  return unwrap(response);
-}
+/* CAN-09 / REC-15 messaging moved to `messaging.api.js` — one inbox for everyone (ADR-025). */
 
 /* ── REC-01 invitations ───────────────────────────────────────────────────────────────────── */
 
@@ -614,43 +591,8 @@ export async function deleteCandidateNote(companySlug, noteId) {
   return unwrap(response);
 }
 
-/* ── REC-15 company messaging ─────────────────────────────────────────────────────────────── */
-
-export async function fetchCompanyConversations(companySlug, options = {}) {
-  const response = await apiClient.get(`/companies/${companySlug}/conversations`, {
-    signal: options.signal,
-  });
-  return unwrap(response);
-}
-
-export async function fetchCompanyConversation(companySlug, conversationId, options = {}) {
-  const response = await apiClient.get(
-    `/companies/${companySlug}/conversations/${conversationId}`,
-    { signal: options.signal },
-  );
-  return unwrap(response);
-}
-
-export async function sendCompanyReply(companySlug, conversationId, body) {
-  const response = await apiClient.post(
-    `/companies/${companySlug}/conversations/${conversationId}/messages`,
-    { body },
-  );
-  return unwrap(response);
-}
-
-/**
- * Opens a thread with a candidate, or continues the existing one.
- *
- * `{ candidateId, companyId }` is unique, so a second "message" from a search result continues the
- * conversation rather than forking it — which is what a recruiter expects and what the schema
- * requires.
+/*
+ * REC-15 company messaging is gone (ADR-025). A recruiter starts a conversation with
+ * `startConversation({ candidateId, companyId, body })` in `messaging.api.js`; from then on it is a
+ * personal conversation between two people, read from the same inbox as everything else.
  */
-export async function startCompanyConversation(companySlug, { candidateId, body, interestId }) {
-  const response = await apiClient.post(`/companies/${companySlug}/conversations`, {
-    candidateId,
-    body,
-    interestId,
-  });
-  return unwrap(response);
-}

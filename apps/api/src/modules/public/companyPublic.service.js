@@ -13,6 +13,7 @@ import {
 } from '@evallo/shared';
 import { Company, companyInitials } from '../companies/company.model.js';
 import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
+import { listPublicTeam } from '../memberships/member.service.js';
 import { substringFilter, andFilter } from '../../lib/textSearch.js';
 
 /**
@@ -297,7 +298,7 @@ function pickPublicFields(company) {
  * drift would mean a recruiter publishes something other than what they reviewed. The only
  * difference between preview and live is WHICH companies are reachable — never how they render.
  */
-export function serialisePublicCompany(company, intents = []) {
+export function serialisePublicCompany(company, intents = [], team = []) {
   return {
     ...pickPublicFields(company),
     id: String(company._id),
@@ -305,6 +306,11 @@ export function serialisePublicCompany(company, intents = []) {
     isVerified: (company.verifiedDomains ?? []).length > 0,
     // Never expose the raw verification records publicly — only the resulting badge.
     verifiedDomains: undefined,
+    /**
+     * The people who chose to be shown here (ADR-025). Opt-in per member, name and photo only;
+     * a signed-in candidate can start a conversation with any of them from this list.
+     */
+    team,
     openRoles: intents.map((intent) => ({
       ...intent,
       id: String(intent._id),
@@ -336,7 +342,12 @@ export async function getPublicCompanyBySlug(slug) {
 
   if (!company) return null;
 
-  return serialisePublicCompany(company, await findActiveIntents(company._id));
+  const [intents, team] = await Promise.all([
+    findActiveIntents(company._id),
+    listPublicTeam(company._id),
+  ]);
+
+  return serialisePublicCompany(company, intents, team);
 }
 
 /**

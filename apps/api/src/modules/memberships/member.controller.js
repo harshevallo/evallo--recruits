@@ -45,3 +45,18 @@ export async function postOwnershipTransfer(req, res) {
     }),
   );
 }
+
+/**
+ * PATCH /api/companies/:companyId/members/me — the caller's own public-page listing (ADR-025).
+ *
+ * No `:memberId`: this is consent about oneself, resolved from the caller's membership.
+ */
+export async function patchMyPublicListing(req, res) {
+  return sendSuccess(
+    res,
+    await members.setOwnPublicListing({
+      membership: req.membership,
+      showOnPublicTeam: req.body.showOnPublicTeam,
+    }),
+  );
+}

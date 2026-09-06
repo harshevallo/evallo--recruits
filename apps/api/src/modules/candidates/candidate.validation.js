@@ -82,33 +82,7 @@ export const candidateInterestValidation = {
 
 export const withdrawInterestValidation = { params: z.object({ interestId: objectIdParam }) };
 
-/** CAN-09 — messages. */
-export const conversationParamValidation = {
-  params: z.object({ conversationId: objectIdParam }),
-};
-
-export const replyValidation = {
-  params: z.object({ conversationId: objectIdParam }),
-  body: z.object({
-    body: z.string().trim().min(1, 'Write a message').max(5000, 'Keep it under 5000 characters'),
-  }),
-};
-
-/** PRD §11.2 — accept / decline. */
-export const respondConversationValidation = {
-  params: z.object({ conversationId: objectIdParam }),
-  body: z.object({ accepted: z.boolean() }),
-};
-
-/** PRD §11.2 — mute / unmute. */
-export const muteConversationValidation = {
-  params: z.object({ conversationId: objectIdParam }),
-  body: z.object({ muted: z.boolean() }),
-};
-
-export const reportConversationValidation = {
-  params: z.object({ conversationId: objectIdParam }),
-  body: z.object({
-    reason: z.string().trim().min(1, 'Tell us what is wrong').max(500),
-  }),
-};
+/*
+ * Messaging (CAN-09) is no longer a candidate-only surface. Its request contracts live in
+ * `modules/messaging/messaging.validation.js`, beside the service that owns them (ADR-025).
+ */

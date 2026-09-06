@@ -265,6 +265,9 @@ create hidden discriminatory rules · ranking changes audited for systematic exc
 - [ ] **Internal notes never appear to candidates.** *(Structural: separate collection —
       `05_DATABASE_SCHEMA.md` §9.)*
 - [ ] A candidate can block/report a company and prevent further messages.
+- [x] Messaging is one-to-one between two people; either a candidate or a recruiter may start it,
+      and no colleague, owner or admin can read someone else's conversation *(ADR-025, set by the
+      CTO on 5 Sep 2026 — supersedes the company-scoped reading of §11.2)*.
 - [ ] A first message to a merely-discoverable candidate clearly identifies the company and role
       context.
 - [ ] Candidates are **not** notified when simply saved to a shortlist.

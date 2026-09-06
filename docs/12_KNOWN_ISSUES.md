@@ -216,11 +216,12 @@ seeded volume rather than guessed.
 ### I-10 — Per-row access resolution in pipeline and messaging lists (N+1)
 **Severity:** Medium · **Found:** 2026-08-10 documentation audit
 
-`pipeline.service.js` and `messaging/companyMessaging.service.js` `await candidateCard(...)` **inside**
-a `Promise.all` over rows, and each call runs one to three `exists()` queries through
-`resolveCandidateAccess`. A 25-row board issues up to ~75 extra round trips, fired concurrently
-against a connection pool of **10** (`DB.MAX_POOL_SIZE`), so the pool saturates and requests queue
-behind each other.
+`pipeline.service.js` `await`s `candidateCard(...)` **inside** a `Promise.all` over rows, and each
+call runs one to three `exists()` queries through `resolveCandidateAccess`. A 25-row board issues up
+to ~75 extra round trips, fired concurrently against a connection pool of **10**
+(`DB.MAX_POOL_SIZE`), so the pool saturates and requests queue behind each other. (The messaging
+half of this issue is gone: ADR-025's inbox resolves access at send time, not per row, and lists
+with two batched lookups — users and companies — per page.)
 
 The pattern to copy already exists in this codebase: `search.service.js` batch-preloads interests and
 passes them as `hints`.
@@ -564,3 +565,18 @@ the OG decision exactly as it is.
 ## 4. Future improvements
 
 Tracked in `13_BACKLOG.md`.
+
+### I-19 — Live `messages` collection is 96% orphans; three legacy conversations await a human decision
+**Severity:** Low (data hygiene) · **Found:** 2026-09-06, while rehearsing the ADR-025 migration
+
+552 of the 575 documents in the production `messages` collection reference a conversation that no
+longer exists — almost certainly test suites that ran against the shared `evallo-recruit` database
+(their cleanup deleted conversations by `candidateId`, never the messages beneath them). They are
+unreachable by any code path and cost only storage. Separately, the ADR-025 migration will flag three
+pre-existing conversations `legacy.unmigrated` — one whose company-side message has no
+`senderUserId`, and two where the same account was both the candidate and the recruiter — and leave
+them invisible to the application for a human to review.
+
+**Fix:** `13_BACKLOG.md` B-12 (run the migration) and B-13 (purge orphans after a backup). Also: stop
+running the test suite against the shared database — `08_SETUP_GUIDE.md` should say to point
+`MONGODB_CLOUD` at a local instance for `npm test`.

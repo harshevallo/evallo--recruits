@@ -174,56 +174,7 @@ export async function withdrawInterest(req, res) {
   return sendSuccess(res, await candidateService.withdrawInterestForUser(user, req.params.interestId));
 }
 
-/* ── CAN-09 messages ───────────────────────────────────────────────────────────────────────── */
-
-export async function listConversations(req, res) {
-  const user = await requireAppUser(req);
-  return sendSuccess(res, await candidateService.listConversationsForUser(user));
-}
-
-export async function getConversation(req, res) {
-  const user = await requireAppUser(req);
-  return sendSuccess(res, await candidateService.getConversationForUser(user, req.params.conversationId));
-}
-
-export async function replyToConversation(req, res) {
-  const user = await requireAppUser(req);
-  return sendCreated(
-    res,
-    await candidateService.replyForUser(user, req.params.conversationId, req.body.body),
-  );
-}
-
-/** POST /api/me/conversations/:conversationId/respond — PRD §11.2 accept / decline. */
-export async function respondToConversation(req, res) {
-  const user = await requireAppUser(req);
-  return sendSuccess(
-    res,
-    await candidateService.respondToConversationForUser(
-      user,
-      req.params.conversationId,
-      req.body.accepted,
-    ),
-  );
-}
-
-/** PUT /api/me/conversations/:conversationId/mute — PRD §11.2 mute / unmute. */
-export async function setConversationMuted(req, res) {
-  const user = await requireAppUser(req);
-  return sendSuccess(
-    res,
-    await candidateService.setConversationMutedForUser(
-      user,
-      req.params.conversationId,
-      req.body.muted,
-    ),
-  );
-}
-
-export async function reportConversation(req, res) {
-  const user = await requireAppUser(req);
-  return sendSuccess(
-    res,
-    await candidateService.reportConversationForUser(user, req.params.conversationId, req.body.reason),
-  );
-}
+/*
+ * Messaging (CAN-09) left this controller with ADR-025: a conversation is between two people, not
+ * a candidate capability, so its endpoints live in `modules/messaging/messaging.controller.js`.
+ */

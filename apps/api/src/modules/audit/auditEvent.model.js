@@ -39,6 +39,15 @@ export const AUDIT_ACTIONS = Object.freeze({
 
   NOTE_CREATED: 'note.created',
   NOTE_DELETED: 'note.deleted',
+
+  /**
+   * Direct messaging (ADR-025). PRD §14.3 lists "message send" among the audited actions. The
+   * record carries who wrote, into which conversation, through which company context — and never
+   * the body: the audit trail is a company's own view of its members' activity, and a message is
+   * the two participants' alone.
+   */
+  CONVERSATION_STARTED: 'conversation.started',
+  MESSAGE_SENT: 'message.sent',
 });
 
 export const AUDIT_TARGET_TYPES = Object.freeze({
@@ -46,6 +55,7 @@ export const AUDIT_TARGET_TYPES = Object.freeze({
   HIRING_INTENT: 'hiringIntent',
   PIPELINE_ENTRY: 'pipelineEntry',
   NOTE: 'note',
+  CONVERSATION: 'conversation',
 });
 
 const auditEventSchema = new mongoose.Schema(

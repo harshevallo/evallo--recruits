@@ -195,6 +195,14 @@ export async function getCompanyDashboard(company, membership) {
     yourRole: membership.role,
     permissions,
 
+    /**
+     * The caller's own membership facts the home screen offers a control for (ADR-025): whether
+     * they appear on the public page, which is what makes them messageable by candidates.
+     */
+    yourMembership: {
+      showOnPublicTeam: Boolean(membership.showOnPublicTeam),
+    },
+
     overview: {
       isPublished: company.status === COMPANY_STATUS.PUBLISHED,
       memberCount,

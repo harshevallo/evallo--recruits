@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   CANDIDATE_ROLE_LABELS,
   AVAILABILITY_LABELS,
@@ -8,7 +8,7 @@ import {
   CONTACT_VISIBILITY,
 } from '@evallo/shared';
 import { PIPELINE_STAGE_LABELS } from '@evallo/shared';
-import { Avatar, BackLink, Badge, Button, Container, Icon, Modal } from '@/components/ui';
+import { Avatar, BackLink, Badge, Button, Container, Icon } from '@/components/ui';
 import { Textarea } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -19,12 +19,12 @@ import {
   unsaveCandidate,
   addToPipeline,
   fetchPipeline,
-  startCompanyConversation,
   fetchCandidateNotes,
   createCandidateNote,
   deleteCandidateNote,
 } from '@/services';
 import { PortfolioBody, PortfolioNav } from '@/features/candidate/portfolio/PortfolioDocument';
+import { StartConversationModal } from '@/features/messaging/StartConversationModal';
 import { useCompany } from '@/context/CompanyContext';
 import { PATHS, buildPath } from '@/router/paths';
 
@@ -188,18 +188,19 @@ export function CompanyCandidatePage() {
     }
   }
 
-  async function sendFirstMessage() {
-    if (!composing?.body.trim()) return;
-    setActionBusy(true);
-    try {
-      await startCompanyConversation(companySlug, { candidateId, body: composing.body.trim() });
-      setComposing(null);
-      setActionFeedback({ tone: 'success', text: 'Message sent. It is now in your Messages.' });
-    } catch (error) {
-      setActionFeedback({ tone: 'error', text: error.message ?? 'We could not send that.' });
-    } finally {
-      setActionBusy(false);
-    }
+  /*
+   * Messaging (ADR-025). The composer is `StartConversationModal`, shared with talent search and
+   * the candidate's company page; the message goes out as a person-to-person conversation started
+   * THROUGH this company, and the recruiter lands in it straight away — a sent message that is
+   * only visible on another screen reads as a message that vanished.
+   */
+  const navigate = useNavigate();
+  const { activeCompany } = useCompany();
+
+  function onConversationStarted(result) {
+    navigate(
+      `${buildPath(PATHS.COMPANY_MESSAGES, { companySlug })}?conversation=${result.conversationId}`,
+    );
   }
 
   async function addNote(event) {
@@ -659,48 +660,15 @@ export function CompanyCandidatePage() {
         </div>
       )}
 
-      <Modal
+      <StartConversationModal
         open={Boolean(composing)}
         onClose={() => setComposing(null)}
-        title={`Message ${header.name?.split(' ')[0] || 'this candidate'}`}
-        description="They will see your company name with this message. Keep it about the role."
-      >
-        <label htmlFor="viewer-message" className="mb-1.5 block text-sm font-semibold text-gray-700">
-          Your message
-        </label>
-        <Textarea
-          id="viewer-message"
-          name="viewer-message"
-          rows={5}
-          placeholder="Introduce your company and the role you have in mind…"
-          value={composing?.body ?? ''}
-          disabled={actionBusy}
-          onChange={(event) => setComposing((current) => ({ ...current, body: event.target.value }))}
-        />
-
-        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5">
-          <Button
-            type="button"
-            variant="outlineDark"
-            size="sm"
-            radius="lg"
-            className="!border-gray-300 !text-brand-dark hover:!bg-gray-50"
-            onClick={() => setComposing(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            radius="lg"
-            disabled={actionBusy || !composing?.body?.trim()}
-            onClick={sendFirstMessage}
-          >
-            {actionBusy ? 'Sending…' : 'Send message'}
-          </Button>
-        </div>
-      </Modal>
+        recipientName={header.name}
+        recipient={{ candidateId }}
+        companyId={companySlug}
+        companyName={activeCompany?.name}
+        onSent={onConversationStarted}
+      />
     </Container>
   );
 }

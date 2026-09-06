@@ -24,6 +24,7 @@ import {
   CONTACT_VISIBILITY,
   HIRING_INTENT_STATUS,
   PIPELINE_STAGES,
+  MESSAGING_LIMITS,
 } from '@evallo/shared';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, disconnectDatabase } from '../../src/lib/db.js';
@@ -154,7 +155,8 @@ beforeEach(async () => {
     PipelineEntry.deleteMany({ candidateId: { $in: profileIds } }),
     SavedCandidate.deleteMany({ candidateId: { $in: profileIds } }),
     Note.deleteMany({ candidateId: { $in: profileIds } }),
-    Conversation.deleteMany({ candidateId: { $in: profileIds } }),
+    /* By participant, never by a legacy field — `strictQuery` would turn `{ candidateId }` into `{}`. */
+    Conversation.deleteMany({ participants: { $in: userIds } }),
     AuditEvent.deleteMany({ actorUserId: { $in: userIds } }),
     CandidateProfile.deleteMany({ userId: { $in: userIds } }),
     CompanyMember.deleteMany({ userId: { $in: userIds } }),
@@ -631,95 +633,104 @@ describe('Internal notes (PRD §11.2, §21.4)', () => {
   });
 });
 
-/* ── company messaging ──────────────────────────────────────────────────────────────────────── */
+/* ── messaging from the company workspace ───────────────────────────────────────────────────── */
 
-describe('REC-15 company messaging (PRD §11.2)', () => {
-  test('a second message continues the thread rather than forking it', async () => {
-    const first = await authPost(`/api/companies/${company.id}/conversations`, owner.accessToken, {
-      candidateId: String(open.profile._id),
-      body: 'Hello from Workflow Academy about our SAT role.',
-    });
+/**
+ * ADR-025: a conversation is between two PEOPLE. A recruiter starts one from the personal surface,
+ * naming the company they are acting for; the company is the route in and the context on the
+ * thread, never its owner. These cases are the company-workspace half of `directMessaging.test.js`.
+ */
+describe('REC-15 messaging from the company workspace (PRD §11.2, ADR-025)', () => {
+  /* A sender must have a name — the other person has to know who is writing. */
+  beforeEach(async () => {
+    await User.updateOne({ _id: owner.user._id }, { $set: { name: 'Olive Owner' } });
+    await User.updateOne({ email: VIEWER }, { $set: { name: 'Vic Viewer' } });
+  });
+
+  const start = (token, body, candidateId = String(open.profile._id)) =>
+    authPost('/api/me/conversations', token, { candidateId, companyId: company.id, body });
+
+  test('a second message continues the conversation rather than forking it', async () => {
+    const first = await start(owner.accessToken, 'Hello from Workflow Academy about our SAT role.');
     assert.equal(first.status, 201);
-    const { conversationId } = await bodyOf(first);
+    const opened = await bodyOf(first);
+    assert.equal(opened.created, true);
 
-    const second = await bodyOf(
-      await authPost(`/api/companies/${company.id}/conversations`, owner.accessToken, {
-        candidateId: String(open.profile._id),
-        body: 'Following up.',
-      }),
-    );
-    assert.equal(second.conversationId, conversationId);
-    assert.equal(await Conversation.countDocuments({ companyId: company.id }), 1);
+    const second = await bodyOf(await start(owner.accessToken, 'Following up.'));
+    assert.equal(second.conversationId, opened.conversationId);
+    assert.equal(second.created, false);
+    assert.equal(await Conversation.countDocuments({ participants: owner.user._id }), 1);
 
     const thread = await bodyOf(
-      await authGet(`/api/companies/${company.id}/conversations/${conversationId}`, owner.accessToken),
+      await authGet(`/api/me/conversations/${opened.conversationId}`, owner.accessToken),
     );
     assert.equal(thread.messages.length, 2);
     assert.ok(thread.messages.every((message) => message.mine));
+    assert.equal(thread.conversation.other.name, 'Test Candidate');
+    assert.equal(thread.conversation.company.name, 'Workflow Academy', 'the company is context');
   });
 
-  test('the candidate receives it and can reply, and unread counts are per side', async () => {
+  test('the candidate receives it and can reply, and unread counts are per person', async () => {
     const { conversationId } = await bodyOf(
-      await authPost(`/api/companies/${company.id}/conversations`, owner.accessToken, {
-        candidateId: String(open.profile._id),
-        body: 'Are you available for evenings?',
-      }),
+      await start(owner.accessToken, 'Are you available for evenings?'),
     );
 
-    const candidateList = await bodyOf(await authGet('/api/me/conversations', open.accessToken));
-    assert.equal(candidateList.length, 1);
-    assert.equal(candidateList[0].unread, 1, 'the candidate has one unread');
+    const candidateInbox = await bodyOf(await authGet('/api/me/conversations', open.accessToken));
+    assert.equal(candidateInbox.conversations.length, 1);
+    assert.equal(candidateInbox.conversations[0].unread, 1, 'the candidate has one unread');
+    assert.equal(candidateInbox.conversations[0].isRequest, true, 'and it is a request');
+    assert.equal(candidateInbox.pendingRequests, 1);
 
     await authPost(`/api/me/conversations/${conversationId}/messages`, open.accessToken, {
       body: 'Yes, Tuesdays and Thursdays.',
     });
 
-    const companyList = await bodyOf(
-      await authGet(`/api/companies/${company.id}/conversations`, owner.accessToken),
-    );
-    assert.equal(companyList.conversations[0].unread, 1, 'now the company has one unread');
-    assert.equal(companyList.conversations[0].candidateState, 'accepted', 'replying accepts');
+    const ownerInbox = await bodyOf(await authGet('/api/me/conversations', owner.accessToken));
+    assert.equal(ownerInbox.conversations[0].unread, 1, 'now the owner has one unread');
+    assert.equal(ownerInbox.conversations[0].status, 'accepted', 'replying accepts');
+    assert.equal(ownerInbox.conversations[0].lastMessageFromMe, false);
 
-    // Opening it clears only the company's count.
-    await authGet(`/api/companies/${company.id}/conversations/${conversationId}`, owner.accessToken);
-    const after = await bodyOf(
-      await authGet(`/api/companies/${company.id}/conversations`, owner.accessToken),
-    );
-    assert.equal(after.conversations[0].unread, 0);
+    // Opening it clears only the owner's count.
+    await authGet(`/api/me/conversations/${conversationId}`, owner.accessToken);
+    const after = await bodyOf(await authGet('/api/me/conversations/summary', owner.accessToken));
+    assert.deepEqual(after, { unreadTotal: 0, pendingRequests: 0 });
   });
 
   test('an invisible candidate cannot be messaged', async () => {
-    const res = await authPost(`/api/companies/${company.id}/conversations`, owner.accessToken, {
-      candidateId: String(draft.profile._id),
-      body: 'Hello?',
-    });
+    const res = await start(owner.accessToken, 'Hello?', String(draft.profile._id));
     assert.equal(res.status, 404);
-    assert.equal(await Conversation.countDocuments({ companyId: company.id }), 0);
+    assert.equal(await Conversation.countDocuments({ participants: owner.user._id }), 0);
   });
 
-  test('a viewer cannot send, and an outsider cannot read the thread', async () => {
-    const { conversationId } = await bodyOf(
-      await authPost(`/api/companies/${company.id}/conversations`, owner.accessToken, {
-        candidateId: String(open.profile._id),
-        body: 'Opening message.',
-      }),
-    );
+  test('a viewer cannot start one for the company, and an outsider cannot read it', async () => {
+    const { conversationId } = await bodyOf(await start(owner.accessToken, 'Opening message.'));
 
     assert.equal(
-      (
-        await authPost(
-          `/api/companies/${company.id}/conversations/${conversationId}/messages`,
-          viewerToken,
-          { body: 'I should not be able to send this' },
-        )
-      ).status,
+      (await start(viewerToken, 'I should not be able to send this')).status,
       403,
+      'viewer lacks message:send at this company',
     );
 
-    const outsider = await authGet(
-      `/api/companies/${company.id}/conversations/${conversationId}`,
-      outsiderToken,
-    );
-    assert.ok(outsider.status === 403 || outsider.status === 404, `got ${outsider.status}`);
+    const outsider = await authGet(`/api/me/conversations/${conversationId}`, outsiderToken);
+    assert.equal(outsider.status, 404, 'not a participant — absent, not forbidden');
+  });
+
+  test('a request cannot become a monologue (PRD §16.3 anti-spam)', async () => {
+    let last;
+    for (let i = 0; i < MESSAGING_LIMITS.PENDING_REQUEST_MESSAGE_CAP; i += 1) {
+      last = await start(owner.accessToken, `Message ${i + 1}`);
+      assert.equal(last.status, 201);
+    }
+    const { conversationId } = await bodyOf(last);
+
+    const overflow = await start(owner.accessToken, 'One more?');
+    assert.equal(overflow.status, 400, 'the starter must wait for a reply');
+    assert.ok((await errorOf(overflow)).details?.body, 'and is told why');
+
+    /* Once the candidate accepts, the cap no longer applies. */
+    await authPost(`/api/me/conversations/${conversationId}/respond`, open.accessToken, {
+      accepted: true,
+    });
+    assert.equal((await start(owner.accessToken, 'Thank you!')).status, 201);
   });
 });

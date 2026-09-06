@@ -117,18 +117,8 @@ import {
   createNoteValidation,
   deleteNoteValidation,
 } from '../notes/note.controller.js';
-import {
-  listCompanyConversations,
-  getCompanyConversation,
-  postCompanyReply,
-  postStartConversation,
-} from '../messaging/companyMessaging.controller.js';
-import {
-  companyConversationListValidation,
-  companyConversationParamValidation,
-  companyReplyValidation,
-  startConversationValidation,
-} from '../messaging/companyMessaging.validation.js';
+import { patchMyPublicListing } from '../memberships/member.controller.js';
+import { publicListingValidation } from './company.validation.js';
 
 const router = Router();
 
@@ -215,6 +205,24 @@ router.get(
  * only an owner holds. That second check lives in the service, next to the last-owner guard it
  * works with.
  */
+/*
+ * A member's OWN public-page listing (ADR-025).
+ *
+ * `showOnPublicTeam` is the consent that makes a person reachable by candidates: a listed member
+ * appears on the published company page and can be messaged from it. It is the member's choice
+ * about themselves, so any active member may set it and no permission is required — and it is
+ * deliberately NOT on the `:memberId` route, so an admin cannot volunteer a colleague.
+ *
+ * Declared before `/:companyId/members/:memberId`, whose validation would otherwise reject the
+ * literal `me` as an invalid id.
+ */
+router.patch(
+  '/:companyId/members/me',
+  validate(publicListingValidation),
+  resolveCompanyContext(),
+  asyncHandler(patchMyPublicListing),
+);
+
 router.patch(
   '/:companyId/members/:memberId',
   validate(changeMemberRoleValidation),
@@ -519,43 +527,14 @@ router.delete(
 );
 
 /*
- * REC-15 company-side messaging.
+ * REC-15 company-side messaging routes are GONE (ADR-025).
  *
- * The same conversations CAN-09 shows, from the other side. `message:send` to reply; reading sits
- * behind `candidate:view` because a thread contains what the candidate wrote.
+ * A conversation belongs to its two people, so there is nothing a company can list, read or write
+ * here. A recruiter starts a conversation from the personal surface — `POST /api/me/conversations`
+ * with `companyId` in the body — and the messaging service checks `message:send` at that company
+ * and the candidate's visibility to it, exactly as these routes used to. Reading is personal only:
+ * an owner cannot open a colleague's chat, and that is the point.
  */
-router.get(
-  '/:companyId/conversations',
-  validate(companyConversationListValidation),
-  resolveCompanyContext(),
-  requirePermission(PERMISSIONS.CANDIDATE_VIEW),
-  asyncHandler(listCompanyConversations),
-);
-
-router.get(
-  '/:companyId/conversations/:conversationId',
-  validate(companyConversationParamValidation),
-  resolveCompanyContext(),
-  requirePermission(PERMISSIONS.CANDIDATE_VIEW),
-  asyncHandler(getCompanyConversation),
-);
-
-router.post(
-  '/:companyId/conversations/:conversationId/messages',
-  validate(companyReplyValidation),
-  resolveCompanyContext(),
-  requirePermission(PERMISSIONS.MESSAGE_SEND),
-  asyncHandler(postCompanyReply),
-);
-
-/* Opening a thread from a search result or the candidate viewer — the company's first contact. */
-router.post(
-  '/:companyId/conversations',
-  validate(startConversationValidation),
-  resolveCompanyContext(),
-  requirePermission(PERMISSIONS.MESSAGE_SEND),
-  asyncHandler(postStartConversation),
-);
 
 /*
  * SET-02 — the company's own audit trail (PRD §14.3, §16.1).

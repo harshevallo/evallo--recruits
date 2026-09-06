@@ -116,14 +116,13 @@ before(async () => {
 async function removeFixtures() {
   const users = await User.find({ email: { $in: ALL_EMAILS } }).select('_id');
   const userIds = users.map((u) => u._id);
-  const profiles = await CandidateProfile.find({ userId: { $in: userIds } }).select('_id');
-  const profileIds = profiles.map((p) => p._id);
 
-  const conversations = await Conversation.find({ candidateId: { $in: profileIds } }).select('_id');
+  /* By participant, never by a legacy field — `strictQuery` would turn `{ candidateId }` into `{}`. */
+  const conversations = await Conversation.find({ participants: { $in: userIds } }).select('_id');
 
   await Promise.all([
     Message.deleteMany({ conversationId: { $in: conversations.map((c) => c._id) } }),
-    Conversation.deleteMany({ candidateId: { $in: profileIds } }),
+    Conversation.deleteMany({ participants: { $in: userIds } }),
     CandidateProfile.deleteMany({ userId: { $in: userIds } }),
     CompanyMember.deleteMany({ userId: { $in: userIds } }),
     Session.deleteMany({ userId: { $in: userIds } }),
@@ -383,14 +382,50 @@ describe('a block takes effect through candidateAccess.service', () => {
     assert.equal(res.status, 404);
   });
 
-  test('the blocked company cannot start a conversation', async () => {
+  test('nobody at the blocked company can start a conversation', async () => {
     await block(companyA.id);
+    await User.updateOne({ _id: ownerA.user._id }, { $set: { name: 'Owner A' } });
 
-    const res = await authPost(`/api/companies/${companyA.id}/conversations`, ownerA.accessToken, {
+    const res = await authPost('/api/me/conversations', ownerA.accessToken, {
       candidateId: String(profile._id),
+      companyId: companyA.id,
       body: 'Are you available?',
     });
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 404, 'a blocked company cannot see the candidate, so nothing to message');
+    assert.equal(await Conversation.countDocuments({ participants: ownerA.user._id }), 0);
+  });
+
+  test('a block placed mid-conversation closes it in both directions (PRD §16.3)', async () => {
+    await User.updateOne({ _id: ownerA.user._id }, { $set: { name: 'Owner A' } });
+    await User.updateOne({ _id: candidate.user._id }, { $set: { name: 'Cand Idate' } });
+
+    const started = await authPost('/api/me/conversations', ownerA.accessToken, {
+      candidateId: String(profile._id),
+      companyId: companyA.id,
+      body: 'Are you available?',
+    });
+    assert.equal(started.status, 201);
+    const { conversationId } = await bodyOf(started);
+
+    await block(companyA.id);
+
+    const fromCompany = await authPost(
+      `/api/me/conversations/${conversationId}/messages`,
+      ownerA.accessToken,
+      { body: 'Still there?' },
+    );
+    assert.equal(fromCompany.status, 403, 'the blocked side can no longer write');
+
+    const fromCandidate = await authPost(
+      `/api/me/conversations/${conversationId}/messages`,
+      candidate.accessToken,
+      { body: 'No.' },
+    );
+    assert.equal(fromCandidate.status, 403, 'and neither can the blocker — the thread is closed');
+
+    /* The record survives; the block hides nothing that was already said. */
+    const thread = await authGet(`/api/me/conversations/${conversationId}`, candidate.accessToken);
+    assert.equal(thread.status, 200);
   });
 
   test('unblocking restores access', async () => {
