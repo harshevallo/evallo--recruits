@@ -468,3 +468,16 @@ these same tokens rather than a second set of components to keep in sync.
 `MessagesPage` and `CompanyMessagesPage` are now thin wrappers around `ConversationsInbox`. `CompanyHomePage`
 gained the "Let candidates message you" card (the member's own `showOnPublicTeam` switch); `CompanyTeamPage`
 shows an "On company page" badge for listed members.
+
+## Added 2026-09-06 — appearance (dark theme) and the public candidate portfolio
+
+| Component | Where | Purpose | Props | Notes |
+|---|---|---|---|---|
+| `ThemeProvider` · `useTheme` · `ThemeSync` | `context/ThemeContext.jsx` | Owns the `dark` class on `<html>`; resolves `light` / `dark` / `system` (follows `prefers-color-scheme` live) | — | Provider sits outside `AuthProvider` (theme applies to signed-out screens; never calls the API). `ThemeSync` (rendered in `RootLayout`) copies the account's `themePreference` in once a session exists. Preference mirrored to `localStorage` under `evallo.theme`, which the inline script in `index.html` reads before first paint |
+| `AppearanceSettings` | `features/account/AppearanceSettings.jsx` | The Light / Dark / System control on Settings → Account | — | A `radiogroup` with arrow-key navigation. Applies immediately, then `PATCH /api/me { themePreference }`; a failed save keeps the theme applied and says so |
+| `EducatorPortfolioPage` | `pages/public/EducatorPortfolioPage.jsx` | `/e/:slug` — the public candidate portfolio (`CANDIDATE_VISIBILITY.PUBLIC`) | route param `slug` | Same renderer as the share link (`PortfolioNav`/`PortfolioHero`/`PortfolioBody`), opposite security model: stable address, anyone may read, ends when the candidate leaves `public`. One failure state for every reason a slug does not resolve. `noindex` while the API reports `meta.indexable: false` |
+
+**Theming rule for new components:** use the palette classes as before (`bg-white`, `text-gray-600`,
+`bg-blue-50`…) — they are variables and flip on their own. Only a surface that is dark in BOTH themes
+(a hero band, the mobile drawer) needs white-relative tints (`text-white/80`, `bg-white/10`) instead
+of the grey scale, because the grey scale flips.

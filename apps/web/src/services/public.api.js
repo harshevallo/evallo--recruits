@@ -101,6 +101,23 @@ export async function fetchSharedPortfolio(token, options = {}) {
 }
 
 /**
+ * The public candidate portfolio, by slug — the page behind `CANDIDATE_VISIBILITY.PUBLIC`.
+ *
+ * Unauthenticated: `skipAuth` keeps a signed-in reader's token out of a request that never needs
+ * it. The API answers 404 for every reason a slug might not resolve, so the page has one failure
+ * state.
+ *
+ * @returns {Promise<{ profile: object, meta: { slug: string, indexable: boolean } }>}
+ */
+export async function fetchPublicPortfolio(slug, options = {}) {
+  const response = await apiClient.get(`/candidates/${encodeURIComponent(slug)}`, {
+    signal: options.signal,
+    skipAuth: true,
+  });
+  return unwrap(response);
+}
+
+/**
  * Express interest in a company or one of its open roles — PUB-02.
  *
  * @param {string} slug

@@ -20,7 +20,7 @@ export const SETTINGS_SECTIONS = [
   {
     to: PATHS.SETTINGS_ACCOUNT,
     title: 'Account',
-    description: 'Your personal account information',
+    description: 'Your personal account information and appearance (light or dark theme)',
     icon: 'user',
     action: 'Edit',
   },

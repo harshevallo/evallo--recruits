@@ -43,6 +43,16 @@ export const PATHS = Object.freeze({
    */
   PUBLIC_PORTFOLIO: '/p/:token',
 
+  /*
+   * The public candidate portfolio — the page behind `CANDIDATE_VISIBILITY.PUBLIC`.
+   *
+   * A stable, printable address (`/e/jane-doe`), the opposite of the share token above: anyone may
+   * read it, and the candidate ends it by changing their visibility rather than by rotating a
+   * secret. The Visibility screen has handed candidates this address since the API shipped; this
+   * route is the page that answers it. `/e/` for "educator", short enough for a CV.
+   */
+  PUBLIC_EDUCATOR: '/e/:slug',
+
   // Marketing content pages — placeholders until content exists.
   PRICING: '/pricing',
   ASSESSMENTS: '/assessments',

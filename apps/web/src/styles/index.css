@@ -2,7 +2,183 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ── Theme tokens ──────────────────────────────────────────────────────────────────────────────
+ *
+ * Every colour class in the app resolves to one of these variables (see `tailwind.config.js`).
+ * `:root` is the light theme — the Tailwind defaults, restated, so light mode is pixel-identical to
+ * before the dark theme existed. `.dark` on `<html>` swaps the values; nothing else changes.
+ *
+ * Values are `R G B` triplets, never `rgb()`, so opacity modifiers keep working.
+ *
+ * Dark values are chosen by ROLE, not by numeric inversion: surfaces (`white`, `gray-50`,
+ * `slate-50`) become a family of dark greys where the card is slightly LIGHTER than the page, as it
+ * is in light mode; low shades (tints such as `blue-50`, `green-50`) become deep tints; high shades
+ * (`gray-900`, `blue-900`, used as ink on those tints) become light. Mid shades used for icons and
+ * status dots stay roughly where they are.
+ */
 @layer base {
+  :root {
+    color-scheme: light;
+
+    --white: 255 255 255;
+    --ink: 10 10 11;
+    --ink-inverse: 255 255 255;
+
+    --brand-blue: 6 113 224;
+    --brand-dark: 10 10 11;
+    --brand-light: 248 250 252;
+    --brand-gray: 51 65 85;
+    --brand-50: 239 246 255;
+
+    --gray-50: 249 250 251;
+    --gray-100: 243 244 246;
+    --gray-200: 229 231 235;
+    --gray-300: 209 213 219;
+    --gray-400: 156 163 175;
+    --gray-500: 107 114 128;
+    --gray-600: 75 85 99;
+    --gray-700: 55 65 81;
+    --gray-800: 31 41 55;
+    --gray-900: 17 24 39;
+
+    --slate-50: 248 250 252;
+    --slate-100: 241 245 249;
+    --slate-200: 226 232 240;
+    --slate-300: 203 213 225;
+    --slate-400: 148 163 184;
+    --slate-500: 100 116 139;
+    --slate-600: 71 85 105;
+    --slate-700: 51 65 85;
+    --slate-800: 30 41 59;
+    --slate-900: 15 23 42;
+
+    --blue-50: 239 246 255;
+    --blue-100: 219 234 254;
+    --blue-200: 191 219 254;
+    --blue-300: 147 197 253;
+    --blue-400: 96 165 250;
+    --blue-500: 59 130 246;
+    --blue-600: 37 99 235;
+    --blue-700: 29 78 216;
+    --blue-800: 30 64 175;
+    --blue-900: 30 58 138;
+
+    --green-50: 240 253 244;
+    --green-100: 220 252 231;
+    --green-200: 187 247 208;
+    --green-300: 134 239 172;
+    --green-400: 74 222 128;
+    --green-500: 34 197 94;
+    --green-600: 22 163 74;
+    --green-700: 21 128 61;
+    --green-800: 22 101 52;
+    --green-900: 20 83 45;
+
+    --red-50: 254 242 242;
+    --red-100: 254 226 226;
+    --red-200: 254 202 202;
+    --red-300: 252 165 165;
+    --red-400: 248 113 113;
+    --red-500: 239 68 68;
+    --red-600: 220 38 38;
+    --red-700: 185 28 28;
+    --red-800: 153 27 27;
+    --red-900: 127 29 29;
+
+    --amber-50: 255 251 235;
+    --amber-100: 254 243 199;
+    --amber-200: 253 230 138;
+    --amber-300: 252 211 77;
+    --amber-400: 251 191 36;
+    --amber-500: 245 158 11;
+    --amber-600: 217 119 6;
+    --amber-700: 180 83 9;
+    --amber-800: 146 64 14;
+    --amber-900: 120 53 15;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* Surfaces. Card (`white`) sits a step above the page (`gray-50`), as in light mode. */
+    --white: 30 33 39;
+    --ink: 240 242 245;
+    --ink-inverse: 255 255 255;
+
+    --brand-blue: 61 139 240;
+    --brand-dark: 0 0 0;
+    --brand-light: 22 24 28;
+    --brand-gray: 186 196 212;
+    --brand-50: 19 36 60;
+
+    --gray-50: 22 24 28;
+    --gray-100: 40 44 51;
+    --gray-200: 54 59 68;
+    --gray-300: 70 77 88;
+    --gray-400: 138 146 160;
+    --gray-500: 160 168 181;
+    --gray-600: 186 193 204;
+    --gray-700: 210 215 223;
+    --gray-800: 229 232 237;
+    --gray-900: 243 245 247;
+
+    --slate-50: 22 25 30;
+    --slate-100: 38 43 51;
+    --slate-200: 52 59 70;
+    --slate-300: 72 81 95;
+    --slate-400: 138 149 168;
+    --slate-500: 160 172 191;
+    --slate-600: 186 196 212;
+    --slate-700: 211 219 231;
+    --slate-800: 226 232 240;
+    --slate-900: 241 245 249;
+
+    --blue-50: 19 36 60;
+    --blue-100: 24 47 79;
+    --blue-200: 40 74 120;
+    --blue-300: 66 118 186;
+    --blue-400: 96 165 250;
+    --blue-500: 59 130 246;
+    --blue-600: 61 139 240;
+    --blue-700: 120 175 245;
+    --blue-800: 160 200 250;
+    --blue-900: 205 226 251;
+
+    --green-50: 18 40 28;
+    --green-100: 22 54 36;
+    --green-200: 30 80 52;
+    --green-300: 52 130 86;
+    --green-400: 74 222 128;
+    --green-500: 34 197 94;
+    --green-600: 52 211 122;
+    --green-700: 110 231 160;
+    --green-800: 160 240 195;
+    --green-900: 200 247 220;
+
+    --red-50: 46 22 22;
+    --red-100: 66 28 28;
+    --red-200: 96 38 38;
+    --red-300: 150 60 60;
+    --red-400: 248 113 113;
+    --red-500: 244 96 96;
+    --red-600: 248 113 113;
+    --red-700: 252 150 150;
+    --red-800: 253 185 185;
+    --red-900: 254 210 210;
+
+    --amber-50: 46 37 14;
+    --amber-100: 66 52 16;
+    --amber-200: 100 78 24;
+    --amber-300: 160 125 40;
+    --amber-400: 251 191 36;
+    --amber-500: 245 158 11;
+    --amber-600: 251 191 36;
+    --amber-700: 252 211 77;
+    --amber-800: 253 230 138;
+    --amber-900: 254 243 199;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
@@ -46,29 +222,27 @@
 }
 
 @layer utilities {
-  /* Hero headline gradient — from the prototype. */
+  /* Hero headline gradient — from the prototype. Brand blue in both themes. */
   .gradient-text {
-    background-color: theme('colors.brand.blue');
-    background-image: linear-gradient(45deg, theme('colors.brand.blue'), #4f93e6);
+    background-color: rgb(var(--brand-blue));
+    background-image: linear-gradient(45deg, rgb(var(--brand-blue)), #4f93e6);
     background-size: 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
-  /* Hero backdrop: near-black with two soft brand-blue radial glows. */
   /*
-   * One base colour across the whole landing page.
+   * Landing-page backdrop: the page surface with two soft brand-blue radial glows.
    *
-   * The hero used to be `brand.dark` while the sections below were white, so scrolling crossed a
-   * hard light/dark seam. The base is now the same white as everything else and brand blue appears
-   * only as a soft wash — which is also what makes the coming dark theme a token swap rather than a
-   * redesign of this one section.
+   * One base colour across the whole landing page — the same surface as everything else, so
+   * scrolling never crosses a light/dark seam. Because the surface is a theme token, the dark
+   * theme gets the same treatment on a dark base with no second rule.
    */
   .hero-pattern {
-    background-color: theme('colors.white');
+    background-color: rgb(var(--white));
     background-image:
-      radial-gradient(circle at top right, rgb(6 113 224 / 0.08), transparent 45%),
-      radial-gradient(circle at bottom left, rgb(6 113 224 / 0.06), transparent 45%);
+      radial-gradient(circle at top right, rgb(var(--brand-blue) / 0.08), transparent 45%),
+      radial-gradient(circle at bottom left, rgb(var(--brand-blue) / 0.06), transparent 45%);
   }
 }

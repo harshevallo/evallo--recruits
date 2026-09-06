@@ -1,6 +1,6 @@
 # 14 — Progress Tracker
 
-**Last updated:** 2026-09-06 (messaging rebuilt as direct two-person conversations, either side may start — ADR-025; production migration pending, `13_BACKLOG.md` B-12)
+**Last updated:** 2026-09-06 (dark theme via Settings → Account → Appearance; `/e/:slug` public candidate portfolio page — the address the Visibility screen had been handing out with no page behind it; messaging rebuilt as direct two-person conversations — ADR-025, migrated in production)
 **Current milestone:** M5 — Recruiting workflow 🔄 **recruiter loop functional end to end**
 **Overall:** 36 of 45 screens complete, 4 partial, 4 pending, 1 post-MVP
 

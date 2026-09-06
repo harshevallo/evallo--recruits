@@ -37,6 +37,7 @@ export async function updateUserProfile(userId, updates) {
     'location',
     'languages',
     'accountLanguages',
+    'themePreference',
   ];
   for (const field of allowed) {
     if (updates[field] !== undefined) user[field] = updates[field];

@@ -86,6 +86,7 @@ consequential schema decision in the project.
 | `deletedAt` | ✅ | Date | | Anonymisation, not removal (PRD §16.1) |
 | `phone` | ✅ | String | | Account-level contact number, added by SET-01. **Account identity, not profile content** — never returned on a recruiter-facing surface; what a company sees is decided by the candidate's own `contactVisibility` rules, and this field is not on that path |
 | `notificationPreferences` | ✅ | Mixed | | SET-01. A map keyed by event, each `{ email, inApp }`. `Mixed` with `default: undefined` so absent keys fall back to the service defaults and a new event type needs no migration. The service **refuses to write** a preference for `security` events (PRD §15: security notices cannot be disabled) rather than storing one that would be ignored. **Stored only — nothing reads these to decide whether to send anything** (see `12_KNOWN_ISSUES.md`) |
+| `themePreference` | ✅ | String | `light` · `dark` · `system` (default) | SET-01 → Account → Appearance (2026-09-06). The colour theme the person reads the product in. On the account so it follows them across devices; the client mirrors it in `localStorage` so the first paint is already the right colour |
 | `deletionRequestedAt` | ✅ | Date | | Set when the person asks for deletion (SET-01 → Your data). The account is retained until processed; `status` moves to `deletion_pending` |
 | `authMethods` | ⏳ | [Object] | | Multi-provider linking. Superseded for now by `provider` + `googleId`/`microsoftId`; needed for AUTH-13 |
 

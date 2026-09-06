@@ -5,6 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <!--
+      Theme, before the first paint.
+
+      The saved preference lives in localStorage (mirrored from the account by ThemeContext), and
+      React only mounts after the bundle downloads. Without this a dark-theme user sees a white flash
+      on every load. Same key and same resolution rule as `context/ThemeContext.jsx` — change both.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('evallo.theme');
+          var preference = stored === 'light' || stored === 'dark' ? stored : 'system';
+          var dark =
+            preference === 'dark' ||
+            (preference === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (error) {
+          /* Storage blocked: fall through to light, which is what the stylesheet already paints. */
+        }
+      })();
+    </script>
+
     <!-- Inter. preconnect shaves a round trip off the render-critical path. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

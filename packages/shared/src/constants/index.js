@@ -5,3 +5,4 @@ export * from './states.js';
 export * from './pipelineStages.js';
 export * from './errorCodes.js';
 export * from './messaging.js';
+export * from './theme.js';

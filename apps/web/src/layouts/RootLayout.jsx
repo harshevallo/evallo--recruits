@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { ScrollToTop } from '@/router/ScrollToTop';
 import { ScrollToHash } from '@/router/ScrollToHash';
 import { CompanyProvider } from '@/context/CompanyContext';
+import { ThemeSync } from '@/context/ThemeContext';
 import { RouteFallback } from '@/router/RouteFallback';
 
 /**
@@ -22,6 +23,8 @@ export function RootLayout() {
     <CompanyProvider>
       <ScrollToTop />
       <ScrollToHash />
+      {/* The account's saved theme follows the person onto this device (ThemeContext). */}
+      <ThemeSync />
 
       <a href="#main-content" className="skip-link">
         Skip to main content

@@ -10,7 +10,7 @@
  */
 
 import mongoose from 'mongoose';
-import { USER_STATUS } from '@evallo/shared';
+import { USER_STATUS, THEME_PREFERENCES, THEME_PREFERENCE_VALUES } from '@evallo/shared';
 
 export const PLATFORM_ROLES = Object.freeze({
   MEMBER: 'member',
@@ -129,6 +129,19 @@ const userSchema = new mongoose.Schema(
     accountLanguages: [String],
 
     /**
+     * Appearance — light, dark, or follow the device (SET-01 → Account).
+     *
+     * On the account rather than only in the browser so it follows the person across devices. The
+     * client mirrors it in `localStorage` so the first paint is already the right colour; this is
+     * the source of truth once they are signed in.
+     */
+    themePreference: {
+      type: String,
+      enum: THEME_PREFERENCE_VALUES,
+      default: THEME_PREFERENCES.SYSTEM,
+    },
+
+    /**
      * Failed sign-in throttling (AUTH-04). Per-account, so an attacker cannot dodge the limit by
      * rotating IPs. Both fields reset on a successful sign-in.
      */
@@ -194,6 +207,7 @@ userSchema.methods.toPublicProfile = function toPublicProfile() {
     location: this.location ?? null,
     languages: this.languages ?? [],
     accountLanguages: this.accountLanguages ?? [],
+    themePreference: this.themePreference ?? THEME_PREFERENCES.SYSTEM,
     onboardingCompletedAt: this.onboardingCompletedAt ?? null,
     createdAt: this.createdAt,
   };

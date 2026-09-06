@@ -9,6 +9,28 @@ Categories: `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Sec
 
 ## [Unreleased]
 
+### Added — 2026-09-06 · Dark theme, and the public candidate portfolio page
+
+- **Appearance setting (SET-01 → Account).** Light, dark, or follow the device. Applies on click;
+  saved to the account as `users.themePreference` (`PATCH /api/me`) so it follows the person across
+  devices, and mirrored in `localStorage` so an inline script in `index.html` paints the right
+  colour before React mounts. `ThemeProvider` / `useTheme` / `ThemeSync` in
+  `context/ThemeContext.jsx`; `AppearanceSettings` in `features/account/`.
+- **How dark mode is built.** The whole palette is CSS variables (`styles/index.css`, `:root` and
+  `.dark`), and `tailwind.config.js` maps every colour family the app uses (`white`, `gray`, `slate`,
+  `blue`, `green`, `red`, `amber`, `brand`) onto them — so the ~1,400 existing colour classes flip
+  without a `dark:` twin on each. `white` and `brand.dark` are split by role (surface vs text) via
+  `theme.extend.textColor`. Two components that sit on deliberately dark surfaces in both themes
+  (`MobileNavDrawer`, `Button outlineDark`) now use white-relative tints instead of the grey scale.
+  **A Tailwind config change needs a dev-server restart** — Vite does not reload it.
+- **`/e/:slug` — the public candidate portfolio page** (`EducatorPortfolioPage`). The API
+  (`GET /api/candidates/:slug`) and the visibility state had shipped, and the Visibility screen was
+  already handing candidates this address with a copy button and the words "the page itself is being
+  built"; following the link met the 404 screen. The page now exists, reuses the portfolio renderer,
+  writes `noindex` while the API reports `meta.indexable: false`, and the Visibility screen gained a
+  "View your public portfolio" link. `robots.txt` disallows `/e/` until the indexing decision is
+  taken.
+
 ### Changed — 2026-09-06 · Messaging rebuilt as direct, two-person conversations (ADR-025)
 
 Set by the CTO on the call of 5 Sep 2026: *"Chat is one to one. Two people should be part of the

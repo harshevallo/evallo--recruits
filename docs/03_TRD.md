@@ -89,6 +89,7 @@ would contradict ADR-001.
 /blog /market-research /about /contact                              [public]
 /terms  /privacy                                                    [public]
 /p/:token                           → shared portfolio link         [public, tokenised]
+/e/:slug                            → public candidate portfolio   [public — CANDIDATE_VISIBILITY.PUBLIC only; noindex until the indexing decision]
 
 /signin  /signup  /verify-email  /restore-account
 /forgot-password  /reset-password                                   [public]

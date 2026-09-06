@@ -272,6 +272,7 @@ export async function exportAccountData(userId) {
       /* Part of the same personal datum — an export that omitted it would be incomplete. */
       phoneCountry: user.phoneCountry ?? null,
       accountLanguages: user.accountLanguages ?? [],
+      themePreference: user.themePreference ?? 'system',
       headline: user.headline ?? null,
       location: user.location ?? null,
       languages: user.languages ?? [],

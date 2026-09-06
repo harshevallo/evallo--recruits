@@ -60,7 +60,7 @@ someone else.
 
 | Collection | Personal data | Whose | Purpose | Current retention |
 |---|---|---|---|---|
-| `users` | name, email, bcrypt password hash, `googleId`/`microsoftId`, profile picture URL, headline, **phone**, location (country/region/city/timezone), languages, notification preferences, `lastLoginAt`, failed-login counters | The account holder | Account identity, authentication, personal profile layer | **Indefinite.** `deletionRequestedAt` and `deletedAt` exist; nothing writes `deletedAt` |
+| `users` | name, email, bcrypt password hash, `googleId`/`microsoftId`, profile picture URL, headline, **phone**, location (country/region/city/timezone), languages, notification preferences, theme preference (light/dark/system), `lastLoginAt`, failed-login counters | The account holder | Account identity, authentication, personal profile layer | **Indefinite.** `deletionRequestedAt` and `deletedAt` exist; nothing writes `deletedAt` |
 | `authSessions` | user id, refresh-token **hash**, **IP address**, **user agent**, expiry, revocation reason | Account holder | Session management, reuse detection | Self-pruning — **TTL index on `expiresAt`** |
 | `verificationTokens` | token hash, email, purpose | Account holder | Email verification, password reset | Self-pruning — **TTL index on `expiresAt`** |
 

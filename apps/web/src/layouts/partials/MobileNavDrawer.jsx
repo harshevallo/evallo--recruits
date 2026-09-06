@@ -40,8 +40,13 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
 
   if (!open) return null;
 
+  /*
+   * This drawer is a DARK surface in both themes (`bg-brand-dark`), so its text and hover tints are
+   * expressed relative to white rather than through the grey scale — which flips in the dark theme
+   * and would turn "light grey on near-black" into "dark grey on black".
+   */
   const itemClass =
-    'block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-800 hover:text-white';
+    'block rounded-md px-3 py-2 text-base font-medium text-white/80 hover:bg-white/10 hover:text-white';
 
   const groups = isAuthenticated ? accountDestinations(capabilities, pathname) : [];
 
@@ -53,7 +58,7 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
         and settings on top of the marketing links, which on a short phone would otherwise push
         sign-out below the fold with no way to reach it.
       */
-      className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-gray-800 bg-brand-dark/95 backdrop-blur-md md:hidden"
+      className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-white/10 bg-brand-dark/95 backdrop-blur-md md:hidden"
     >
       <nav className="space-y-1 px-2 pb-3 pt-2 sm:px-3" aria-label="Mobile">
         {links.map((link) =>
@@ -71,9 +76,9 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
         {isAuthenticated ? (
           <>
             {groups.map((group) => (
-              <div key={group.group} className="mt-1 border-t border-gray-800 pt-1">
+              <div key={group.group} className="mt-1 border-t border-white/10 pt-1">
                 {group.label && (
-                  <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                  <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white/50">
                     {group.label}
                   </p>
                 )}
@@ -85,7 +90,7 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
                     onClick={onClose}
                     className={
                       item.current
-                        ? `${itemClass} flex items-center gap-2.5 !bg-gray-800 !text-white`
+                        ? `${itemClass} flex items-center gap-2.5 !bg-white/10 !text-white`
                         : `${itemClass} flex items-center gap-2.5`
                     }
                   >
@@ -101,9 +106,9 @@ export function MobileNavDrawer({ id, open, onClose, links, ctaTo, ctaLabel }) {
               </div>
             ))}
 
-            <div className="mt-1 border-t border-gray-800 pt-1">
+            <div className="mt-1 border-t border-white/10 pt-1">
               {user?.email && (
-                <p className="truncate px-3 py-1 text-xs text-gray-500">{user.email}</p>
+                <p className="truncate px-3 py-1 text-xs text-white/60">{user.email}</p>
               )}
               <button
                 type="button"

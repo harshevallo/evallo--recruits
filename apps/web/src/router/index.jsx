@@ -57,6 +57,11 @@ const PlaceholderPage = lazy(() =>
 const SharedPortfolioPage = lazy(() =>
   import('@/pages/public/SharedPortfolioPage').then((m) => ({ default: m.SharedPortfolioPage })),
 );
+const EducatorPortfolioPage = lazy(() =>
+  import('@/pages/public/EducatorPortfolioPage').then((m) => ({
+    default: m.EducatorPortfolioPage,
+  })),
+);
 
 // Auth (beyond the two entry screens)
 const ForgotPasswordPage = lazy(() =>
@@ -529,6 +534,8 @@ export const router = createBrowserRouter([
        * chunk, which is exactly the case that boundary exists for: a split route outside a layout.
        */
       { path: PATHS.PUBLIC_PORTFOLIO, element: <SharedPortfolioPage /> },
+      /* The public candidate portfolio — the page the Visibility screen has been linking to. */
+      { path: PATHS.PUBLIC_EDUCATOR, element: <EducatorPortfolioPage /> },
 
       { path: PATHS.NOT_FOUND, element: <NotFoundPage /> },
     ],

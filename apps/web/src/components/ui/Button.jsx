@@ -17,8 +17,13 @@ const VARIANTS = {
   primary:
     'bg-brand-blue text-white shadow-lg hover:bg-blue-600 hover:shadow-brand-blue/40',
   /** Outlined on a dark surface. Hero secondary. */
+  /*
+   * Expressed relative to white, not through the grey scale: this variant lives on surfaces that
+   * are dark in BOTH themes, and the grey scale flips in the dark theme (gray-800 becomes light),
+   * which would have put white text on a light hover.
+   */
   outlineDark:
-    'bg-transparent border border-gray-600 text-white hover:border-gray-400 hover:bg-gray-800',
+    'bg-transparent border border-white/40 text-white hover:border-white/70 hover:bg-white/10',
   /**
    * Outlined on a LIGHT surface — the secondary action on any normal page.
    *

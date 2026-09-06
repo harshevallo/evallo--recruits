@@ -52,6 +52,9 @@ import {
   FaQuoteLeft,
   FaUsers,
   FaGlobe,
+  FaSun,
+  FaMoon,
+  FaCircleHalfStroke,
 } from 'react-icons/fa6';
 import { FaLinkedinIn, FaFacebookF, FaInstagram } from 'react-icons/fa';
 
@@ -108,6 +111,10 @@ const REGISTRY = {
   quote: FaQuoteLeft,
   users: FaUsers,
   globe: FaGlobe,
+  /* Appearance (theme) controls. */
+  sun: FaSun,
+  moon: FaMoon,
+  'circle-half-stroke': FaCircleHalfStroke,
   'building-columns': FaBuildingColumns,
   star: FaStar,
   /*

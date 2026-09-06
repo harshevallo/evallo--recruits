@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { common, isDiallableCountry, isAccountLanguage } from '@evallo/shared';
+import {
+  common,
+  isDiallableCountry,
+  isAccountLanguage,
+  THEME_PREFERENCE_VALUES,
+} from '@evallo/shared';
 
 /**
  * A country that actually has a dialling code.
@@ -53,6 +58,11 @@ export const updateProfileValidation = {
           .refine(isAccountLanguage, 'Choose a language from the list'),
       )
       .max(20)
+      .optional(),
+
+    /* Appearance. A closed set: the client can only ask for a theme that exists. */
+    themePreference: z
+      .enum(THEME_PREFERENCE_VALUES, { errorMap: () => ({ message: 'Choose a theme' }) })
       .optional(),
   }),
 };

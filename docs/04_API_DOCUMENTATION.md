@@ -519,7 +519,9 @@ HOME-01 in full, including the context switcher.
 **Purpose** — AUTH-04 and later personal profile edits.
 
 **Request** — any of `name`, `headline`, `phone`, `phoneCountry`, `location`, `languages`,
-`accountLanguages`.
+`accountLanguages`, `themePreference` (`light` · `dark` · `system`; SET-01 → Account → Appearance.
+The client applies the theme immediately and saves it here so it follows the account across
+devices).
 
 **Notes** — Allowlisted. `email`, `password`, `provider`, `platformRole`, `status`, and
 `onboardingCompletedAt` are **not** settable here.

@@ -119,13 +119,17 @@ function PublicLinkPanel({ slug }) {
       </div>
 
       {/*
-        No "View public profile" button yet, and that is deliberate rather than an omission: the
-        page at this address does not exist until the next step. A button leading to a 404 is
-        worse than no button. It arrives with the portfolio page.
+        The page at this address exists now (`EducatorPortfolioPage`, `/e/:slug`). Opened in a new
+        tab so the candidate sees exactly what a stranger sees without losing their settings.
       */}
-      <p className="mt-3 text-xs text-gray-600">
-        The page itself is being built — this address is reserved for you and will stay the same.
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button href={url} variant="link" size="none" radius="none" className="text-sm font-semibold">
+          View your public portfolio
+        </Button>
+        <span className="text-xs text-gray-600">
+          Contact details are never shown on it. Switching away from Public takes the page down.
+        </span>
+      </div>
 
       <p aria-live="polite" className="sr-only">
         {copied ? 'Link copied to clipboard.' : ''}

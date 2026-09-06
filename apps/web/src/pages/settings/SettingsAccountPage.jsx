@@ -12,6 +12,7 @@ import { Badge, Button } from '@/components/ui';
 import { FormField, TextInput, SelectInput, ComboboxInput } from '@/components/form';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { ProfilePhotoUploader } from '@/features/account/ProfilePhotoUploader';
+import { AppearanceSettings } from '@/features/account/AppearanceSettings';
 import { useAuth } from '@/context/AuthContext';
 import { updateCurrentUser } from '@/services';
 import { rankOptions, SEARCH_THRESHOLD } from '@/utils/optionSearch';
@@ -152,6 +153,12 @@ export function SettingsAccountPage() {
           {feedback.text}
         </StatusRegion>
       )}
+
+      {/*
+        Appearance saves on its own, immediately, and sits outside the identity form below: a theme
+        change should never wait for — or be blocked by — a name validation error.
+      */}
+      <AppearanceSettings />
 
       <form
         noValidate

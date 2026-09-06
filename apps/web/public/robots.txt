@@ -19,6 +19,12 @@ Disallow: /me/
 # carry noindex, and the API answers with X-Robots-Tag: noindex.
 Disallow: /p/
 
+# Public candidate portfolios (/e/:slug). Public by the candidate's choice, but whether SEARCH
+# ENGINES may index them is a separate consent decision that has not been made yet — the API
+# answers with X-Robots-Tag: noindex and the page writes the same. Kept out of crawling until that
+# decision is taken; remove this line together with `meta.indexable` in the API.
+Disallow: /e/
+
 # Company workspaces: recruiter search, pipeline, messages, interests, team, settings.
 Disallow: /c/
 
