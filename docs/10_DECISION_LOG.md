@@ -1629,3 +1629,30 @@ and deleted conversations without their messages. A one-line cleanup, listed in 
 - Open for the CTO, deliberately not decided here: company-page (shared) chat; whether a candidate
   should also be able to reach a recruiter who has *viewed* their profile; email notification of new
   messages (the `message` preference exists, nothing sends yet — `13_BACKLOG.md`).
+
+### Addendum, 2026-09-06 (later the same day) — people are shown by default
+
+The first cut listed a member on the public page only after they opted in, reading PRD §7.4
+("public team members who opt in to appear") literally. In practice that left every company page
+without anyone to message, so a candidate could not start a conversation at all — which is the half
+of this decision the CTO asked for. The product owner then set the rule:
+
+> *"Messaging should be available publicly, but you have to sign in to message them, and their
+> details will be private."*
+
+So, as implemented and applied to the live data the same day:
+
+- **Shown by default.** Every active member whose role carries `message:send` (owner, admin,
+  recruiter, hiring manager) appears by name and photo on the published company page.
+  `CompanyMember.showOnPublicTeam` now defaults to `true`; the switch on the company home hides a
+  person from anonymous visitors. Sixteen live memberships were switched on in one update.
+- **Sign in to message.** The anonymous page shows "Sign in to message"; only a signed-in candidate
+  gets the Message button. A signed-in candidate may write to anyone on the hiring team, hidden or
+  not (`messagingPolicy.reachableCompanyOf`), and to anyone who chose to be shown; a viewer who is
+  hidden is not reachable, because nothing they did invited a conversation.
+- **Details private.** The listing and the relationship payload carry `userId`, `name`, `photoUrl`
+  and `initials` — never an email or phone number. Nothing in messaging reveals contact details;
+  the candidate's own contact rules still govern those.
+
+This overrides the opt-in reading of PRD §7.4 on the product owner's instruction, recorded here so
+the deviation is deliberate rather than drift. The rest of ADR-025 is unchanged.

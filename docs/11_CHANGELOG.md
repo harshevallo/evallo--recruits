@@ -38,6 +38,17 @@ start it**. Supersedes both the company-scoped thread and ADR-024's per-employee
   page; "People you can message" team section on company pages; "Let candidates message you" switch
   on the company home; "On company page" badge on the team roster; unread badge on both rails from
   `/me/conversations/summary`; Messages item in the company rail needs no permission.
+- **Later the same day (ADR-025 addendum):** people are shown on the public company page **by
+  default** — every active member whose role carries `message:send` — with "Sign in to message" for
+  visitors and a Message button for signed-in candidates; a member can hide from visitors, and a
+  signed-in candidate can still reach anyone on the hiring team. Set at the product owner's
+  instruction ("messaging should be available publicly, but you have to sign in to message them, and
+  their details will be private"), overriding PRD §7.4's opt-in wording. `showOnPublicTeam` now
+  defaults to `true`; the 16 live hiring-team memberships were switched on. The relationship endpoint
+  carries the hiring team as `team`. A shared `MessageCandidateButton` now sits on the interest inbox,
+  saved candidates and the pipeline board, so a recruiter can write from wherever they see a
+  candidate. **The migration was applied to production the same day** after a backup of
+  `conversations`, `messages` and `companyMembers`: 4 in place, 1 split, 3 merged, 3 flagged.
 - **Shared:** `CONVERSATION_STATUS`, `MESSAGING_LIMITS`.
 - **Tests:** `directMessaging.test.js` (new, 26); `joinRequests`, `candidateJourney`,
   `recruiterWorkflow`, `candidateBlocking` rewritten; `messagingPerPerson`, `conversationRecruiterId`

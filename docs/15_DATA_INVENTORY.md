@@ -108,7 +108,7 @@ This is the group that needs the most care, in both the policy and the deletion 
 | `accessGrants` | candidate id, company id, `withdrawnAt` | Candidate | System | Indefinite |
 | `conversations` | **two participant user ids**, who started it, request state, per-person unread/mute/read position, the company it began through, report flag with reporter (ADR-025) | Both | The two participants only — never the company | Indefinite |
 | `messages` | **message body (up to 5 000 chars)**, sender user id, read receipts | Both | The two participants only | Indefinite |
-| `companyMembers.showOnPublicTeam` | a member's consent to be listed by name and photo on the public company page, which makes them messageable by candidates (ADR-025) | Member | Public (anonymous visitors see name + photo; `userId` is exposed as the message address) | Until switched off |
+| `companyMembers.showOnPublicTeam` | whether a hiring-team member appears by name and photo on the public company page (ADR-025). **Default on** since 2026-09-06 at the product owner's instruction; the member can switch it off. `userId` is exposed as the message address; no contact detail ever is | Member | Public (anonymous visitors see name + photo); signed-in candidates additionally see the whole hiring team via the relationship endpoint | Until switched off |
 | `notes` | **free-text recruiter notes about the candidate**, author user id | Candidate | Company staff | Indefinite |
 | `pipelineEntries` | candidate id, stage, stage history, rejection reason code and note, owner | Candidate | Company staff | Indefinite |
 | `savedCandidates` | candidate id, company id, saving user | Candidate | Company staff | Indefinite |

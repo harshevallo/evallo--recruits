@@ -276,7 +276,7 @@ collection on every request (ADR-006).
 | `role` | String | ✅ | `owner \| admin \| recruiter \| hiring_manager \| viewer` (PRD §4.2) |
 | `status` | String | ✅ | `invited \| active \| suspended \| removed` (PRD §14.2) |
 | `permissionOverrides` | [String] | | Explicit grants beyond role, e.g. delegated `company:transfer` |
-| `showOnPublicTeam` | Boolean | | Opt-in only — PRD §7.4 requires member consent |
+| `showOnPublicTeam` | Boolean | `true` | Shown by name and photo on the public company page, where a signed-in candidate can message them (ADR-025 addendum, 2026-09-06). Default ON at the product owner's instruction, overriding PRD §7.4's opt-in wording; the member can switch it off. Never exposes contact details |
 | `invitedBy`, `invitedAt`, `acceptedAt`, `removedAt` | mixed | | Audit trail |
 
 **An invitation is a row in this collection, not a separate one.** A pending invite is a

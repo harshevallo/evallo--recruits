@@ -10,6 +10,7 @@ import { FormField, TextInput, Textarea, SelectInput, Checkbox } from '@/compone
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { useCompany } from '@/context/CompanyContext';
+import { MessageCandidateButton } from '@/features/messaging/MessageCandidateButton';
 import {
   fetchPipeline,
   changePipelineStage,
@@ -365,6 +366,15 @@ export function CompanyPipelinePage() {
                             </span>
                           )}
                         </div>
+
+                        {/* Write to the person in this stage without leaving the board (ADR-025). */}
+                        <MessageCandidateButton
+                          candidateId={entry.candidate.id}
+                          candidateName={entry.candidate.name}
+                          companySlug={companySlug}
+                          size="none"
+                          className="mt-3 w-full justify-center px-3 py-1.5 text-xs font-semibold"
+                        />
 
                         {mayEdit && (
                           <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">

@@ -20,6 +20,7 @@ import { HiringIntent } from '../hiring-intents/hiringIntent.model.js';
 import { ExpressionOfInterest } from '../interests/expressionOfInterest.model.js';
 import { AccessGrant } from '../interests/accessGrant.model.js';
 import { SavedCompany } from './savedCompany.model.js';
+import { listHiringTeam } from '../memberships/member.service.js';
 /*
  * The one definition of "hiring", shared with the public directory and profile. Imported rather
  * than restated so this overlay can never disagree with the page it overlays.
@@ -133,7 +134,7 @@ export async function listSavedCompanies(profile) {
 export async function getCompanyRelationship(profile, slug) {
   const company = await publishedCompany(slug);
 
-  const [saved, interest, withActiveRoles] = await Promise.all([
+  const [saved, interest, withActiveRoles, team] = await Promise.all([
     SavedCompany.findOne({ candidateId: profile._id, companyId: company._id }).lean(),
     ExpressionOfInterest.findOne({
       candidateId: profile._id,
@@ -141,11 +142,18 @@ export async function getCompanyRelationship(profile, slug) {
       status: { $in: ACTIVE_INTEREST_STATES },
     }).lean(),
     companiesWithActiveRoles([company._id]),
+    listHiringTeam(company._id),
   ]);
 
   return {
     companyId: String(company._id),
     saved: Boolean(saved),
+    /**
+     * The people this signed-in candidate can message here (ADR-025): the hiring team plus anyone
+     * shown on the public page. Name, photo and the id to address a message to — never contact
+     * details.
+     */
+    team,
     /**
      * CAN-04 — whether this candidate has blocked this company.
      *

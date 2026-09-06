@@ -21,9 +21,13 @@
  *     `resolveCandidateAccess` that governs search and the viewer — or a colleague at that company.
  *     This is the recruiter → candidate path, unchanged in substance from before.
  *
- *   · **Through a public team listing** (no `companyId`). The recipient has opted in to appear on a
- *     PUBLISHED company page (`showOnPublicTeam`), which is the consent that makes them reachable.
- *     This is the candidate → recruiter path — the half that did not exist before ADR-025.
+ *   · **As a person at a published company** (no `companyId`). The recipient is on the HIRING TEAM
+ *     of a published company — an active member whose role carries `message:send` — or has opted
+ *     in to appear on that company's public page (`showOnPublicTeam`). This is the candidate →
+ *     recruiter path — the half that did not exist before ADR-025. The hiring team is reachable by a
+ *     signed-in candidate whether or not they chose to be shown to anonymous visitors: writing to
+ *     candidates is their job, and the same people reveal their names the moment they write first.
+ *     Appearing on the PUBLIC page stays opt-in, as PRD §7.4 requires.
  *
  * Anything else is "that person cannot be messaged", reported as absent rather than forbidden so
  * that the endpoint cannot be used to discover who holds an account.
@@ -173,31 +177,34 @@ export async function resolveOrigin({ sender, recipient, companyId }) {
     return { companyId: company._id, candidateId: profile._id };
   }
 
-  const listing = await publicListingOf(recipient._id);
-  if (!listing) throw ApiError.notFound('That person cannot be messaged.');
+  const reachable = await reachableCompanyOf(recipient._id);
+  if (!reachable) throw ApiError.notFound('That person cannot be messaged.');
 
-  return { companyId: listing.companyId, candidateId: null };
+  return { companyId: reachable.companyId, candidateId: null };
 }
 
 /**
- * The published company page this person has chosen to appear on, if any.
+ * The published company through which a signed-in candidate may write to this person, if any.
  *
- * `showOnPublicTeam` is opt-in per membership ("a recruiter is never shown without consent"), and
- * the company must be published — an unpublished page lists nobody, so it can make nobody
- * reachable.
+ * Two memberships qualify: one whose ROLE grants `message:send` (the hiring team — owners, admins,
+ * recruiters, hiring managers) and one the person has switched `showOnPublicTeam` on for. The
+ * company must be published — an unpublished page has no hiring team the public can see, so it can
+ * make nobody reachable. A viewer at a company who has not opted in is not reachable: their role
+ * cannot start conversations, and nothing they did invited one.
  */
-export async function publicListingOf(userId) {
-  const memberships = await CompanyMember.find({
-    userId,
-    status: MEMBERSHIP_STATUS.ACTIVE,
-    showOnPublicTeam: true,
-  })
-    .select('companyId')
+export async function reachableCompanyOf(userId) {
+  /* `status` is selected because `can()` fails closed on a membership without one. */
+  const memberships = await CompanyMember.find({ userId, status: MEMBERSHIP_STATUS.ACTIVE })
+    .select('companyId role status permissionOverrides showOnPublicTeam')
     .lean();
-  if (memberships.length === 0) return null;
+
+  const qualifying = memberships.filter(
+    (membership) => membership.showOnPublicTeam || can(membership, PERMISSIONS.MESSAGE_SEND),
+  );
+  if (qualifying.length === 0) return null;
 
   const company = await Company.findOne({
-    _id: { $in: memberships.map((membership) => membership.companyId) },
+    _id: { $in: qualifying.map((membership) => membership.companyId) },
     status: COMPANY_STATUS.PUBLISHED,
   })
     .select('_id')

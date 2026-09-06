@@ -14,6 +14,7 @@ import {
   updateInterestStatus,
   markInterestViewed,
 } from '@/services';
+import { MessageCandidateButton } from '@/features/messaging/MessageCandidateButton';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -350,6 +351,15 @@ export function CompanyInterestsPage() {
                       >
                         Open profile
                       </Button>
+                    )}
+
+                    {/* Reply to interest with a message, straight from the inbox (ADR-025). */}
+                    {row.candidate.viewable && (
+                      <MessageCandidateButton
+                        candidateId={row.candidate.profileId}
+                        candidateName={row.candidate.summary?.name || row.contact.name}
+                        companySlug={companySlug}
+                      />
                     )}
 
                     {row.actionable ? (

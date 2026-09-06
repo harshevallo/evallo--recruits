@@ -881,8 +881,10 @@ and photo only — never an email or id. `company` is the context the conversati
 have (idempotent on the pair). Body: `{ body, recipientUserId? , candidateId?, companyId?, interestId? }`
 with **exactly one** of `recipientUserId` / `candidateId`:
 
-- `recipientUserId` — a person **listed on a published company page** (`showOnPublicTeam`). The
-  candidate → recruiter route. Anyone not listed is `404 That person cannot be messaged.`
+- `recipientUserId` — a person at a **published company**: anyone on its hiring team (a role that
+  carries `message:send`) or anyone shown on its public page (`showOnPublicTeam`). The candidate →
+  recruiter route. Anyone else — a hidden viewer, an outsider, a non-existent id — is
+  `404 That person cannot be messaged.`
 - `candidateId` + `companyId` (id or slug) — a candidate reached **through a company** the caller is
   an active member of with `message:send` (`403` without it; `404` for a company the caller is not a
   member of), and whom that company may see (`resolveCandidateAccess`, else `404`). A colleague at
@@ -1329,12 +1331,16 @@ there. See §6c. An owner or admin cannot open a colleague's conversation; that 
 ### `PATCH /api/companies/:companyId/members/me` — my public-page listing
 
 Body `{ showOnPublicTeam: boolean }` → `{ showOnPublicTeam }`. Any **active member**, no permission:
-being listed on the published company page is consent about oneself, and it is what lets a
-candidate start a conversation with that person (`POST /api/me/conversations` with
-`recipientUserId`). Deliberately not on the `:memberId` route, so nobody can list a colleague. Listed
+whether one's own name and photo appear to anonymous visitors is a decision about oneself.
+Deliberately not on the `:memberId` route, so nobody can show or hide a colleague. **On by default**
+(ADR-025 addendum, 2026-09-06): the hiring team is visible on the published company page and a
+signed-in candidate can message them from there; switching it off hides the person from visitors who
+are not signed in, but a signed-in candidate can still write to anyone on the hiring team. Shown
 people appear as `team: [{ userId, name, photoUrl, initials }]` in `GET /api/public/companies/:slug`
-and in the REC-06 preview; `GET /api/companies/:companyId/dashboard` reports the caller's own flag as
-`yourMembership.showOnPublicTeam`.
+and in the REC-06 preview; the signed-in candidate's `GET /api/me/companies/:slug/relationship`
+carries the fuller `team` (hiring team plus anyone shown); `GET /api/companies/:companyId/dashboard`
+reports the caller's own flag as `yourMembership.showOnPublicTeam`. None of these payloads carries an
+email address or phone number.
 
 `attachments` is present in every message payload and **always empty** — the field is reserved and
 there is no upload path (see `05_DATABASE_SCHEMA.md` §9).

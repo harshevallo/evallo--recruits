@@ -64,8 +64,17 @@ const companyMemberSchema = new mongoose.Schema(
     /** Scopes an assignment-limited role (hiring manager) to specific hiring intents. */
     assignedIntentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'HiringIntent' }],
 
-    /** Public team listing is opt-in — a recruiter is never shown without consent. */
-    showOnPublicTeam: { type: Boolean, default: false },
+    /**
+     * Shown by name and photo on the company's public page, where a signed-in candidate can start
+     * a conversation with them (ADR-025).
+     *
+     * ON by default since 2026-09-06, at the product owner's instruction: "messaging should be
+     * available publicly, but you have to sign in to message them, and their details will be
+     * private." A member can switch it off from their company home. What is shown is a name and a
+     * photo — never an email or phone number. (PRD §7.4 described the listing as opt-in; the
+     * product owner overrode that so candidates always have someone to write to.)
+     */
+    showOnPublicTeam: { type: Boolean, default: true },
 
     invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     invitedAt: Date,

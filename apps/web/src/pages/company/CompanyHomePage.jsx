@@ -334,16 +334,17 @@ export function CompanyHomePage() {
         className="mt-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
       >
         <h2 id="listing-heading" className="mb-1 text-lg font-bold text-brand-dark">
-          Let candidates message you
+          Candidates can message you
         </h2>
         <p className="mb-4 text-sm text-gray-600">
-          Listed people appear by name and photo on {company.name}&apos;s public page, and a
-          candidate can start a conversation with them from there. Your email is never shown.
-          {!overview.isPublished && ' The page is not published yet, so nobody is listed until it is.'}
+          The hiring team appears by name and photo on {company.name}&apos;s public page, and a
+          signed-in candidate can start a conversation from there. Your email and phone are never
+          shown, and every conversation is between you and one candidate — teammates cannot read it.
+          {!overview.isPublished && ' The page is not published yet, so nobody is shown until it is.'}
         </p>
         <Checkbox
           label="Show me on the company page"
-          description="You can turn this off at any time. Existing conversations are unaffected."
+          description="On by default. Turn it off to hide your name from visitors who are not signed in; signed-in candidates can still write to anyone on the hiring team. Existing conversations are unaffected."
           checked={listedOnPage}
           onChange={toggleListing}
         />

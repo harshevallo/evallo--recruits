@@ -204,12 +204,15 @@ beforeEach(async () => {
       ...extra,
     });
 
-  await member(ana.user, acme, COMPANY_ROLES.OWNER);
+  /*
+   * Showing on the public page is ON by default. Ana and Vic switch it off so the suite can tell
+   * "hidden but on the hiring team" (Ana, reachable) from "hidden and not on it" (Vic, not).
+   */
+  await member(ana.user, acme, COMPANY_ROLES.OWNER, { showOnPublicTeam: false });
   /* Ana also recruits for Bright — the same person, two company contexts. */
-  await member(ana.user, bright, COMPANY_ROLES.RECRUITER);
-  /* Ben has chosen to be listed on Acme's public page; Ana has not. */
-  await member(ben.user, acme, COMPANY_ROLES.RECRUITER, { showOnPublicTeam: true });
-  await member(vic.user, acme, COMPANY_ROLES.VIEWER);
+  await member(ana.user, bright, COMPANY_ROLES.RECRUITER, { showOnPublicTeam: false });
+  await member(ben.user, acme, COMPANY_ROLES.RECRUITER);
+  await member(vic.user, acme, COMPANY_ROLES.VIEWER, { showOnPublicTeam: false });
 });
 
 /* ── One conversation per pair of people ────────────────────────────────────────────────────── */
@@ -344,10 +347,20 @@ describe('a candidate starting a conversation', () => {
     assert.equal(benInbox.unreadTotal, 1);
   });
 
-  test('cannot reach a person who is not listed (absent, not forbidden)', async () => {
+  test('reaches the hiring team even when they hide from the public page', async () => {
+    /* Ana is an owner who switched the public listing off — a signed-in candidate can still write. */
     const res = await authPost('/api/me/conversations', cara.accessToken, {
       recipientUserId: String(ana.user._id),
       body: 'Hi Ana',
+    });
+    assert.equal(res.status, 201);
+  });
+
+  test('cannot reach someone who is neither on the hiring team nor shown (absent, not forbidden)', async () => {
+    /* Vic is a viewer — no message:send — and hidden. Nothing invited a conversation. */
+    const res = await authPost('/api/me/conversations', cara.accessToken, {
+      recipientUserId: String(vic.user._id),
+      body: 'Hi Vic',
     });
     assert.equal(res.status, 404);
     assert.equal(await Conversation.countDocuments({ participants: cara.user._id }), 0);
@@ -647,12 +660,12 @@ describe('per-person limits (PRD §16.3)', () => {
 /* ── Public team listing ────────────────────────────────────────────────────────────────────── */
 
 describe('the public team listing', () => {
-  test('shows only members who opted in, with the id a candidate messages', async () => {
+  test('shows everyone who has not hidden themselves, with the id a candidate messages', async () => {
     const page = await bodyOf(await fetch(`${baseUrl}/api/public/companies/${ACME}`));
     assert.deepEqual(
       page.team.map((member) => member.name),
       ['Ben Recruiter'],
-      'Ana and Vic did not opt in',
+      'Ana and Vic switched the listing off; Ben kept the default',
     );
     assert.equal(page.team[0].userId, String(ben.user._id));
     assert.equal(page.team[0].email, undefined, 'never an email address');

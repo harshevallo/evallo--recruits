@@ -259,6 +259,8 @@ export function CandidateCompanyPage() {
           every conversation with people there, so offering to start one would only fail.
         */
         onMessageMember={isBlocked ? undefined : (member) => setMessaging(member)}
+        /* The hiring team, from the relationship endpoint — fuller than the anonymous page's list. */
+        team={relationship?.team}
       />
 
       <StartConversationModal

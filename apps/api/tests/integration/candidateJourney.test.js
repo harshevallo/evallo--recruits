@@ -1004,13 +1004,17 @@ describe('CAN-09 messages', () => {
     assert.equal(list.data.conversations.length, 1, 'one conversation per pair of people');
   });
 
-  test('a candidate cannot start a conversation with someone who is not listed', async () => {
+  test('a candidate cannot start a conversation with someone who is neither on the hiring team nor shown', async () => {
     const { accessToken, profile } = await readyCandidate();
     const company = await makeCompany();
     const { conversation: earlier, recruiter } = await companyOpensThread(profile, company);
     await Message.deleteMany({ conversationId: earlier._id });
     await Conversation.deleteOne({ _id: earlier._id });
-    await CompanyMember.updateOne({ userId: recruiter._id }, { $set: { showOnPublicTeam: false } });
+    /* A viewer cannot start conversations for the company, and this one hid from the page too. */
+    await CompanyMember.updateOne(
+      { userId: recruiter._id },
+      { $set: { role: 'viewer', showOnPublicTeam: false } },
+    );
 
     const res = await authPost('/api/me/conversations', accessToken, {
       recipientUserId: String(recruiter._id),

@@ -5,6 +5,7 @@ import { Avatar, Badge, Button, Container, Icon } from '@/components/ui';
 import { StatusRegion } from '@/components/feedback/StatusRegion';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { addToPipeline, fetchSavedCandidates, unsaveCandidate } from '@/services';
+import { MessageCandidateButton } from '@/features/messaging/MessageCandidateButton';
 import { PATHS, buildPath } from '@/router/paths';
 
 /**
@@ -121,6 +122,15 @@ function SavedRow({ row, companySlug, busy, onAddToPipeline, onUnsave }) {
             <span className="sr-only"> — {candidate?.name ?? 'this candidate'}</span>
           </Button>
         )}
+
+        {/* Writing to a saved candidate, without first opening their profile (ADR-025). */}
+        <MessageCandidateButton
+          candidateId={candidate?.id}
+          candidateName={candidate?.name}
+          companySlug={companySlug}
+          size="none"
+          className="justify-center px-3.5 py-2 text-sm font-semibold"
+        />
 
         <Button
           type="button"

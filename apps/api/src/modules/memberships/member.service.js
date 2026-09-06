@@ -276,11 +276,34 @@ export async function setOwnPublicListing({ membership, showOnPublicTeam }) {
  * conversation, not to hand out contact details.
  */
 export async function listPublicTeam(companyId) {
+  return listTeam(companyId, { showOnPublicTeam: true });
+}
+
+/**
+ * The people a SIGNED-IN candidate may write to at a company (ADR-025): everyone whose role
+ * carries `message:send`, plus anyone who opted onto the public page. Rendered on the candidate's
+ * view of the company page — never on the anonymous one, which PRD §7.4 keeps opt-in.
+ */
+export async function listHiringTeam(companyId) {
+  const members = await CompanyMember.find({
+    companyId,
+    status: MEMBERSHIP_STATUS.ACTIVE,
+    userId: { $type: 'objectId' },
+  })
+    .select('_id role permissionOverrides showOnPublicTeam status')
+    .lean();
+  const ids = members
+    .filter((member) => member.showOnPublicTeam || can(member, PERMISSIONS.MESSAGE_SEND))
+    .map((member) => member._id);
+  return ids.length ? listTeam(companyId, { _id: { $in: ids } }) : [];
+}
+
+async function listTeam(companyId, filter) {
   const memberships = await CompanyMember.find({
     companyId,
     status: MEMBERSHIP_STATUS.ACTIVE,
-    showOnPublicTeam: true,
     userId: { $type: 'objectId' },
+    ...filter,
   })
     .select('userId acceptedAt createdAt')
     .sort({ acceptedAt: 1, createdAt: 1 })

@@ -5,23 +5,38 @@ import { CompanyOverview } from './CompanyOverview';
 import { OpenRoleCard } from './OpenRoleCard';
 
 /**
- * The people who chose to be listed on this page (ADR-025).
+ * The people at this company a candidate can write to (ADR-025).
  *
- * Renders nothing when nobody opted in, so a page without a listed team closes up rather than
- * showing a heading over an empty space. `onMessageMember` is what makes a listing actionable: a
- * signed-in candidate gets a Message button per person; an anonymous visitor sees the names and a
- * line saying that signing in is how you write to them.
+ * Public by default, as the product owner asked: "messaging should be available publicly, but you
+ * have to sign in to message them, and their details will be private." So the names and photos of
+ * the hiring team are visible to anyone, the Message button appears only for a signed-in candidate
+ * (`onMessageMember`), and nothing here is ever a contact detail — an anonymous visitor gets
+ * "Sign in to message" instead.
+ *
+ * On the anonymous page an empty team closes up; on the signed-in page it says so, because a
+ * candidate who came here to write to someone deserves an answer rather than a missing section.
  */
 function TeamSection({ team, onMessageMember, signInHref }) {
-  if (!team?.length) return null;
+  if (!team?.length) {
+    if (!onMessageMember) return null;
+    return (
+      <section id="team" className="scroll-mt-24">
+        <h2 className="mb-1 text-xl font-bold text-brand-dark">People you can message</h2>
+        <p className="text-sm text-gray-600">
+          Nobody at this company is available for messages yet. You can still express interest, and
+          a recruiter who opens your profile can write to you.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section id="team" className="scroll-mt-24">
       <h2 className="mb-1 text-xl font-bold text-brand-dark">People you can message</h2>
       <p className="mb-5 text-sm text-gray-600">
         {onMessageMember
-          ? 'Start a conversation with someone on the team. Your first message reaches them as a request.'
-          : 'Sign in to start a conversation with someone on the team.'}
+          ? 'Start a conversation with someone on the hiring team. Your first message reaches them as a request; they see your name and profile, never your contact details.'
+          : 'Sign in to start a conversation with someone on the hiring team.'}
       </p>
 
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -103,6 +118,12 @@ export function CompanyProfileView({
   onMessageMember,
   /** Where an anonymous visitor goes to sign in before messaging a listed person. */
   signInHref,
+  /**
+   * The people to show. Defaults to the public payload's `team`; the signed-in candidate page
+   * passes the fuller list from its relationship endpoint (the hiring team, whether or not each
+   * person is shown to anonymous visitors).
+   */
+  team,
   editStepHref,
   topSpacing,
 }) {
@@ -131,7 +152,11 @@ export function CompanyProfileView({
       <Container className="space-y-16 pb-20">
         <CompanyOverview company={company} editStepHref={editStepHref} />
 
-        <TeamSection team={company.team} onMessageMember={onMessageMember} signInHref={signInHref} />
+        <TeamSection
+          team={team ?? company.team}
+          onMessageMember={onMessageMember}
+          signInHref={signInHref}
+        />
 
         {/*
           `#open-roles` is a linked anchor from role search results — see `RoleResultCard`. The id
