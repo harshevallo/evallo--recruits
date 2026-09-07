@@ -44,3 +44,7 @@ apps/api/tests/integration/__*.generated.mjs
 
 # Windows / OneDrive folder metadata
 desktop.ini
+
+# OneDrive / Windows sync conflict duplicates — never commit these
+* - Copy*
+*-LAPTOP-*
